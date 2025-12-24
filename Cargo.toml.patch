@@ -1,0 +1,17 @@
+# Cargo.toml に追加する機能フラグ
+
+[features]
+default = ["basic-logging"]
+basic-logging = []
+advanced-monitoring = []
+performance-optimization = []
+ui-components = []
+persistence = []
+auto-reconnect = []
+full-features = [
+    "advanced-monitoring", 
+    "performance-optimization", 
+    "ui-components", 
+    "persistence", 
+    "auto-reconnect"
+]

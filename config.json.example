@@ -1,0 +1,47 @@
+{
+  "aws": {
+    "default_profile": null,
+    "default_region": "us-east-1",
+    "connection_timeout": 30,
+    "request_timeout": 60
+  },
+  "session": {
+    "max_sessions_per_instance": 3,
+    "health_check_interval": 5,
+    "timeout_prediction_threshold": 300,
+    "inactive_timeout": 30,
+    "reconnection": {
+      "enabled": true,
+      "max_attempts": 5,
+      "base_delay_ms": 1000,
+      "max_delay_ms": 16000,
+      "aggressive_mode": false,
+      "aggressive_attempts": 10,
+      "aggressive_interval_ms": 500
+    }
+  },
+  "performance": {
+    "monitoring_enabled": true,
+    "metrics_interval": 10,
+    "latency_threshold_ms": 200,
+    "optimization_enabled": true
+  },
+  "resources": {
+    "max_memory_mb": 10,
+    "max_cpu_percent": 0.5,
+    "low_power_mode": true,
+    "monitoring_interval": 5
+  },
+  "ui": {
+    "rich_ui": true,
+    "update_interval_ms": 1000,
+    "show_progress": true,
+    "notifications": true
+  },
+  "logging": {
+    "level": "info",
+    "file_logging": true,
+    "log_file": null,
+    "json_format": false
+  }
+}

@@ -1,0 +1,77 @@
+# EC2 Connect Configuration Example (TOML format)
+
+[aws]
+# AWS profile to use (optional, uses default if not specified)
+default_profile = null
+# Default AWS region
+default_region = "us-east-1"
+# Connection timeout in seconds
+connection_timeout = 30
+# Request timeout in seconds
+request_timeout = 60
+
+[session]
+# Maximum number of concurrent sessions per instance
+max_sessions_per_instance = 3
+# Session health check interval in seconds
+health_check_interval = 5
+# Session timeout prediction threshold in seconds
+timeout_prediction_threshold = 300
+# Inactive session detection timeout in seconds
+inactive_timeout = 30
+
+[session.reconnection]
+# Enable automatic reconnection
+enabled = true
+# Maximum number of reconnection attempts
+max_attempts = 5
+# Base delay between reconnection attempts in milliseconds
+base_delay_ms = 1000
+# Maximum delay between reconnection attempts in milliseconds
+max_delay_ms = 16000
+# Enable aggressive reconnection mode (faster retries for first N attempts)
+aggressive_mode = false
+# Number of aggressive reconnection attempts
+aggressive_attempts = 10
+# Interval between aggressive attempts in milliseconds
+aggressive_interval_ms = 500
+
+[performance]
+# Enable performance monitoring
+monitoring_enabled = true
+# Performance metrics collection interval in seconds
+metrics_interval = 10
+# Connection latency threshold in milliseconds
+latency_threshold_ms = 200
+# Enable connection optimization
+optimization_enabled = true
+
+[resources]
+# Maximum memory usage in MB (target: 10MB or less)
+max_memory_mb = 10
+# Maximum CPU usage percentage (target: 0.5% or less)
+max_cpu_percent = 0.5
+# Enable low power mode
+low_power_mode = true
+# Resource monitoring interval in seconds
+monitoring_interval = 5
+
+[ui]
+# Enable rich terminal UI
+rich_ui = true
+# UI update interval in milliseconds
+update_interval_ms = 1000
+# Show progress indicators
+show_progress = true
+# Enable desktop notifications
+notifications = true
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+# Enable file logging
+file_logging = true
+# Log file path (optional, uses default if not specified)
+log_file = null
+# Enable structured JSON logging
+json_format = false

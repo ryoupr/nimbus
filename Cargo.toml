@@ -1,0 +1,119 @@
+[package]
+name = "ec2-connect"
+version = "3.0.0"
+edition = "2021"
+description = "High-performance EC2 SSM connection manager with automatic session management"
+authors = ["EC2 Connect Team"]
+license = "MIT"
+repository = "https://github.com/your-org/ec2-connect"
+keywords = ["aws", "ec2", "ssm", "connection", "automation"]
+categories = ["command-line-utilities", "network-programming"]
+
+[[bin]]
+name = "ec2-connect"
+path = "src/main.rs"
+
+[lib]
+name = "ec2_connect"
+path = "src/lib.rs"
+
+[dependencies]
+# AWS SDK
+aws-config = "1.1"
+aws-sdk-ssm = "1.12"
+aws-sdk-ec2 = "1.15"
+aws-sdk-iam = "1.12"
+aws-sdk-sts = "1.12"
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# CLI framework
+clap = { version = "4.4", features = ["derive", "color"] }
+
+# Configuration and serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+toml = "0.8"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# Terminal UI
+crossterm = "0.27"
+ratatui = "0.25"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Utilities
+uuid = { version = "1.6", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+humantime = "2.1"
+reqwest = { version = "0.11", features = ["json"] }
+urlencoding = "2.1"
+
+# Database
+rusqlite = { version = "0.30", features = ["bundled", "chrono", "backup"] }
+
+# Async traits
+async-trait = "0.1"
+
+# Futures utilities
+futures = "0.3"
+
+# System utilities
+sysinfo = "0.30"
+
+# Directory utilities
+dirs = "5.0"
+
+# Platform-specific dependencies
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.27", features = ["signal", "process"] }
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["processthreadsapi", "winnt", "handleapi"] }
+
+[dev-dependencies]
+# Property-based testing
+proptest = "1.4"
+proptest-derive = "0.4"
+
+# Testing utilities
+tokio-test = "0.4"
+tempfile = "3.8"
+
+# Benchmarking
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# System information for performance testing
+sysinfo = "0.30"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = 0  # デバッグ情報を減らしてリンク時間を短縮
+strip = "debuginfo"
+
+# 依存関係は最適化して実行速度を確保（変更頻度が低いため）
+[profile.dev.package."*"]
+opt-level = 3
+
+[features]
+default = []
+advanced = ["performance-monitoring", "persistence", "multi-session", "auto-reconnect"]
+performance-monitoring = []
+persistence = []
+multi-session = []
+auto-reconnect = []
