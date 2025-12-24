@@ -30,6 +30,12 @@ EC2 Connect v3.0 は、Rust で完全に書き直された高性能な EC2 イ�
 - AWS CLI
 - AWS Session Manager Plugin
 
+macOS で `session-manager-plugin` が見つからない場合は以下で導入できます:
+
+```bash
+brew install --cask session-manager-plugin
+```
+
 ### ビルド
 
 ```bash
@@ -52,6 +58,14 @@ cargo install --path .
 ```bash
 # EC2 インスタンスに接続
 ec2-connect connect --instance-id i-1234567890abcdef0 --local-port 8080 --remote-port 80
+
+# 接続先一覧（targetsファイル）から接続
+# 例: ~/.config/ec2-connect/targets.json に targets を定義しておき、名前で選択
+# フォーマットは targets.json.example を参照
+ec2-connect connect --target dev
+
+# targetsファイルのパスを明示する場合
+ec2-connect connect --targets-file ~/.config/ec2-connect/targets.json --target dev
 
 # セッション一覧表示
 ec2-connect list
@@ -591,6 +605,7 @@ ec2-connect diagnose interactive --instance-id i-1234567890abcdef0
 #### 接続できない
 
 **自動診断・修復:**
+
 ```bash
 # 1. 事前チェックで問題を特定
 ec2-connect precheck --instance-id i-1234567890abcdef0
@@ -603,6 +618,7 @@ ec2-connect diagnose full --instance-id i-1234567890abcdef0
 ```
 
 **手動確認項目:**
+
 1. AWS 認証情報を確認: `aws sts get-caller-identity`
 2. Session Manager Plugin がインストールされているか確認
 3. インスタンスが SSM 管理されているか確認: `ec2-connect diagnose item --item ssm_agent --instance-id i-xxx`
@@ -611,6 +627,7 @@ ec2-connect diagnose full --instance-id i-1234567890abcdef0
 #### メモリ使用量が高い
 
 **自動最適化:**
+
 ```bash
 # リソース状況確認
 ec2-connect resources
@@ -620,6 +637,7 @@ ec2-connect metrics
 ```
 
 **手動対応:**
+
 1. 不要なセッションを終了: `ec2-connect list` → `ec2-connect terminate SESSION_ID`
 2. 低電力モードを有効化（設定ファイル）
 3. 設定ファイルでリソース制限を調整
@@ -628,6 +646,7 @@ ec2-connect metrics
 #### 再接続が失敗する
 
 **診断・修復:**
+
 ```bash
 # ネットワーク診断
 ec2-connect diagnose item --item network_connectivity --instance-id i-xxx
@@ -637,6 +656,7 @@ ec2-connect diagnose preventive --instance-id i-xxx --abort-on-critical
 ```
 
 **手動確認:**
+
 1. ネットワーク接続を確認
 2. 再接続ポリシーの設定を確認: `ec2-connect config show`
 3. ログを確認して詳細なエラーを特定

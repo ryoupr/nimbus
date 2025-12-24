@@ -9,6 +9,7 @@
 ## 主要依存関係
 
 ### AWS SDK
+
 - `aws-config` (1.1) - AWS 設定管理
 - `aws-sdk-ssm` (1.12) - SSM サービス統合
 - `aws-sdk-ec2` (1.15) - EC2 サービス統合
@@ -16,29 +17,36 @@
 - `aws-sdk-sts` (1.12) - 認証情報検証
 
 ### 非同期処理
+
 - `tokio` (1.35) - 非同期ランタイム（full features）
 
 ### CLI フレームワーク
+
 - `clap` (4.4) - CLI パーサー（derive, color features）
 
 ### シリアライゼーション
+
 - `serde` (1.0) - シリアライゼーションフレームワーク
 - `serde_json` (1.0) - JSON サポート
 - `serde_yaml` (0.9) - YAML サポート
 - `toml` (0.8) - TOML サポート
 
 ### ターミナル UI
+
 - `crossterm` (0.27) - クロスプラットフォームターミナル制御
 - `ratatui` (0.25) - TUI フレームワーク
 
 ### データベース
+
 - `rusqlite` (0.30) - SQLite データベース（bundled, chrono, backup features）
 
 ### エラーハンドリング
+
 - `anyhow` (1.0) - エラー処理
 - `thiserror` (1.0) - カスタムエラー型
 
 ### ユーティリティ
+
 - `tracing` (0.1) - 構造化ログ
 - `tracing-subscriber` (0.3) - ログサブスクライバー
 - `uuid` (1.6) - UUID 生成
@@ -46,6 +54,7 @@
 - `sysinfo` (0.30) - システム情報取得
 
 ### テスト・ベンチマーク
+
 - `proptest` (1.4) - プロパティベーステスト
 - `criterion` (0.5) - ベンチマーク
 - `tokio-test` (0.4) - 非同期テスト
@@ -54,6 +63,7 @@
 ## ビルドプロファイル
 
 ### Release ビルド
+
 ```toml
 opt-level = 3
 lto = true
@@ -63,6 +73,7 @@ strip = true
 ```
 
 ### Development ビルド
+
 ```toml
 opt-level = 0
 debug = 0  # デバッグ情報を減らしてリンク時間を短縮
@@ -76,6 +87,7 @@ opt-level = 3
 ## 共通コマンド
 
 ### ビルド・実行
+
 ```bash
 # 開発ビルド（cargo check を優先）
 cargo check
@@ -91,6 +103,7 @@ cargo install --path .
 ```
 
 ### テスト
+
 ```bash
 # 単体テスト
 cargo test
@@ -106,11 +119,13 @@ cargo test --test '*'
 ```
 
 ### ベンチマーク
+
 ```bash
 cargo bench
 ```
 
 ### ログレベル設定
+
 ```bash
 RUST_LOG=debug cargo run -- [ARGS]
 ```
@@ -127,13 +142,16 @@ RUST_LOG=debug cargo run -- [ARGS]
 ## プラットフォーム固有の依存関係
 
 ### Unix/Linux/macOS
+
 - `nix` (0.27) - シグナル・プロセス管理
 
 ### Windows
+
 - `winapi` (0.3) - Windows API アクセス
 
 ## リンカ最適化
 
 `.cargo/config.toml` でリンカを高速化:
+
 - Linux: `mold`
 - macOS/Windows: `lld`

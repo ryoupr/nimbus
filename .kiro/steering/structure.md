@@ -66,12 +66,14 @@ ec2-connect/
 ## モジュール構成
 
 ### コアモジュール
+
 - `aws`: AWS サービスとの統合レイヤー
 - `config`: 設定ファイル・環境変数の管理
 - `session`: セッション定義と状態管理
 - `manager`: セッションライフサイクル管理
 
 ### 監視・最適化モジュール
+
 - `monitor`: セッション健全性監視
 - `reconnect`: 自動再接続ロジック
 - `performance`: パフォーマンスメトリクス収集
@@ -79,6 +81,7 @@ ec2-connect/
 - `resource`: リソース使用量監視
 
 ### 診断・修復モジュール
+
 - `diagnostic`: 診断フレームワーク
 - `instance_diagnostics`: EC2 インスタンス診断
 - `port_diagnostics`: ポート可用性診断
@@ -91,12 +94,14 @@ ec2-connect/
 - `aws_config_validator`: AWS 設定検証
 
 ### UI・フィードバックモジュール
+
 - `ui`: ターミナル UI（ratatui）
 - `multi_session_ui`: マルチセッション UI
 - `diagnostic_feedback`: 診断フィードバックシステム
 - `realtime_feedback`: リアルタイムフィードバック
 
 ### ユーティリティモジュール
+
 - `persistence`: SQLite データベース管理
 - `vscode`: VS Code 統合
 - `error`: エラー型定義
@@ -108,35 +113,42 @@ ec2-connect/
 ## 設定ファイル配置
 
 ### ユーザー設定
+
 - **Windows**: `%APPDATA%\ec2-connect\config.json`
 - **Linux/macOS**: `~/.config/ec2-connect/config.json`
 
 ### ログファイル
+
 - プロジェクトルート: `logs/ec2-connect.YYYY-MM-DD`
 
 ### データベース
+
 - ユーザー設定ディレクトリ: `sessions.db`
 
 ## アーキテクチャパターン
 
 ### レイヤー構造
+
 1. **CLI レイヤー** (`main.rs`): コマンド解析とルーティング
 2. **ビジネスロジックレイヤー** (`manager`, `monitor`, `reconnect`): コア機能
 3. **統合レイヤー** (`aws`, `vscode`): 外部サービス統合
 4. **データレイヤー** (`persistence`, `config`): データ管理
 
 ### 非同期処理
+
 - Tokio ランタイムを使用した非同期処理
 - `async/await` による非同期 API
 - `async-trait` による trait の非同期化
 
 ### エラーハンドリング
+
 - カスタムエラー型 (`Ec2ConnectError`)
 - `anyhow::Result` による伝播
 - コンテキスト付きエラー (`ContextualError`)
 - エラー回復戦略 (`ErrorRecoveryManager`)
 
 ### 設定管理
+
 - 階層的設定（デフォルト → ファイル → 環境変数）
 - 複数フォーマット対応（JSON, TOML, YAML）
 - 実行時検証とバリデーション

@@ -1,15 +1,15 @@
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
-use anyhow::{Result, Context};
-use serde::{Deserialize, Serialize};
-use tracing::{info, warn, error, debug};
 use tokio::fs;
 use tokio::time::{sleep, Duration};
+use tracing::{debug, error, info, warn};
 
 use crate::error::{Ec2ConnectError, VsCodeError};
-use crate::session::Session;
 use crate::logging::StructuredLogger;
+use crate::session::Session;
 
 /// VS Code統合機能を提供するマネージャー
 pub struct VsCodeIntegration {
@@ -21,6 +21,13 @@ pub struct VsCodeIntegration {
     notifications_enabled: bool,
     /// 自動起動の有効/無効
     auto_launch_enabled: bool,
+
+    /// SSH接続ユーザー（未指定時は ec2-user）
+    ssh_user: Option<String>,
+    /// SSH秘密鍵（.ssh/config の IdentityFile）
+    ssh_identity_file: Option<String>,
+    /// SSH の IdentitiesOnly を有効化
+    ssh_identities_only: bool,
 }
 
 /// SSH設定エントリ
@@ -51,6 +58,16 @@ pub struct VsCodeConfig {
     pub launch_delay_seconds: u64,
     /// SSH設定の自動更新
     pub auto_update_ssh_config: bool,
+
+    /// SSH接続ユーザー（未指定時は ec2-user）
+    #[serde(default)]
+    pub ssh_user: Option<String>,
+    /// SSH秘密鍵のパス（.ssh/config の IdentityFile）
+    #[serde(default)]
+    pub ssh_identity_file: Option<String>,
+    /// SSH の IdentitiesOnly を有効化
+    #[serde(default)]
+    pub ssh_identities_only: bool,
 }
 
 impl Default for VsCodeConfig {
@@ -62,6 +79,10 @@ impl Default for VsCodeConfig {
             notifications_enabled: true,
             launch_delay_seconds: 2,
             auto_update_ssh_config: true,
+
+            ssh_user: None,
+            ssh_identity_file: None,
+            ssh_identities_only: false,
         }
     }
 }
@@ -99,6 +120,9 @@ impl VsCodeIntegration {
             ssh_config_path,
             notifications_enabled: config.notifications_enabled,
             auto_launch_enabled: config.auto_launch_enabled,
+            ssh_user: config.ssh_user,
+            ssh_identity_file: config.ssh_identity_file,
+            ssh_identities_only: config.ssh_identities_only,
         })
     }
 
@@ -178,18 +202,18 @@ impl VsCodeIntegration {
         }
 
         // デフォルトのSSH設定ファイルパス
-        let home_dir = dirs::home_dir()
-            .ok_or_else(|| Ec2ConnectError::VsCode(VsCodeError::ConfigurationError {
+        let home_dir = dirs::home_dir().ok_or_else(|| {
+            Ec2ConnectError::VsCode(VsCodeError::ConfigurationError {
                 message: "Could not determine home directory".to_string(),
-            }))?;
+            })
+        })?;
 
         let ssh_dir = home_dir.join(".ssh");
         let config_path = ssh_dir.join("config");
 
         // .sshディレクトリが存在しない場合は作成
         if !ssh_dir.exists() {
-            std::fs::create_dir_all(&ssh_dir)
-                .context("Failed to create .ssh directory")?;
+            std::fs::create_dir_all(&ssh_dir).context("Failed to create .ssh directory")?;
         }
 
         Ok(config_path)
@@ -224,7 +248,10 @@ impl VsCodeIntegration {
         match self.update_ssh_config(&connection_info).await {
             Ok(_) => {
                 result.ssh_config_updated = true;
-                info!("SSH config updated successfully for session: {}", session.id);
+                info!(
+                    "SSH config updated successfully for session: {}",
+                    session.id
+                );
             }
             Err(e) => {
                 error!("Failed to update SSH config: {}", e);
@@ -266,8 +293,14 @@ impl VsCodeIntegration {
         let mut context_map = HashMap::new();
         context_map.insert("session_id".to_string(), session.id.clone());
         context_map.insert("instance_id".to_string(), session.instance_id.clone());
-        context_map.insert("vscode_launched".to_string(), result.vscode_launched.to_string());
-        context_map.insert("ssh_config_updated".to_string(), result.ssh_config_updated.to_string());
+        context_map.insert(
+            "vscode_launched".to_string(),
+            result.vscode_launched.to_string(),
+        );
+        context_map.insert(
+            "ssh_config_updated".to_string(),
+            result.ssh_config_updated.to_string(),
+        );
 
         StructuredLogger::log_session_activity(
             &session.id,
@@ -284,7 +317,8 @@ impl VsCodeIntegration {
 
         // 既存のSSH設定を読み込み
         let mut config_content = if self.ssh_config_path.exists() {
-            fs::read_to_string(&self.ssh_config_path).await
+            fs::read_to_string(&self.ssh_config_path)
+                .await
                 .context("Failed to read SSH config file")?
         } else {
             String::new()
@@ -294,7 +328,8 @@ impl VsCodeIntegration {
         let host_entry = self.create_ssh_host_entry(connection_info);
 
         // 既存のエントリを削除（同じホスト名の場合）
-        config_content = self.remove_existing_host_entry(&config_content, &connection_info.ssh_host);
+        config_content =
+            self.remove_existing_host_entry(&config_content, &connection_info.ssh_host);
 
         // 新しいエントリを追加
         if !config_content.is_empty() && !config_content.ends_with('\n') {
@@ -303,7 +338,8 @@ impl VsCodeIntegration {
         config_content.push_str(&host_entry);
 
         // ファイルに書き込み
-        fs::write(&self.ssh_config_path, config_content).await
+        fs::write(&self.ssh_config_path, config_content)
+            .await
             .context("Failed to write SSH config file")?;
 
         info!("SSH config updated: {:?}", self.ssh_config_path);
@@ -312,14 +348,24 @@ impl VsCodeIntegration {
 
     /// SSH ホストエントリを作成
     fn create_ssh_host_entry(&self, connection_info: &ConnectionInfo) -> String {
+        let ssh_user = self.ssh_user.as_deref().unwrap_or("ec2-user");
+
+        let mut ssh_extra = String::new();
+        if let Some(identity_file) = &self.ssh_identity_file {
+            ssh_extra.push_str(&format!("    IdentityFile {}\n", identity_file));
+        }
+        if self.ssh_identities_only {
+            ssh_extra.push_str("    IdentitiesOnly yes\n");
+        }
+
         format!(
             r#"
 # EC2 Connect - Session: {}
 Host {}
     HostName localhost
     Port {}
-    User ec2-user
-    StrictHostKeyChecking no
+    User {}
+{}    StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
     LogLevel ERROR
     # Instance: {}
@@ -330,6 +376,8 @@ Host {}
             connection_info.session_id,
             connection_info.ssh_host,
             connection_info.local_port,
+            ssh_user,
+            ssh_extra,
             connection_info.instance_id,
             connection_info.remote_port,
             chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
@@ -345,7 +393,7 @@ Host {}
 
         for line in lines {
             let trimmed = line.trim();
-            
+
             // EC2 Connectセクションの開始を検出
             if trimmed.starts_with("# EC2 Connect") {
                 in_ec2_connect_section = true;
@@ -383,10 +431,11 @@ Host {}
 
     /// VS Codeを起動
     async fn launch_vscode(&self, connection_info: &ConnectionInfo) -> Result<()> {
-        let vscode_path = self.vscode_path.as_ref()
-            .ok_or_else(|| Ec2ConnectError::VsCode(VsCodeError::NotFound {
+        let vscode_path = self.vscode_path.as_ref().ok_or_else(|| {
+            Ec2ConnectError::VsCode(VsCodeError::NotFound {
                 message: "VS Code executable not found".to_string(),
-            }))?;
+            })
+        })?;
 
         info!("Launching VS Code for host: {}", connection_info.ssh_host);
 
@@ -395,7 +444,7 @@ Host {}
 
         // VS Codeを起動（SSH接続で）
         let ssh_uri = format!("vscode-remote://ssh-remote+{}/", connection_info.ssh_host);
-        
+
         let mut command = Command::new(vscode_path);
         command.arg("--remote").arg(&ssh_uri);
 
@@ -416,7 +465,7 @@ Host {}
             Ok(mut child) => {
                 // プロセスIDをログに記録
                 info!("VS Code launched with PID: {:?}", child.id());
-                
+
                 // プロセスを切り離し（親プロセスの終了を待たない）
                 tokio::spawn(async move {
                     if let Err(e) = child.wait() {
@@ -430,7 +479,8 @@ Host {}
                 error!("Failed to launch VS Code: {}", e);
                 Err(Ec2ConnectError::VsCode(VsCodeError::LaunchFailed {
                     message: format!("Failed to launch VS Code: {}", e),
-                }).into())
+                })
+                .into())
             }
         }
     }
@@ -440,9 +490,7 @@ Host {}
         let title = "EC2 Connect - VS Code Integration";
         let message = format!(
             "VS Code integration completed for instance {}\nSSH Host: {}\nLocal Port: {}",
-            connection_info.instance_id,
-            connection_info.ssh_host,
-            connection_info.local_port
+            connection_info.instance_id, connection_info.ssh_host, connection_info.local_port
         );
 
         // プラットフォーム固有の通知システムを使用
@@ -452,7 +500,8 @@ Host {}
                 .arg("-e")
                 .arg(&format!(
                     r#"display notification "{}" with title "{}""#,
-                    message.replace('\n', " - "), title
+                    message.replace('\n', " - "),
+                    title
                 ))
                 .output();
         }
@@ -477,7 +526,8 @@ Host {}
                 $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
                 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('EC2 Connect').Show($toast)
                 "#,
-                title, message.replace('\n', " - ")
+                title,
+                message.replace('\n', " - ")
             );
 
             let _ = Command::new("powershell")
@@ -486,7 +536,10 @@ Host {}
                 .output();
         }
 
-        debug!("Notification sent for session: {}", connection_info.session_id);
+        debug!(
+            "Notification sent for session: {}",
+            connection_info.session_id
+        );
         Ok(())
     }
 
@@ -498,12 +551,14 @@ Host {}
             return Ok(());
         }
 
-        let config_content = fs::read_to_string(&self.ssh_config_path).await
+        let config_content = fs::read_to_string(&self.ssh_config_path)
+            .await
             .context("Failed to read SSH config file")?;
 
         let cleaned_content = self.remove_session_entries(&config_content, session_id);
 
-        fs::write(&self.ssh_config_path, cleaned_content).await
+        fs::write(&self.ssh_config_path, cleaned_content)
+            .await
             .context("Failed to write cleaned SSH config file")?;
 
         info!("SSH config cleaned up for session: {}", session_id);
@@ -519,31 +574,32 @@ Host {}
         while i < lines.len() {
             let line = lines[i];
             let trimmed = line.trim();
-            
+
             // EC2 Connectセッションの開始を検出（セッションIDベース）
             if trimmed.starts_with("# EC2 Connect - Session:") && trimmed.contains(session_id) {
                 // このセッション全体をスキップ
                 i += 1; // セッションヘッダーをスキップ
-                
+
                 // セッションの終了まで全ての行をスキップ
                 while i < lines.len() {
                     let current_line = lines[i];
                     let current_trimmed = current_line.trim();
-                    
+
                     // 次のセッションの開始で停止
                     if current_trimmed.starts_with("# EC2 Connect - Session:") {
                         break;
                     }
-                    
+
                     // 空行が連続している場合、セクションの終了とみなす
                     if current_trimmed.is_empty() {
                         if i + 1 < lines.len() {
                             let next_line = lines[i + 1].trim();
-                            if next_line.is_empty() || 
-                               (!next_line.starts_with("Host ec2-") && 
-                                !next_line.starts_with("    ") && 
-                                !next_line.starts_with("#") &&
-                                !next_line.is_empty()) {
+                            if next_line.is_empty()
+                                || (!next_line.starts_with("Host ec2-")
+                                    && !next_line.starts_with("    ")
+                                    && !next_line.starts_with("#")
+                                    && !next_line.is_empty())
+                            {
                                 i += 1; // 空行も含めてスキップ
                                 break;
                             }
@@ -552,17 +608,17 @@ Host {}
                             break;
                         }
                     }
-                    
+
                     i += 1; // この行をスキップ
                 }
                 continue;
             }
-            
+
             // セッションヘッダーがない場合のフォールバック：ホスト名ベースの削除
             // session-1 -> ec2-i-111111111 のようなマッピングを想定
             if trimmed.starts_with("Host ec2-") {
                 let host_name = trimmed.strip_prefix("Host ").unwrap_or("").trim();
-                
+
                 // セッションIDからインスタンスIDを推測（session-1 -> i-111111111）
                 let expected_instance_id = if session_id == "session-1" {
                     "i-111111111"
@@ -572,30 +628,34 @@ Host {}
                     // 一般的なケースでは、セッションIDからインスタンスIDを推測できない
                     ""
                 };
-                
-                if !expected_instance_id.is_empty() && host_name == format!("ec2-{}", expected_instance_id) {
+
+                if !expected_instance_id.is_empty()
+                    && host_name == format!("ec2-{}", expected_instance_id)
+                {
                     // このホストエントリ全体をスキップ
                     i += 1; // Host行をスキップ
-                    
+
                     // ホスト設定の終了まで全ての行をスキップ
                     while i < lines.len() {
                         let current_line = lines[i];
                         let current_trimmed = current_line.trim();
-                        
+
                         // 次のホストまたはセクションの開始で停止
-                        if current_trimmed.starts_with("Host ") || 
-                           current_trimmed.starts_with("# EC2 Connect") {
+                        if current_trimmed.starts_with("Host ")
+                            || current_trimmed.starts_with("# EC2 Connect")
+                        {
                             break;
                         }
-                        
+
                         // 空行が連続している場合、ホスト設定の終了とみなす
                         if current_trimmed.is_empty() {
                             if i + 1 < lines.len() {
                                 let next_line = lines[i + 1].trim();
-                                if next_line.is_empty() || 
-                                   (!next_line.starts_with("    ") && 
-                                    !next_line.starts_with("#") &&
-                                    !next_line.is_empty()) {
+                                if next_line.is_empty()
+                                    || (!next_line.starts_with("    ")
+                                        && !next_line.starts_with("#")
+                                        && !next_line.is_empty())
+                                {
                                     i += 1; // 空行も含めてスキップ
                                     break;
                                 }
@@ -604,20 +664,23 @@ Host {}
                                 break;
                             }
                         }
-                        
+
                         i += 1; // この行をスキップ
                     }
                     continue;
                 }
             }
-            
+
             // 通常の行は保持
             result_lines.push(line.to_string());
             i += 1;
         }
 
         // 末尾の余分な空行を削除
-        while result_lines.last().map_or(false, |line| line.trim().is_empty()) {
+        while result_lines
+            .last()
+            .map_or(false, |line| line.trim().is_empty())
+        {
             result_lines.pop();
         }
 
@@ -725,6 +788,9 @@ mod tests {
 
         let config = VsCodeConfig {
             ssh_config_path: Some(ssh_config_path.to_string_lossy().to_string()),
+            ssh_user: Some("ubuntu".to_string()),
+            ssh_identity_file: Some("~/.ssh/test-key.pem".to_string()),
+            ssh_identities_only: true,
             ..Default::default()
         };
 
@@ -739,12 +805,18 @@ mod tests {
             connection_url: "localhost:8080".to_string(),
         };
 
-        integration.update_ssh_config(&connection_info).await.unwrap();
+        integration
+            .update_ssh_config(&connection_info)
+            .await
+            .unwrap();
 
         let config_content = fs::read_to_string(&ssh_config_path).await.unwrap();
         assert!(config_content.contains("Host ec2-test"));
         assert!(config_content.contains("Port 8080"));
         assert!(config_content.contains("test-session"));
+        assert!(config_content.contains("User ubuntu"));
+        assert!(config_content.contains("IdentityFile ~/.ssh/test-key.pem"));
+        assert!(config_content.contains("IdentitiesOnly yes"));
     }
 
     #[tokio::test]
@@ -769,10 +841,16 @@ mod tests {
             connection_url: "localhost:8080".to_string(),
         };
 
-        integration.update_ssh_config(&connection_info).await.unwrap();
+        integration
+            .update_ssh_config(&connection_info)
+            .await
+            .unwrap();
 
         // クリーンアップ
-        integration.cleanup_ssh_config("test-session").await.unwrap();
+        integration
+            .cleanup_ssh_config("test-session")
+            .await
+            .unwrap();
 
         let config_content = fs::read_to_string(&ssh_config_path).await.unwrap();
         assert!(!config_content.contains("test-session"));

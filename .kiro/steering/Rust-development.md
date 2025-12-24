@@ -15,10 +15,12 @@ inclusion: always
   - `cargo check` is 10x faster and sufficient for most development iterations
 
 - **Logic Verification**: Run targeted tests only
+
   ```bash
   cargo test <test_name>           # Single test
   cargo test <module>::<test_name> # Specific module test
   ```
+
   - Avoid `cargo test` without arguments during development
 
 - **Diagnostics**: Use `getDiagnostics` tool for immediate feedback on syntax/type errors
@@ -26,6 +28,7 @@ inclusion: always
 ### Final Verification Phase
 
 - **Build Verification**: Only after all checks pass
+
   ```bash
   cargo build --release  # Production build
   cargo run -- [ARGS]    # Test execution
@@ -91,6 +94,7 @@ serde = "1.0"
 ```
 
 **Procedural Macros**: Use sparingly (they slow compilation significantly)
+
 - `#[derive(Serialize, Deserialize)]`: OK for data structures
 - `#[tokio::main]`: OK for entry points
 - Custom proc macros: Avoid unless critical
@@ -114,6 +118,7 @@ let result: Vec<ProcessedData> = data
 ## Error Handling Patterns
 
 **This Project Uses**:
+
 - `anyhow::Result<T>` for application errors
 - `thiserror` for custom error types
 - Context propagation with `.context()` or `.with_context()`
@@ -201,6 +206,7 @@ strip = true
 ## Performance Targets
 
 When implementing features, maintain:
+
 - Memory usage: < 10MB
 - CPU usage: < 0.5% (idle monitoring)
 - Connection time: < 150ms

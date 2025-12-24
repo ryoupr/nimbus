@@ -155,7 +155,9 @@ graph TB
 
 - **責務**: 診断で発見された問題の自動修復
 - **機能**:
-  - インスタンス自動起動（ユーザー承認後）
+  - インスタンス自動起動（ユーザー承認不要）
+  - SSM登録待機と状態監視（デフォルト5分タイムアウト、3秒間隔チェック）
+  - 登録進捗のリアルタイム表示
   - SSMエージェント状態確認・再起動
   - IAM権限設定手順提供
   - セキュリティグループ推奨設定提案
@@ -302,6 +304,8 @@ pub trait ConnectionDiagnostics {
 ### Auto Fix インターフェース
 
 ```rust
+use std::time::Duration;
+
 #[derive(Debug, Clone)]
 pub enum FixResult {
     Success(String),
@@ -310,8 +314,26 @@ pub enum FixResult {
     RequiresUserApproval(String),
 }
 
+#[derive(Debug, Clone)]
+pub struct SsmRegistrationStatus {
+    pub is_registered: bool,
+    pub ping_status: Option<String>,
+    pub last_ping_time: Option<std::time::SystemTime>,
+    pub agent_version: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct WaitProgress {
+    pub elapsed_seconds: u64,
+    pub max_wait_seconds: u64,
+    pub current_status: String,
+    pub check_count: u32,
+}
+
 pub trait AutoFix {
-    async fn fix_instance_state(&mut self, instance_id: &str, user_approved: bool) -> Result<FixResult, Box<dyn std::error::Error>>;
+    async fn fix_instance_state(&mut self, instance_id: &str) -> Result<FixResult, Box<dyn std::error::Error>>;
+    async fn wait_for_ssm_registration(&mut self, instance_id: &str, timeout: Duration) -> Result<SsmRegistrationStatus, Box<dyn std::error::Error>>;
+    async fn register_wait_progress_callback(&mut self, callback: Box<dyn Fn(WaitProgress) + Send + Sync>);
     async fn fix_ssm_agent(&mut self, instance_id: &str) -> Result<FixResult, Box<dyn std::error::Error>>;
     async fn suggest_iam_fixes(&self, instance_id: &str) -> Result<Vec<String>, Box<dyn std::error::Error>>;
     async fn suggest_security_group_fixes(&self, instance_id: &str) -> Result<Vec<String>, Box<dyn std::error::Error>>;
@@ -520,22 +542,34 @@ _任意の_ 重大問題検出について、システムは接続を中止し�
 **検証: 要件 9.5**
 
 プロパティ 26: 自動修復実行
-_任意の_ 修復可能問題について、システムは適切な修復動作（インスタンス起動、SSMエージェント再起動、権限設定手順提供、セキュリティグループ推奨設定提案）を実行する
-**検証: 要件 10.1, 10.2, 10.3, 10.4**
+_任意の_ 修復可能問題について、システムは適切な修復動作（インスタンス自動起動、SSMエージェント再起動、権限設定手順提供、セキュリティグループ推奨設定提案）を実行する
+**検証: 要件 10.1, 10.6, 10.7, 10.8**
 
-プロパティ 27: 修復結果検証
-_任意の_ 修復操作完了について、システムは修復結果を検証し、接続可能性を再評価する
+プロパティ 27: インスタンス起動後SSM登録待機
+_任意の_ 停止インスタンス起動について、システムはSSM管理インスタンスとして登録されるまで3秒間隔で定期的に確認し、待機状況と経過時間を表示する
+**検証: 要件 10.2, 10.3**
+
+プロパティ 28: SSM登録完了後接続試行
+_任意の_ SSM登録完了について、システムは接続可能状態を確認し、セッション確立を試行する
+**検証: 要件 10.4**
+
+プロパティ 29: SSM登録タイムアウト処理
+_任意の_ SSM登録待機について、一定時間（デフォルト5分）経過しても完了しない場合、システムはタイムアウトエラーを報告し、トラブルシューティング手順を提供する
 **検証: 要件 10.5**
 
-プロパティ 28: 予防的チェック包括性
+プロパティ 30: 修復結果検証
+_任意の_ 修復操作完了について、システムは修復結果を検証し、接続可能性を再評価する
+**検証: 要件 10.9**
+
+プロパティ 31: 予防的チェック包括性
 _任意の_ 予防的チェック実行について、システムはEC2インスタンス、SSM、IAM、ネットワーク設定を段階的に検証し、各段階で進捗状況をリアルタイム表示する
 **検証: 要件 11.1, 11.2**
 
-プロパティ 29: 問題分類と成功確率算出
+プロパティ 32: 問題分類と成功確率算出
 _任意の_ 予防的チェック完了について、システムは問題を重要度で分類表示し、検出された問題に基づいて接続成功確率を算出する
 **検証: 要件 11.3, 11.4**
 
-プロパティ 30: 分析コマンドと推奨事項提供
+プロパティ 33: 分析コマンドと推奨事項提供
 _任意の_ 予防的チェック結果について、システムは詳細分析コマンドを提案し、問題解決のための具体的な推奨事項を提供する
 **検証: 要件 11.5**
 

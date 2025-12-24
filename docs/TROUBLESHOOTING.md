@@ -40,6 +40,7 @@ cargo run -- resources
 ### 診断結果の読み方
 
 **正常な状態:**
+
 ```
 ✅ Overall Health: HEALTHY
 ✅ All resource limits satisfied
@@ -48,6 +49,7 @@ cargo run -- resources
 ```
 
 **問題がある状態:**
+
 ```
 ❌ Overall Health: UNHEALTHY
 ⚠️  Resource limit violations: Memory: 12.5MB > 10.0MB
@@ -60,6 +62,7 @@ cargo run -- resources
 ### 問題 1: 接続が確立できない
 
 #### 症状
+
 ```
 ❌ Failed to create session: Connection timeout
 ❌ SSM session creation failed
@@ -177,6 +180,7 @@ cargo run -- connect --instance-id <INSTANCE_ID>
 ### 問題 2: 接続が頻繁に切断される
 
 #### 症状
+
 ```
 🔄 Attempting reconnection (attempt 3/5)
 ⚠️  Session terminated unexpectedly
@@ -240,6 +244,7 @@ export EC2_CONNECT_OPTIMIZATION_ENABLED=true
 ### 問題 3: ポートフォワーディングが機能しない
 
 #### 症状
+
 ```
 ✅ Session created successfully!
 ❌ Port 8080 is not accessible
@@ -249,6 +254,9 @@ export EC2_CONNECT_OPTIMIZATION_ENABLED=true
 #### 診断手順
 
 ```bash
+# Session Manager plugin の存在確認（ポートフォワードには必須）
+session-manager-plugin --version
+
 # ポート使用状況確認
 netstat -tlnp | grep 8080  # Linux
 lsof -i :8080              # macOS
@@ -304,11 +312,25 @@ aws ssm describe-sessions --state Active
 aws ssm get-connection-status --target <INSTANCE_ID>
 ```
 
+**4. Session Manager plugin を導入/パス確認**
+
+`aws ssm start-session` によるポートフォワーディングは、クライアント側で `session-manager-plugin` が起動できないとローカルが listen しません（`nc -vz localhost <PORT>` が `refused` になりやすいです）。
+
+```bash
+# macOS (Homebrew)
+brew install --cask session-manager-plugin
+
+# PATH 上にあるか確認
+command -v session-manager-plugin
+session-manager-plugin --version
+```
+
 ## パフォーマンス問題
 
 ### 問題 4: 高いメモリ使用量
 
 #### 症状
+
 ```
 ⚠️  Resource limit violations:
     - Memory: 15.2MB > 10.0MB
@@ -374,6 +396,7 @@ find logs/ -name "*.log" -mtime +7 -delete
 ### 問題 5: 高い CPU 使用率
 
 #### 症状
+
 ```
 ⚠️  Resource limit violations:
     - CPU: 1.2% > 0.5%
@@ -429,6 +452,7 @@ export EC2_CONNECT_MAX_SESSIONS_PER_INSTANCE=1
 ### 問題 6: 接続速度が遅い
 
 #### 症状
+
 ```
 ⚠️  High latency detected: 450ms
 ⚠️  Connection time: 5.2s (threshold: 3.0s)
@@ -500,6 +524,7 @@ ip route show
 ### 問題 7: 設定ファイルエラー
 
 #### 症状
+
 ```
 ❌ Configuration validation failed: Invalid format
 ❌ Failed to load configuration: File not found
@@ -563,6 +588,7 @@ cargo run -- config test
 ### 問題 8: 権限エラー
 
 #### 症状
+
 ```
 ❌ Permission denied: ~/.config/ec2-connect/config.json
 ❌ Failed to create log file: Permission denied
@@ -614,6 +640,7 @@ chmod 644 logs/*.log
 ### 問題 9: AWS 認証エラー
 
 #### 症状
+
 ```
 ❌ AWS API error: AuthenticationFailed
 ❌ The security token included in the request is invalid
@@ -681,6 +708,7 @@ export AWS_SESSION_TOKEN=...
 ### 問題 10: リージョン・プロファイル問題
 
 #### 症状
+
 ```
 ❌ Invalid region: 'invalid-region'
 ❌ Profile 'nonexistent' not found
@@ -732,6 +760,7 @@ cargo run -- connect \
 ### 問題 11: ディスク容量不足
 
 #### 症状
+
 ```
 ❌ Failed to write log file: No space left on device
 ⚠️  Disk space low: 95% used
@@ -787,6 +816,7 @@ sudo yum clean all  # RHEL/CentOS
 ### 問題 12: プロセス制限
 
 #### 症状
+
 ```
 ❌ Failed to create process: Resource temporarily unavailable
 ⚠️  Process count exceeded: 1024 > 1000
@@ -834,6 +864,7 @@ ps aux | grep -E "defunct|<zombie>"
 ### 問題 13: VS Code 自動起動失敗
 
 #### 症状
+
 ```
 ❌ VS Code integration failed: VS Code not found
 ⚠️  VS Code integration unavailable: /usr/bin/code not executable
@@ -901,6 +932,7 @@ cargo run -- vscode setup
 ### 問題 14: SSH 設定競合
 
 #### 症状
+
 ```
 ⚠️  SSH config conflict detected
 ❌ Failed to update SSH config: Host already exists
@@ -947,6 +979,7 @@ cargo run -- vscode setup
 ### 問題 15: データベース破損
 
 #### 症状
+
 ```
 ❌ Database operation failed: database disk image is malformed
 ❌ Failed to load sessions: SQL error
@@ -1022,6 +1055,7 @@ cargo run -- config show | grep log_file
 ### 重要なログパターン
 
 **接続成功:**
+
 ```
 INFO ec2_connect: Starting EC2 Connect v3.0.0
 INFO ec2_connect::session: Session created successfully: session-abc123
@@ -1029,6 +1063,7 @@ INFO ec2_connect::monitor: Session monitoring started for session-abc123
 ```
 
 **接続失敗:**
+
 ```
 ERROR ec2_connect::aws: AWS API error: AuthenticationFailed
 ERROR ec2_connect::session: Failed to create session: Connection timeout
@@ -1036,6 +1071,7 @@ WARN ec2_connect::reconnect: Reconnection attempt 3/5 failed
 ```
 
 **パフォーマンス問題:**
+
 ```
 WARN ec2_connect::resource: Memory usage exceeded: 12.5MB > 10.0MB
 WARN ec2_connect::performance: High latency detected: 450ms

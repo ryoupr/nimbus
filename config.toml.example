@@ -75,3 +75,24 @@ file_logging = true
 log_file = null
 # Enable structured JSON logging
 json_format = false
+
+[vscode]
+# VS Code executable path (optional)
+vscode_path = null
+# SSH config file path (optional, defaults to ~/.ssh/config)
+ssh_config_path = null
+# Auto-launch VS Code after connect
+auto_launch_enabled = true
+# Enable notifications
+notifications_enabled = true
+# Delay before launching VS Code (seconds)
+launch_delay_seconds = 2
+# Auto-update SSH config
+auto_update_ssh_config = true
+
+# SSH username for generated entry (optional, defaults to ec2-user)
+ssh_user = null
+# SSH IdentityFile path for generated entry (optional)
+ssh_identity_file = null
+# Enable IdentitiesOnly yes for generated entry
+ssh_identities_only = false

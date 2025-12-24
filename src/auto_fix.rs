@@ -1,15 +1,15 @@
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
-use tokio::time::Instant;
-use tracing::{info, error, debug};
 use async_trait::async_trait;
+use aws_config::{BehaviorVersion, Region};
 use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_ssm::Client as SsmClient;
-use aws_config::{BehaviorVersion, Region};
+use serde::{Deserialize, Serialize};
 use std::process::Command;
+use std::time::Duration;
+use tokio::time::Instant;
+use tracing::{debug, error, info};
 
 use crate::diagnostic::{DiagnosticResult, DiagnosticStatus};
-use crate::error::{Ec2ConnectError, Result, AwsError};
+use crate::error::{AwsError, Ec2ConnectError, Result};
 
 /// SSM Agent state information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,13 +107,10 @@ pub struct FixAction {
 }
 
 impl FixAction {
-    pub fn new(
-        action_type: FixActionType,
-        description: String,
-        target_resource: String,
-    ) -> Self {
+    pub fn new(action_type: FixActionType, description: String, target_resource: String) -> Self {
         let (requires_confirmation, risk_level, estimated_duration) = match action_type {
-            FixActionType::StartInstance => (true, RiskLevel::Low, Duration::from_secs(60)),
+            // Task 26.1: instance start is auto-executed without user approval.
+            FixActionType::StartInstance => (false, RiskLevel::Low, Duration::from_secs(300)),
             FixActionType::RestartSsmAgent => (true, RiskLevel::Medium, Duration::from_secs(30)),
             FixActionType::UpdateCredentials => (false, RiskLevel::Safe, Duration::from_secs(5)),
             FixActionType::RestoreConfig => (true, RiskLevel::Medium, Duration::from_secs(10)),
@@ -200,55 +197,66 @@ impl FixResult {
 pub trait AutoFixManager {
     /// Analyze diagnostic results and generate fix actions
     async fn analyze_fixes(&self, diagnostics: &[DiagnosticResult]) -> Result<Vec<FixAction>>;
-    
+
     /// Execute a single fix action
     async fn execute_fix(&mut self, action: FixAction) -> Result<FixResult>;
-    
+
     /// Execute only safe fixes automatically
     async fn execute_safe_fixes(&mut self, actions: Vec<FixAction>) -> Result<Vec<FixResult>>;
-    
+
     /// Generate manual instructions for a fix action
     fn generate_manual_instructions(&self, action: &FixAction) -> String;
-    
+
     /// Fix instance state with user approval (requirement 10.1)
-    async fn fix_instance_state(&mut self, instance_id: &str, user_approved: bool) -> Result<FixResult>;
-    
+    async fn fix_instance_state(
+        &mut self,
+        instance_id: &str,
+        user_approved: bool,
+    ) -> Result<FixResult>;
+
     /// Fix SSM agent with detailed verification (requirement 10.2)
     async fn fix_ssm_agent(&mut self, instance_id: &str) -> Result<FixResult>;
-    
+
     /// Suggest IAM permission fixes with detailed analysis (requirement 10.3)
     async fn suggest_iam_fixes(&self, instance_id: &str) -> Result<Vec<String>>;
-    
+
     /// Suggest security group fixes with specific recommendations (requirement 10.4)
     async fn suggest_security_group_fixes(&self, instance_id: &str) -> Result<Vec<String>>;
-    
+
     /// Verify fix results and re-evaluate connection possibility (requirement 10.5)
     async fn verify_fix(&self, instance_id: &str, fix_type: &str) -> Result<bool>;
-    
+
     /// Generate fix effectiveness report
-    async fn generate_fix_effectiveness_report(&self, instance_id: &str, applied_fixes: &[FixResult]) -> Result<FixEffectivenessReport>;
-    
+    async fn generate_fix_effectiveness_report(
+        &self,
+        instance_id: &str,
+        applied_fixes: &[FixResult],
+    ) -> Result<FixEffectivenessReport>;
+
     /// Generate fix recommendations based on verification results
-    async fn generate_fix_recommendations(&self, verification_results: &[FixVerificationResult]) -> Result<Vec<String>>;
-    
+    async fn generate_fix_recommendations(
+        &self,
+        verification_results: &[FixVerificationResult],
+    ) -> Result<Vec<String>>;
+
     /// Get detailed instance information for fix analysis
     async fn get_instance_details(&self, instance_id: &str) -> Result<InstanceDetails>;
-    
+
     /// Verify instance start fix effectiveness
     async fn verify_instance_start_fix(&self, instance_id: &str) -> Result<FixVerificationResult>;
-    
+
     /// Verify SSM agent fix effectiveness
     async fn verify_ssm_agent_fix(&self, instance_id: &str) -> Result<FixVerificationResult>;
-    
+
     /// Verify IAM permissions fix effectiveness
     async fn verify_iam_permissions_fix(&self, instance_id: &str) -> Result<FixVerificationResult>;
-    
+
     /// Verify security group fix effectiveness
     async fn verify_security_group_fix(&self, instance_id: &str) -> Result<FixVerificationResult>;
-    
+
     /// Check security group rules for HTTPS outbound access
     async fn check_security_group_rules(&self, group_id: &str) -> Result<bool>;
-    
+
     /// Verify general connectivity to AWS services
     async fn verify_general_connectivity(&self, instance_id: &str) -> Result<bool>;
 }
@@ -266,7 +274,7 @@ impl DefaultAutoFixManager {
         let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
         let ec2_client = Ec2Client::new(&config);
         let ssm_client = SsmClient::new(&config);
-        
+
         Ok(Self {
             ec2_client,
             ssm_client,
@@ -275,21 +283,24 @@ impl DefaultAutoFixManager {
     }
 
     /// Create a new auto-fix manager with custom AWS configuration
-    pub async fn with_aws_config(region: Option<String>, profile: Option<String>) -> anyhow::Result<Self> {
+    pub async fn with_aws_config(
+        region: Option<String>,
+        profile: Option<String>,
+    ) -> anyhow::Result<Self> {
         let mut config_loader = aws_config::defaults(BehaviorVersion::latest());
-        
+
         if let Some(region) = region {
             config_loader = config_loader.region(Region::new(region));
         }
-        
+
         if let Some(profile) = profile {
             config_loader = config_loader.profile_name(profile);
         }
-        
+
         let config = config_loader.load().await;
         let ec2_client = Ec2Client::new(&config);
         let ssm_client = SsmClient::new(&config);
-        
+
         Ok(Self {
             ec2_client,
             ssm_client,
@@ -311,17 +322,22 @@ impl DefaultAutoFixManager {
     fn analyze_instance_fixes(&self, result: &DiagnosticResult) -> Vec<FixAction> {
         let mut fixes = Vec::new();
 
-        debug!("analyze_instance_fixes: status={:?}, message={}", result.status, result.message);
-        
+        debug!(
+            "analyze_instance_fixes: status={:?}, message={}",
+            result.status, result.message
+        );
+
         if result.status == DiagnosticStatus::Error {
             if result.message.contains("stopped") || result.message.contains("stopping") {
                 debug!("Found stopped/stopping instance, extracting instance_id from details");
-                let instance_id = result.details.as_ref()
+                let instance_id = result
+                    .details
+                    .as_ref()
                     .and_then(|d| d.get("instance_id"))
                     .and_then(|id| id.as_str())
                     .unwrap_or("unknown");
                 debug!("Extracted instance_id: {}", instance_id);
-                
+
                 let fix = FixAction::new(
                     FixActionType::StartInstance,
                     format!("Start the stopped EC2 instance: {}", instance_id),
@@ -332,7 +348,8 @@ impl DefaultAutoFixManager {
             } else if result.message.contains("terminated") {
                 let fix = FixAction::new(
                     FixActionType::SuggestManualFix,
-                    "Instance is terminated and cannot be recovered. Launch a new instance.".to_string(),
+                    "Instance is terminated and cannot be recovered. Launch a new instance."
+                        .to_string(),
                     "manual".to_string(),
                 );
                 fixes.push(fix);
@@ -349,7 +366,9 @@ impl DefaultAutoFixManager {
 
         if result.status == DiagnosticStatus::Error {
             if result.message.contains("not registered") || result.message.contains("offline") {
-                let instance_id = result.details.as_ref()
+                let instance_id = result
+                    .details
+                    .as_ref()
                     .and_then(|d| d.get("instance_id"))
                     .and_then(|id| id.as_str())
                     .unwrap_or("unknown");
@@ -358,7 +377,8 @@ impl DefaultAutoFixManager {
                     FixActionType::RestartSsmAgent,
                     format!("Restart SSM agent on instance: {}", instance_id),
                     instance_id.to_string(),
-                ).with_command("sudo systemctl restart amazon-ssm-agent".to_string());
+                )
+                .with_command("sudo systemctl restart amazon-ssm-agent".to_string());
                 fixes.push(fix);
             }
         }
@@ -378,7 +398,9 @@ impl DefaultAutoFixManager {
                     "credentials".to_string(),
                 );
                 fixes.push(fix);
-            } else if result.message.contains("permissions") || result.message.contains("access denied") {
+            } else if result.message.contains("permissions")
+                || result.message.contains("access denied")
+            {
                 let fix = FixAction::new(
                     FixActionType::SuggestManualFix,
                     "IAM permissions need to be updated manually by an administrator".to_string(),
@@ -406,7 +428,8 @@ impl DefaultAutoFixManager {
             } else if result.message.contains("security group") {
                 let fix = FixAction::new(
                     FixActionType::SuggestManualFix,
-                    "Security group rules need to be updated to allow HTTPS outbound traffic".to_string(),
+                    "Security group rules need to be updated to allow HTTPS outbound traffic"
+                        .to_string(),
                     "security_group".to_string(),
                 );
                 fixes.push(fix);
@@ -424,16 +447,21 @@ impl DefaultAutoFixManager {
             if result.message.contains("port in use") || result.message.contains("already bound") {
                 if let Some(details) = &result.details {
                     if let Some(process_info) = details.get("process_info") {
-                        let process_name = process_info.get("name")
+                        let process_name = process_info
+                            .get("name")
                             .and_then(|n| n.as_str())
                             .unwrap_or("unknown");
-                        let pid = process_info.get("pid")
+                        let pid = process_info
+                            .get("pid")
                             .and_then(|p| p.as_u64())
                             .unwrap_or(0);
 
                         let fix = FixAction::new(
                             FixActionType::TerminateProcess,
-                            format!("Terminate process {} (PID: {}) that is using the port", process_name, pid),
+                            format!(
+                                "Terminate process {} (PID: {}) that is using the port",
+                                process_name, pid
+                            ),
                             format!("process:{}", pid),
                         );
                         fixes.push(fix);
@@ -455,11 +483,16 @@ impl DefaultAutoFixManager {
 
     /// Execute instance start fix with progress monitoring
     async fn execute_start_instance(&mut self, instance_id: &str) -> Result<FixResult> {
-        self.execute_start_instance_with_monitoring(instance_id, false).await
+        self.execute_start_instance_with_monitoring(instance_id, false)
+            .await
     }
 
     /// Execute instance start fix with user approval and progress monitoring
-    async fn execute_start_instance_with_monitoring(&mut self, instance_id: &str, user_approved: bool) -> Result<FixResult> {
+    async fn execute_start_instance_with_monitoring(
+        &mut self,
+        instance_id: &str,
+        user_approved: bool,
+    ) -> Result<FixResult> {
         let start_time = Instant::now();
         let action = FixAction::new(
             FixActionType::StartInstance,
@@ -478,17 +511,13 @@ impl DefaultAutoFixManager {
             ));
         }
 
-        // Check if user approval is required and not provided
-        if action.requires_confirmation && !user_approved {
-            return Ok(FixResult::failure(
-                action,
-                "User approval required to start instance".to_string(),
-                start_time.elapsed(),
-            ));
-        }
+        // Task 26.1: user approval is not required for instance start.
+        // The parameter is retained for API compatibility.
+        let _ = user_approved;
 
         // First, get current instance state
-        let describe_request = self.ec2_client
+        let describe_request = self
+            .ec2_client
             .describe_instances()
             .instance_ids(instance_id);
 
@@ -496,7 +525,8 @@ impl DefaultAutoFixManager {
             Ok(response) => {
                 if let Some(reservation) = response.reservations().first() {
                     if let Some(instance) = reservation.instances().first() {
-                        instance.state()
+                        instance
+                            .state()
                             .and_then(|s| s.name())
                             .map(|n| format!("{:?}", n))
                             .unwrap_or_else(|| "unknown".to_string())
@@ -527,13 +557,34 @@ impl DefaultAutoFixManager {
 
         info!("Current instance state: {}", current_state);
 
-        // Check if instance is already running
+        // If instance is already running, proceed to SSM registration wait (task 26.2)
         if current_state.contains("running") {
-            return Ok(FixResult::success(
-                action,
-                "Instance is already running".to_string(),
-                start_time.elapsed(),
-            ));
+            match self
+                .wait_for_ssm_registration_with_progress(instance_id)
+                .await
+            {
+                Ok(state) => {
+                    return Ok(FixResult::success(
+                        action,
+                        format!(
+                            "Instance is already running; SSM registration confirmed (ping_status: {}, agent_version: {})",
+                            state.ping_status, state.agent_version
+                        ),
+                        start_time.elapsed(),
+                    ));
+                }
+                Err(e) => {
+                    return Ok(FixResult::failure(
+                        action,
+                        format!(
+                            "Instance is already running, but SSM registration did not complete: {}\n\n{}",
+                            e,
+                            self.ssm_registration_troubleshooting_instructions(instance_id)
+                        ),
+                        start_time.elapsed(),
+                    ));
+                }
+            }
         }
 
         // Check if instance can be started
@@ -546,38 +597,56 @@ impl DefaultAutoFixManager {
         }
 
         // Start the instance
-        let request = self.ec2_client
-            .start_instances()
-            .instance_ids(instance_id);
+        let request = self.ec2_client.start_instances().instance_ids(instance_id);
 
         match request.send().await {
             Ok(response) => {
                 let starting_instances = response.starting_instances();
                 if let Some(instance) = starting_instances.first() {
-                    let new_state = instance.current_state()
+                    let new_state = instance
+                        .current_state()
                         .and_then(|s| s.name())
                         .map(|n| format!("{:?}", n))
                         .unwrap_or_else(|| "unknown".to_string());
-                    
-                    info!("Instance {} start initiated, new state: {}", instance_id, new_state);
-                    
+
+                    info!(
+                        "Instance {} start initiated, new state: {}",
+                        instance_id, new_state
+                    );
+
                     // Monitor startup progress
                     let monitoring_result = self.monitor_instance_startup(instance_id).await;
-                    
-                    let final_message = match monitoring_result {
+
+                    match monitoring_result {
                         Ok(final_state) => {
-                            format!("Instance started successfully. Final state: {}", final_state)
+                            // Task 26.2: wait for SSM managed instance registration after start
+                            match self.wait_for_ssm_registration_with_progress(instance_id).await {
+                                Ok(state) => Ok(FixResult::success(
+                                    action,
+                                    format!(
+                                        "Instance started successfully (state: {}). SSM registration confirmed (ping_status: {}, agent_version: {})",
+                                        final_state, state.ping_status, state.agent_version
+                                    ),
+                                    start_time.elapsed(),
+                                )),
+                                Err(e) => Ok(FixResult::failure(
+                                    action,
+                                    format!(
+                                        "Instance started successfully (state: {}), but SSM registration did not complete: {}\n\n{}",
+                                        final_state,
+                                        e,
+                                        self.ssm_registration_troubleshooting_instructions(instance_id)
+                                    ),
+                                    start_time.elapsed(),
+                                )),
+                            }
                         }
-                        Err(e) => {
-                            format!("Instance start initiated but monitoring failed: {}", e)
-                        }
-                    };
-                    
-                    Ok(FixResult::success(
-                        action,
-                        final_message,
-                        start_time.elapsed(),
-                    ))
+                        Err(e) => Ok(FixResult::success(
+                            action,
+                            format!("Instance start initiated but monitoring failed: {}", e),
+                            start_time.elapsed(),
+                        )),
+                    }
                 } else {
                     error!("No instance information returned");
                     Ok(FixResult::failure(
@@ -601,19 +670,22 @@ impl DefaultAutoFixManager {
     /// Monitor instance startup progress
     async fn monitor_instance_startup(&self, instance_id: &str) -> Result<String> {
         info!("Monitoring startup progress for instance: {}", instance_id);
-        
+
         let max_wait_time = Duration::from_secs(300); // 5 minutes max wait
         let check_interval = Duration::from_secs(10); // Check every 10 seconds
         let start_time = Instant::now();
-        
+        let mut last_state: Option<String> = None;
+
         loop {
             if start_time.elapsed() > max_wait_time {
                 return Err(Ec2ConnectError::Aws(AwsError::Timeout {
-                    operation: "Instance startup monitoring".to_string()
-                }).into());
+                    operation: "Instance startup monitoring".to_string(),
+                })
+                .into());
             }
-            
-            let describe_request = self.ec2_client
+
+            let describe_request = self
+                .ec2_client
                 .describe_instances()
                 .instance_ids(instance_id);
 
@@ -621,22 +693,38 @@ impl DefaultAutoFixManager {
                 Ok(response) => {
                     if let Some(reservation) = response.reservations().first() {
                         if let Some(instance) = reservation.instances().first() {
-                            let state = instance.state()
+                            let state = instance
+                                .state()
                                 .and_then(|s| s.name())
                                 .map(|n| format!("{:?}", n))
                                 .unwrap_or_else(|| "unknown".to_string());
-                            
-                            debug!("Instance {} current state: {}", instance_id, state);
-                            
+
+                            // Show progress at info-level (task 26.1 requirement: progress display)
+                            if last_state.as_deref() != Some(state.as_str()) {
+                                info!(
+                                    "Instance {} state: {} (elapsed: {}s)",
+                                    instance_id,
+                                    state,
+                                    start_time.elapsed().as_secs()
+                                );
+                                last_state = Some(state.clone());
+                            } else {
+                                debug!("Instance {} current state: {}", instance_id, state);
+                            }
+
                             if state.contains("running") {
                                 info!("Instance {} is now running", instance_id);
                                 return Ok(state);
                             } else if state.contains("stopped") || state.contains("stopping") {
                                 return Err(Ec2ConnectError::Aws(AwsError::Ec2ServiceError {
-                                    message: format!("Instance startup failed, current state: {}", state)
-                                }).into());
+                                    message: format!(
+                                        "Instance startup failed, current state: {}",
+                                        state
+                                    ),
+                                })
+                                .into());
                             }
-                            
+
                             // Continue monitoring for pending/starting states
                         }
                     }
@@ -644,22 +732,95 @@ impl DefaultAutoFixManager {
                 Err(e) => {
                     error!("Failed to check instance state during monitoring: {}", e);
                     return Err(Ec2ConnectError::Aws(AwsError::Ec2ServiceError {
-                        message: format!("Failed to check instance state: {}", e)
-                    }).into());
+                        message: format!("Failed to check instance state: {}", e),
+                    })
+                    .into());
                 }
             }
-            
+
             tokio::time::sleep(check_interval).await;
         }
     }
 
+    /// Task 26.2: Wait for SSM managed instance registration after instance start.
+    /// - Check interval: 3 seconds
+    /// - Default timeout: 5 minutes
+    /// - Emits progress with elapsed time
+    async fn wait_for_ssm_registration_with_progress(
+        &self,
+        instance_id: &str,
+    ) -> Result<SsmAgentState> {
+        let timeout = Duration::from_secs(300);
+        let check_interval = Duration::from_secs(3);
+        let start_time = Instant::now();
+
+        info!(
+            "Waiting for SSM registration for instance: {} (timeout: {}s, interval: {}s)",
+            instance_id,
+            timeout.as_secs(),
+            check_interval.as_secs()
+        );
+
+        loop {
+            if start_time.elapsed() > timeout {
+                return Err(Ec2ConnectError::Aws(AwsError::Timeout {
+                    operation: "SSM registration wait".to_string(),
+                })
+                .into());
+            }
+
+            let state = self.check_ssm_agent_state(instance_id).await?;
+
+            if state.registered {
+                info!(
+                    "SSM registration confirmed for {} (ping_status: {}, agent_version: {}, elapsed: {}s)",
+                    instance_id,
+                    state.ping_status,
+                    state.agent_version,
+                    start_time.elapsed().as_secs()
+                );
+                return Ok(state);
+            }
+
+            info!(
+                "Waiting for SSM registration... instance: {}, elapsed: {}s",
+                instance_id,
+                start_time.elapsed().as_secs()
+            );
+
+            tokio::time::sleep(check_interval).await;
+        }
+    }
+
+    fn ssm_registration_troubleshooting_instructions(&self, instance_id: &str) -> String {
+        format!(
+            "Troubleshooting steps for SSM registration timeout (instance: {}):\n\
+             1) Verify the instance has an IAM role with AmazonSSMManagedInstanceCore attached\n\
+             2) Verify outbound HTTPS (TCP/443) is allowed (Security Group / NACL / proxy)\n\
+             3) If in a private subnet, verify VPC Endpoints exist for: ssm, ssmmessages, ec2messages\n\
+             4) Verify the SSM agent is installed and running (Linux):\n\
+                - sudo systemctl status amazon-ssm-agent\n\
+                - sudo systemctl restart amazon-ssm-agent\n\
+             5) Verify registration via CLI:\n\
+                - aws ssm describe-instance-information --filters Key=InstanceIds,Values={}\n\
+             6) Check instance time sync and DNS resolution (SSM requires correct time/DNS)\n\
+             7) Review CloudWatch / system logs for amazon-ssm-agent errors",
+            instance_id,
+            instance_id
+        )
+    }
+
     /// Execute SSM agent restart fix with enhanced verification
     async fn execute_restart_ssm_agent(&mut self, instance_id: &str) -> Result<FixResult> {
-        self.execute_restart_ssm_agent_with_verification(instance_id).await
+        self.execute_restart_ssm_agent_with_verification(instance_id)
+            .await
     }
 
     /// Execute SSM agent restart fix with detailed state checking and verification
-    async fn execute_restart_ssm_agent_with_verification(&mut self, instance_id: &str) -> Result<FixResult> {
+    async fn execute_restart_ssm_agent_with_verification(
+        &mut self,
+        instance_id: &str,
+    ) -> Result<FixResult> {
         let start_time = Instant::now();
         let action = FixAction::new(
             FixActionType::RestartSsmAgent,
@@ -667,13 +828,22 @@ impl DefaultAutoFixManager {
             instance_id.to_string(),
         );
 
-        info!("Executing enhanced SSM agent restart fix for: {}", instance_id);
+        info!(
+            "Executing enhanced SSM agent restart fix for: {}",
+            instance_id
+        );
 
         if self.dry_run {
-            info!("DRY RUN: Would restart SSM agent on instance {}", instance_id);
+            info!(
+                "DRY RUN: Would restart SSM agent on instance {}",
+                instance_id
+            );
             return Ok(FixResult::success(
                 action,
-                format!("DRY RUN: Would restart SSM agent on instance {}", instance_id),
+                format!(
+                    "DRY RUN: Would restart SSM agent on instance {}",
+                    instance_id
+                ),
                 start_time.elapsed(),
             ));
         }
@@ -684,66 +854,89 @@ impl DefaultAutoFixManager {
 
         // Step 2: Send restart command
         let restart_result = self.send_ssm_restart_command(instance_id).await?;
-        
+
         // Step 3: Wait for agent to restart
         tokio::time::sleep(Duration::from_secs(10)).await;
-        
+
         // Step 4: Verify agent is running and healthy
         let verification_result = self.verify_ssm_agent_health(instance_id).await?;
-        
+
         let final_message = match &verification_result {
             SsmAgentHealthStatus::Healthy => {
-                format!("SSM agent restarted successfully and is healthy. Command ID: {}", restart_result)
+                format!(
+                    "SSM agent restarted successfully and is healthy. Command ID: {}",
+                    restart_result
+                )
             }
             SsmAgentHealthStatus::Unhealthy(reason) => {
-                format!("SSM agent restart completed but agent is unhealthy: {}. Command ID: {}", reason, restart_result)
+                format!(
+                    "SSM agent restart completed but agent is unhealthy: {}. Command ID: {}",
+                    reason, restart_result
+                )
             }
             SsmAgentHealthStatus::Unknown => {
-                format!("SSM agent restart completed but health status unknown. Command ID: {}", restart_result)
+                format!(
+                    "SSM agent restart completed but health status unknown. Command ID: {}",
+                    restart_result
+                )
             }
         };
-        
+
         let success = matches!(verification_result, SsmAgentHealthStatus::Healthy);
-        
+
         if success {
-            Ok(FixResult::success(action, final_message, start_time.elapsed()))
+            Ok(FixResult::success(
+                action,
+                final_message,
+                start_time.elapsed(),
+            ))
         } else {
-            Ok(FixResult::failure(action, final_message, start_time.elapsed()))
+            Ok(FixResult::failure(
+                action,
+                final_message,
+                start_time.elapsed(),
+            ))
         }
     }
 
     /// Check SSM agent state on the instance
     async fn check_ssm_agent_state(&self, instance_id: &str) -> Result<SsmAgentState> {
         info!("Checking SSM agent state for instance: {}", instance_id);
-        
+
         // Check if instance is registered with SSM
-        let describe_request = self.ssm_client
+        let describe_request = self
+            .ssm_client
             .describe_instance_information()
             .instance_information_filter_list(
                 aws_sdk_ssm::types::InstanceInformationFilter::builder()
                     .key(aws_sdk_ssm::types::InstanceInformationFilterKey::InstanceIds)
                     .value_set(instance_id)
                     .build()
-                    .map_err(|e| Ec2ConnectError::Aws(AwsError::SsmServiceError {
-                        message: format!("Failed to build instance filter: {}", e)
-                    }))?
+                    .map_err(|e| {
+                        Ec2ConnectError::Aws(AwsError::SsmServiceError {
+                            message: format!("Failed to build instance filter: {}", e),
+                        })
+                    })?,
             );
 
         match describe_request.send().await {
             Ok(response) => {
                 if let Some(instance_info) = response.instance_information_list().first() {
-                    let ping_status = instance_info.ping_status()
+                    let ping_status = instance_info
+                        .ping_status()
                         .map(|s| format!("{:?}", s))
                         .unwrap_or_else(|| "Unknown".to_string());
-                    
-                    let agent_version = instance_info.agent_version()
+
+                    let agent_version = instance_info
+                        .agent_version()
                         .unwrap_or("Unknown")
                         .to_string();
-                    
-                    let last_ping_time = instance_info.last_ping_date_time()
+
+                    let last_ping_time = instance_info
+                        .last_ping_date_time()
                         .map(|dt| dt.to_string())
                         .unwrap_or_else(|| "Unknown".to_string());
-                    
+
                     Ok(SsmAgentState {
                         registered: true,
                         ping_status,
@@ -760,10 +953,14 @@ impl DefaultAutoFixManager {
                 }
             }
             Err(e) => {
-                error!("Failed to check SSM agent state for instance {}: {}", instance_id, e);
+                error!(
+                    "Failed to check SSM agent state for instance {}: {}",
+                    instance_id, e
+                );
                 Err(Ec2ConnectError::Aws(AwsError::SsmServiceError {
-                    message: format!("Failed to check SSM agent state: {}", e)
-                }).into())
+                    message: format!("Failed to check SSM agent state: {}", e),
+                })
+                .into())
             }
         }
     }
@@ -771,35 +968,47 @@ impl DefaultAutoFixManager {
     /// Send SSM restart command to the instance
     async fn send_ssm_restart_command(&self, instance_id: &str) -> Result<String> {
         info!("Sending SSM restart command to instance: {}", instance_id);
-        
-        let request = self.ssm_client
+
+        let request = self
+            .ssm_client
             .send_command()
             .instance_ids(instance_id)
             .document_name("AWS-RunShellScript")
-            .parameters("commands", vec![
-                "sudo systemctl restart amazon-ssm-agent".to_string(),
-                "sleep 5".to_string(),
-                "sudo systemctl status amazon-ssm-agent".to_string()
-            ]);
+            .parameters(
+                "commands",
+                vec![
+                    "sudo systemctl restart amazon-ssm-agent".to_string(),
+                    "sleep 5".to_string(),
+                    "sudo systemctl status amazon-ssm-agent".to_string(),
+                ],
+            );
 
         match request.send().await {
             Ok(response) => {
                 if let Some(command) = response.command() {
                     let command_id = command.command_id().unwrap_or("unknown");
-                    info!("SSM restart command sent successfully, command ID: {}", command_id);
+                    info!(
+                        "SSM restart command sent successfully, command ID: {}",
+                        command_id
+                    );
                     Ok(command_id.to_string())
                 } else {
                     error!("No command information returned");
                     Err(Ec2ConnectError::Aws(AwsError::SsmServiceError {
-                        message: "No command information returned".to_string()
-                    }).into())
+                        message: "No command information returned".to_string(),
+                    })
+                    .into())
                 }
             }
             Err(e) => {
-                error!("Failed to send SSM restart command to instance {}: {}", instance_id, e);
+                error!(
+                    "Failed to send SSM restart command to instance {}: {}",
+                    instance_id, e
+                );
                 Err(Ec2ConnectError::Aws(AwsError::SsmServiceError {
-                    message: format!("Failed to send SSM restart command: {}", e)
-                }).into())
+                    message: format!("Failed to send SSM restart command: {}", e),
+                })
+                .into())
             }
         }
     }
@@ -807,33 +1016,39 @@ impl DefaultAutoFixManager {
     /// Verify SSM agent health after restart
     async fn verify_ssm_agent_health(&self, instance_id: &str) -> Result<SsmAgentHealthStatus> {
         info!("Verifying SSM agent health for instance: {}", instance_id);
-        
+
         let max_wait_time = Duration::from_secs(60); // 1 minute max wait
         let check_interval = Duration::from_secs(5); // Check every 5 seconds
         let start_time = Instant::now();
-        
+
         loop {
             if start_time.elapsed() > max_wait_time {
                 return Ok(SsmAgentHealthStatus::Unknown);
             }
-            
+
             match self.check_ssm_agent_state(instance_id).await {
                 Ok(state) => {
                     if state.registered && state.ping_status.contains("Online") {
                         info!("SSM agent is healthy for instance: {}", instance_id);
                         return Ok(SsmAgentHealthStatus::Healthy);
                     } else if state.registered {
-                        debug!("SSM agent registered but not online yet: {}", state.ping_status);
+                        debug!(
+                            "SSM agent registered but not online yet: {}",
+                            state.ping_status
+                        );
                     } else {
                         debug!("SSM agent not registered yet");
                     }
                 }
                 Err(e) => {
                     debug!("Error checking SSM agent state during verification: {}", e);
-                    return Ok(SsmAgentHealthStatus::Unhealthy(format!("Health check failed: {}", e)));
+                    return Ok(SsmAgentHealthStatus::Unhealthy(format!(
+                        "Health check failed: {}",
+                        e
+                    )));
                 }
             }
-            
+
             tokio::time::sleep(check_interval).await;
         }
     }
@@ -860,11 +1075,11 @@ impl DefaultAutoFixManager {
 
         // Try to refresh credentials by creating a new config
         let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
-        
+
         // Update our clients with the new config
         self.ec2_client = Ec2Client::new(&config);
         self.ssm_client = SsmClient::new(&config);
-        
+
         info!("Successfully refreshed AWS credentials");
         Ok(FixResult::success(
             action,
@@ -993,56 +1208,69 @@ impl DefaultAutoFixManager {
 #[async_trait]
 impl AutoFixManager for DefaultAutoFixManager {
     async fn analyze_fixes(&self, diagnostics: &[DiagnosticResult]) -> Result<Vec<FixAction>> {
-        info!("Analyzing {} diagnostic results for potential fixes", diagnostics.len());
-        
+        info!(
+            "Analyzing {} diagnostic results for potential fixes",
+            diagnostics.len()
+        );
+
         let mut all_fixes = Vec::new();
-        
+
         for result in diagnostics {
-            debug!("Analyzing fixes for diagnostic item: {} (status: {:?}, message: {})", 
-                result.item_name, result.status, result.message);
-            
+            debug!(
+                "Analyzing fixes for diagnostic item: {} (status: {:?}, message: {})",
+                result.item_name, result.status, result.message
+            );
+
             let fixes = match result.item_name.as_str() {
                 "instance_state" | "detailed_instance_state" => {
                     debug!("Matched instance state diagnostic, calling analyze_instance_fixes");
                     let instance_fixes = self.analyze_instance_fixes(result);
                     debug!("Generated {} instance fixes", instance_fixes.len());
                     instance_fixes
-                },
+                }
                 "ssm_agent" | "ssm_agent_enhanced" => self.analyze_ssm_agent_fixes(result),
                 "iam_permissions" => self.analyze_iam_fixes(result),
-                "vpc_endpoints" | "security_groups" | "network_connectivity" => self.analyze_network_fixes(result),
+                "vpc_endpoints" | "security_groups" | "network_connectivity" => {
+                    self.analyze_network_fixes(result)
+                }
                 "local_port_availability" => self.analyze_port_fixes(result),
                 _ => {
-                    debug!("No specific fix analysis for diagnostic item: {}", result.item_name);
+                    debug!(
+                        "No specific fix analysis for diagnostic item: {}",
+                        result.item_name
+                    );
                     Vec::new()
                 }
             };
-            
+
             all_fixes.extend(fixes);
         }
-        
+
         // Sort fixes by risk level (safest first)
         all_fixes.sort_by(|a, b| a.risk_level.cmp(&b.risk_level));
-        
+
         info!("Generated {} potential fix actions", all_fixes.len());
         Ok(all_fixes)
     }
 
     async fn execute_fix(&mut self, action: FixAction) -> Result<FixResult> {
-        info!("Executing fix action: {:?} for target: {}", action.action_type, action.target_resource);
-        
+        info!(
+            "Executing fix action: {:?} for target: {}",
+            action.action_type, action.target_resource
+        );
+
         match action.action_type {
             FixActionType::StartInstance => {
                 self.execute_start_instance(&action.target_resource).await
             }
             FixActionType::RestartSsmAgent => {
-                self.execute_restart_ssm_agent(&action.target_resource).await
+                self.execute_restart_ssm_agent(&action.target_resource)
+                    .await
             }
-            FixActionType::UpdateCredentials => {
-                self.execute_update_credentials().await
-            }
+            FixActionType::UpdateCredentials => self.execute_update_credentials().await,
             FixActionType::TerminateProcess => {
-                self.execute_terminate_process(&action.target_resource).await
+                self.execute_terminate_process(&action.target_resource)
+                    .await
             }
             FixActionType::RestoreConfig => {
                 // For now, return a manual suggestion
@@ -1053,9 +1281,9 @@ impl AutoFixManager for DefaultAutoFixManager {
                     start_time.elapsed(),
                 ))
             }
-            FixActionType::CreateVpcEndpoint | 
-            FixActionType::UpdateSecurityGroup | 
-            FixActionType::SuggestManualFix => {
+            FixActionType::CreateVpcEndpoint
+            | FixActionType::UpdateSecurityGroup
+            | FixActionType::SuggestManualFix => {
                 // These are manual fixes
                 let start_time = Instant::now();
                 Ok(FixResult::success(
@@ -1069,16 +1297,19 @@ impl AutoFixManager for DefaultAutoFixManager {
 
     async fn execute_safe_fixes(&mut self, actions: Vec<FixAction>) -> Result<Vec<FixResult>> {
         info!("Executing {} safe fix actions", actions.len());
-        
+
         let mut results = Vec::new();
-        
+
         for action in actions {
             if action.is_safe_to_auto_execute() {
                 info!("Auto-executing safe fix: {:?}", action.action_type);
                 let result = self.execute_fix(action).await?;
                 results.push(result);
             } else {
-                info!("Skipping non-safe fix: {:?} (requires confirmation or high risk)", action.action_type);
+                info!(
+                    "Skipping non-safe fix: {:?} (requires confirmation or high risk)",
+                    action.action_type
+                );
                 let start_time = Instant::now();
                 let result = FixResult::success(
                     action,
@@ -1088,8 +1319,11 @@ impl AutoFixManager for DefaultAutoFixManager {
                 results.push(result);
             }
         }
-        
-        info!("Completed execution of safe fixes, {} results", results.len());
+
+        info!(
+            "Completed execution of safe fixes, {} results",
+            results.len()
+        );
         Ok(results)
     }
 
@@ -1120,17 +1354,15 @@ impl AutoFixManager for DefaultAutoFixManager {
                     Restart-Service AmazonSSMAgent"
                 )
             }
-            FixActionType::UpdateCredentials => {
-                "To update AWS credentials manually:\n\
+            FixActionType::UpdateCredentials => "To update AWS credentials manually:\n\
                 1. Run 'aws configure' to set up credentials\n\
                 2. Or set environment variables:\n\
                    export AWS_ACCESS_KEY_ID=your_access_key\n\
                    export AWS_SECRET_ACCESS_KEY=your_secret_key\n\
                 3. Or use AWS SSO: aws sso login\n\
-                4. Verify credentials: aws sts get-caller-identity".to_string()
-            }
-            FixActionType::CreateVpcEndpoint => {
-                "To create VPC endpoints for SSM:\n\
+                4. Verify credentials: aws sts get-caller-identity"
+                .to_string(),
+            FixActionType::CreateVpcEndpoint => "To create VPC endpoints for SSM:\n\
                 1. Open the VPC Console\n\
                 2. Navigate to Endpoints\n\
                 3. Create endpoints for:\n\
@@ -1138,10 +1370,9 @@ impl AutoFixManager for DefaultAutoFixManager {
                    - com.amazonaws.region.ssmmessages\n\
                    - com.amazonaws.region.ec2messages\n\
                 4. Associate with the appropriate VPC and subnets\n\
-                5. Configure security groups to allow HTTPS traffic".to_string()
-            }
-            FixActionType::UpdateSecurityGroup => {
-                "To update security group rules:\n\
+                5. Configure security groups to allow HTTPS traffic"
+                .to_string(),
+            FixActionType::UpdateSecurityGroup => "To update security group rules:\n\
                 1. Open the EC2 Console\n\
                 2. Navigate to Security Groups\n\
                 3. Select the security group attached to your instance\n\
@@ -1150,8 +1381,8 @@ impl AutoFixManager for DefaultAutoFixManager {
                    - Protocol: TCP\n\
                    - Port: 443\n\
                    - Destination: 0.0.0.0/0\n\
-                5. Save the changes".to_string()
-            }
+                5. Save the changes"
+                .to_string(),
             FixActionType::TerminateProcess => {
                 format!(
                     "To terminate the process manually:\n\
@@ -1165,59 +1396,80 @@ impl AutoFixManager for DefaultAutoFixManager {
                     action.target_resource
                 )
             }
-            FixActionType::RestoreConfig => {
-                "To restore configuration:\n\
+            FixActionType::RestoreConfig => "To restore configuration:\n\
                 1. Backup current configuration files\n\
                 2. Restore from a known good backup\n\
                 3. Or reset to default configuration\n\
                 4. Restart relevant services\n\
-                5. Test the configuration".to_string()
-            }
+                5. Test the configuration"
+                .to_string(),
             FixActionType::SuggestManualFix => {
                 format!("Manual intervention required: {}", action.description)
             }
         }
     }
 
-    async fn fix_instance_state(&mut self, instance_id: &str, user_approved: bool) -> Result<FixResult> {
-        info!("Fixing instance state for: {} (user_approved: {})", instance_id, user_approved);
-        self.execute_start_instance_with_monitoring(instance_id, user_approved).await
+    async fn fix_instance_state(
+        &mut self,
+        instance_id: &str,
+        user_approved: bool,
+    ) -> Result<FixResult> {
+        info!(
+            "Fixing instance state for: {} (user_approved: {})",
+            instance_id, user_approved
+        );
+        self.execute_start_instance_with_monitoring(instance_id, user_approved)
+            .await
     }
 
     async fn fix_ssm_agent(&mut self, instance_id: &str) -> Result<FixResult> {
         info!("Fixing SSM agent for: {}", instance_id);
-        self.execute_restart_ssm_agent_with_verification(instance_id).await
+        self.execute_restart_ssm_agent_with_verification(instance_id)
+            .await
     }
 
     async fn suggest_iam_fixes(&self, instance_id: &str) -> Result<Vec<String>> {
-        info!("Analyzing IAM permission fixes for instance: {}", instance_id);
-        
+        info!(
+            "Analyzing IAM permission fixes for instance: {}",
+            instance_id
+        );
+
         let mut suggestions = Vec::new();
-        
+
         // Get instance details for more specific recommendations
         let instance_details = self.get_instance_details(instance_id).await?;
-        
+
         // Basic SSM permissions
-        suggestions.push("Ensure the EC2 instance has an IAM role attached with the following managed policies:".to_string());
-        suggestions.push("  - AmazonSSMManagedInstanceCore (required for basic SSM functionality)".to_string());
+        suggestions.push(
+            "Ensure the EC2 instance has an IAM role attached with the following managed policies:"
+                .to_string(),
+        );
+        suggestions.push(
+            "  - AmazonSSMManagedInstanceCore (required for basic SSM functionality)".to_string(),
+        );
         suggestions.push("  - AmazonSSMPatchAssociation (for patch management)".to_string());
-        
+
         // VPC-specific permissions if instance is in VPC
         if let Some(vpc_id) = &instance_details.vpc_id {
-            suggestions.push(format!("For VPC instance ({}), ensure the following:", vpc_id));
+            suggestions.push(format!(
+                "For VPC instance ({}), ensure the following:",
+                vpc_id
+            ));
             suggestions.push("  - VPC endpoints are configured for SSM services".to_string());
-            suggestions.push("  - Security groups allow HTTPS outbound traffic (port 443)".to_string());
+            suggestions
+                .push("  - Security groups allow HTTPS outbound traffic (port 443)".to_string());
         }
-        
+
         // Instance profile check
         if instance_details.iam_instance_profile.is_none() {
-            suggestions.push("⚠️  CRITICAL: No IAM instance profile attached to the instance".to_string());
+            suggestions
+                .push("⚠️  CRITICAL: No IAM instance profile attached to the instance".to_string());
             suggestions.push("  1. Create an IAM role with SSM permissions".to_string());
             suggestions.push("  2. Create an instance profile for the role".to_string());
             suggestions.push("  3. Attach the instance profile to the EC2 instance".to_string());
             suggestions.push("  4. Restart the SSM agent after attaching the profile".to_string());
         }
-        
+
         // Detailed permission analysis
         suggestions.push("Required IAM permissions for SSM connectivity:".to_string());
         suggestions.push("  - ssm:UpdateInstanceInformation".to_string());
@@ -1232,35 +1484,45 @@ impl AutoFixManager for DefaultAutoFixManager {
         suggestions.push("  - ec2messages:GetEndpoint".to_string());
         suggestions.push("  - ec2messages:GetMessages".to_string());
         suggestions.push("  - ec2messages:SendReply".to_string());
-        
+
         // AWS CLI commands for verification
         suggestions.push("Verification commands:".to_string());
-        suggestions.push(format!("  aws ec2 describe-instances --instance-ids {}", instance_id));
-        suggestions.push(format!("  aws ssm describe-instance-information --filters Key=InstanceIds,Values={}", instance_id));
+        suggestions.push(format!(
+            "  aws ec2 describe-instances --instance-ids {}",
+            instance_id
+        ));
+        suggestions.push(format!(
+            "  aws ssm describe-instance-information --filters Key=InstanceIds,Values={}",
+            instance_id
+        ));
         suggestions.push("  aws sts get-caller-identity".to_string());
-        
+
         Ok(suggestions)
     }
 
     async fn suggest_security_group_fixes(&self, instance_id: &str) -> Result<Vec<String>> {
-        info!("Analyzing security group fixes for instance: {}", instance_id);
-        
+        info!(
+            "Analyzing security group fixes for instance: {}",
+            instance_id
+        );
+
         let mut suggestions = Vec::new();
-        
+
         // Get instance details including security groups
         let instance_details = self.get_instance_details(instance_id).await?;
-        
+
         suggestions.push("Security Group Requirements for SSM Connectivity:".to_string());
         suggestions.push("".to_string());
-        
+
         // Outbound rules
         suggestions.push("Required OUTBOUND rules:".to_string());
         suggestions.push("  - Type: HTTPS".to_string());
         suggestions.push("  - Protocol: TCP".to_string());
         suggestions.push("  - Port: 443".to_string());
-        suggestions.push("  - Destination: 0.0.0.0/0 (or specific AWS service endpoints)".to_string());
+        suggestions
+            .push("  - Destination: 0.0.0.0/0 (or specific AWS service endpoints)".to_string());
         suggestions.push("".to_string());
-        
+
         // VPC endpoint specific recommendations
         if instance_details.vpc_id.is_some() {
             suggestions.push("For VPC instances, create VPC endpoints for:".to_string());
@@ -1268,12 +1530,14 @@ impl AutoFixManager for DefaultAutoFixManager {
             suggestions.push("  - com.amazonaws.<region>.ssmmessages".to_string());
             suggestions.push("  - com.amazonaws.<region>.ec2messages".to_string());
             suggestions.push("".to_string());
-            
+
             suggestions.push("VPC endpoint security group requirements:".to_string());
-            suggestions.push("  - Allow inbound HTTPS (port 443) from instance security groups".to_string());
+            suggestions.push(
+                "  - Allow inbound HTTPS (port 443) from instance security groups".to_string(),
+            );
             suggestions.push("".to_string());
         }
-        
+
         // Current security groups analysis
         if !instance_details.security_groups.is_empty() {
             suggestions.push("Current security groups attached to instance:".to_string());
@@ -1281,13 +1545,16 @@ impl AutoFixManager for DefaultAutoFixManager {
                 suggestions.push(format!("  - {} ({})", sg.group_name, sg.group_id));
             }
             suggestions.push("".to_string());
-            
+
             suggestions.push("Verification steps:".to_string());
             for sg in &instance_details.security_groups {
-                suggestions.push(format!("  aws ec2 describe-security-groups --group-ids {}", sg.group_id));
+                suggestions.push(format!(
+                    "  aws ec2 describe-security-groups --group-ids {}",
+                    sg.group_id
+                ));
             }
         }
-        
+
         // Common issues and solutions
         suggestions.push("Common security group issues and solutions:".to_string());
         suggestions.push("".to_string());
@@ -1301,7 +1568,7 @@ impl AutoFixManager for DefaultAutoFixManager {
         suggestions.push("3. Network ACL restrictions:".to_string());
         suggestions.push("   - Check subnet-level Network ACLs".to_string());
         suggestions.push("   - Ensure they allow HTTPS traffic".to_string());
-        
+
         // AWS CLI commands for fixes
         suggestions.push("".to_string());
         suggestions.push("Example AWS CLI commands to add HTTPS outbound rule:".to_string());
@@ -1311,15 +1578,16 @@ impl AutoFixManager for DefaultAutoFixManager {
                 sg.group_id
             ));
         }
-        
+
         Ok(suggestions)
     }
 
     /// Get instance details (private helper method)
     async fn get_instance_details(&self, instance_id: &str) -> Result<InstanceDetails> {
         info!("Getting instance details for: {}", instance_id);
-        
-        let describe_request = self.ec2_client
+
+        let describe_request = self
+            .ec2_client
             .describe_instances()
             .instance_ids(instance_id);
 
@@ -1329,18 +1597,20 @@ impl AutoFixManager for DefaultAutoFixManager {
                     if let Some(instance) = reservation.instances().first() {
                         let vpc_id = instance.vpc_id().map(|s| s.to_string());
                         let subnet_id = instance.subnet_id().map(|s| s.to_string());
-                        let iam_instance_profile = instance.iam_instance_profile()
+                        let iam_instance_profile = instance
+                            .iam_instance_profile()
                             .and_then(|profile| profile.arn())
                             .map(|s| s.to_string());
-                        
-                        let security_groups: Vec<SecurityGroupInfo> = instance.security_groups()
+
+                        let security_groups: Vec<SecurityGroupInfo> = instance
+                            .security_groups()
                             .iter()
                             .map(|sg| SecurityGroupInfo {
                                 group_id: sg.group_id().unwrap_or("unknown").to_string(),
                                 group_name: sg.group_name().unwrap_or("unknown").to_string(),
                             })
                             .collect();
-                        
+
                         Ok(InstanceDetails {
                             instance_id: instance_id.to_string(),
                             vpc_id,
@@ -1350,33 +1620,41 @@ impl AutoFixManager for DefaultAutoFixManager {
                         })
                     } else {
                         Err(Ec2ConnectError::Aws(AwsError::InstanceNotFound {
-                            instance_id: instance_id.to_string()
-                        }).into())
+                            instance_id: instance_id.to_string(),
+                        })
+                        .into())
                     }
                 } else {
                     Err(Ec2ConnectError::Aws(AwsError::InstanceNotFound {
-                        instance_id: instance_id.to_string()
-                    }).into())
+                        instance_id: instance_id.to_string(),
+                    })
+                    .into())
                 }
             }
             Err(e) => {
                 error!("Failed to describe instance {}: {}", instance_id, e);
                 Err(Ec2ConnectError::Aws(AwsError::Ec2ServiceError {
-                    message: format!("Failed to describe instance: {}", e)
-                }).into())
+                    message: format!("Failed to describe instance: {}", e),
+                })
+                .into())
             }
         }
     }
 
+    async fn generate_fix_effectiveness_report(
+        &self,
+        instance_id: &str,
+        applied_fixes: &[FixResult],
+    ) -> Result<FixEffectivenessReport> {
+        info!(
+            "Generating fix effectiveness report for instance: {}",
+            instance_id
+        );
 
-
-    async fn generate_fix_effectiveness_report(&self, instance_id: &str, applied_fixes: &[FixResult]) -> Result<FixEffectivenessReport> {
-        info!("Generating fix effectiveness report for instance: {}", instance_id);
-        
         let mut verification_results = Vec::new();
         let mut successful_fixes = 0;
         let mut failed_fixes = 0;
-        
+
         // Verify each applied fix
         for fix_result in applied_fixes {
             let fix_type = match fix_result.action.action_type {
@@ -1386,10 +1664,10 @@ impl AutoFixManager for DefaultAutoFixManager {
                 FixActionType::UpdateSecurityGroup => "security_group",
                 _ => "general",
             };
-            
+
             if fix_result.success {
                 successful_fixes += 1;
-                
+
                 // Perform verification for successful fixes
                 match self.verify_fix(instance_id, fix_type).await {
                     Ok(verified) => {
@@ -1397,9 +1675,16 @@ impl AutoFixManager for DefaultAutoFixManager {
                             fix_type: fix_type.to_string(),
                             instance_id: instance_id.to_string(),
                             verified,
-                            verification_details: vec![format!("Fix {} verification completed", fix_type)],
+                            verification_details: vec![format!(
+                                "Fix {} verification completed",
+                                fix_type
+                            )],
                             connectivity_restored: verified,
-                            remaining_issues: if verified { Vec::new() } else { vec!["Verification failed".to_string()] },
+                            remaining_issues: if verified {
+                                Vec::new()
+                            } else {
+                                vec!["Verification failed".to_string()]
+                            },
                             verification_timestamp: chrono::Utc::now().to_rfc3339(),
                         };
                         verification_results.push(verification_result);
@@ -1421,13 +1706,18 @@ impl AutoFixManager for DefaultAutoFixManager {
                 failed_fixes += 1;
             }
         }
-        
+
         // Check overall connectivity status
-        let overall_connectivity_status = self.verify_general_connectivity(instance_id).await.unwrap_or(false);
-        
+        let overall_connectivity_status = self
+            .verify_general_connectivity(instance_id)
+            .await
+            .unwrap_or(false);
+
         // Generate recommendations based on verification results
-        let recommendations = self.generate_fix_recommendations(&verification_results).await?;
-        
+        let recommendations = self
+            .generate_fix_recommendations(&verification_results)
+            .await?;
+
         Ok(FixEffectivenessReport {
             instance_id: instance_id.to_string(),
             total_fixes_applied: applied_fixes.len() as u32,
@@ -1440,15 +1730,21 @@ impl AutoFixManager for DefaultAutoFixManager {
         })
     }
 
-    async fn generate_fix_recommendations(&self, verification_results: &[FixVerificationResult]) -> Result<Vec<String>> {
-        info!("Generating fix recommendations based on {} verification results", verification_results.len());
-        
+    async fn generate_fix_recommendations(
+        &self,
+        verification_results: &[FixVerificationResult],
+    ) -> Result<Vec<String>> {
+        info!(
+            "Generating fix recommendations based on {} verification results",
+            verification_results.len()
+        );
+
         let mut recommendations = Vec::new();
-        
+
         // Analyze verification results to generate recommendations
         let mut has_connectivity = false;
         let mut failed_verifications = Vec::new();
-        
+
         for result in verification_results {
             if result.connectivity_restored {
                 has_connectivity = true;
@@ -1456,109 +1752,149 @@ impl AutoFixManager for DefaultAutoFixManager {
                 failed_verifications.push(result);
             }
         }
-        
+
         if has_connectivity {
-            recommendations.push("✅ Connection successfully restored for this instance".to_string());
+            recommendations
+                .push("✅ Connection successfully restored for this instance".to_string());
         } else {
-            recommendations.push("⚠️  Connection not yet restored - additional fixes may be needed".to_string());
+            recommendations.push(
+                "⚠️  Connection not yet restored - additional fixes may be needed".to_string(),
+            );
         }
-        
+
         // Generate specific recommendations based on failed verifications
         for failed in &failed_verifications {
             match failed.fix_type.as_str() {
                 "instance_start" => {
                     recommendations.push("🔄 Instance Start Issues:".to_string());
                     recommendations.push("  - Verify instance is in 'running' state".to_string());
-                    recommendations.push("  - Check instance system logs for startup errors".to_string());
-                    recommendations.push("  - Ensure instance has sufficient resources".to_string());
+                    recommendations
+                        .push("  - Check instance system logs for startup errors".to_string());
+                    recommendations
+                        .push("  - Ensure instance has sufficient resources".to_string());
                 }
                 "ssm_agent" => {
                     recommendations.push("🔄 SSM Agent Issues:".to_string());
-                    recommendations.push("  - Wait 2-3 minutes for SSM agent to fully restart".to_string());
+                    recommendations
+                        .push("  - Wait 2-3 minutes for SSM agent to fully restart".to_string());
                     recommendations.push("  - Check IAM instance profile permissions".to_string());
-                    recommendations.push("  - Verify VPC endpoints or internet gateway configuration".to_string());
-                    recommendations.push("  - Consider manual SSM agent reinstallation".to_string());
+                    recommendations.push(
+                        "  - Verify VPC endpoints or internet gateway configuration".to_string(),
+                    );
+                    recommendations
+                        .push("  - Consider manual SSM agent reinstallation".to_string());
                 }
                 "iam_permissions" => {
                     recommendations.push("🔄 IAM Permission Issues:".to_string());
-                    recommendations.push("  - Attach AmazonSSMManagedInstanceCore policy to instance role".to_string());
-                    recommendations.push("  - Verify instance profile is properly attached".to_string());
-                    recommendations.push("  - Check trust relationship allows EC2 service".to_string());
+                    recommendations.push(
+                        "  - Attach AmazonSSMManagedInstanceCore policy to instance role"
+                            .to_string(),
+                    );
+                    recommendations
+                        .push("  - Verify instance profile is properly attached".to_string());
+                    recommendations
+                        .push("  - Check trust relationship allows EC2 service".to_string());
                     recommendations.push("  - Restart SSM agent after IAM changes".to_string());
                 }
                 "security_group" => {
                     recommendations.push("🔄 Security Group Issues:".to_string());
-                    recommendations.push("  - Add HTTPS outbound rule (port 443) to security groups".to_string());
-                    recommendations.push("  - Create VPC endpoints for SSM services if in private subnet".to_string());
+                    recommendations.push(
+                        "  - Add HTTPS outbound rule (port 443) to security groups".to_string(),
+                    );
+                    recommendations.push(
+                        "  - Create VPC endpoints for SSM services if in private subnet"
+                            .to_string(),
+                    );
                     recommendations.push("  - Check Network ACL rules for subnet".to_string());
-                    recommendations.push("  - Verify route table has internet gateway or NAT gateway".to_string());
+                    recommendations.push(
+                        "  - Verify route table has internet gateway or NAT gateway".to_string(),
+                    );
                 }
                 _ => {
-                    recommendations.push(format!("🔄 General Issues ({}): Check remaining issues in verification details", failed.fix_type));
+                    recommendations.push(format!(
+                        "🔄 General Issues ({}): Check remaining issues in verification details",
+                        failed.fix_type
+                    ));
                 }
             }
-            
+
             // Add specific remaining issues
             for issue in &failed.remaining_issues {
                 recommendations.push(format!("  - {}", issue));
             }
         }
-        
+
         // Add general troubleshooting recommendations
         if !failed_verifications.is_empty() {
             recommendations.push("".to_string());
             recommendations.push("📋 General Troubleshooting Steps:".to_string());
             recommendations.push("  1. Wait 5-10 minutes for all changes to propagate".to_string());
-            recommendations.push("  2. Check AWS CloudTrail logs for any permission errors".to_string());
-            recommendations.push("  3. Verify AWS region consistency across all resources".to_string());
+            recommendations
+                .push("  2. Check AWS CloudTrail logs for any permission errors".to_string());
+            recommendations
+                .push("  3. Verify AWS region consistency across all resources".to_string());
             recommendations.push("  4. Test connectivity from a different local port".to_string());
             recommendations.push("  5. Consider using AWS Systems Manager Session Manager console for direct testing".to_string());
         }
-        
+
         Ok(recommendations)
     }
 
     /// Verify instance start fix effectiveness
     async fn verify_instance_start_fix(&self, instance_id: &str) -> Result<FixVerificationResult> {
         info!("Verifying instance start fix for: {}", instance_id);
-        
+
         let mut verification_details = Vec::new();
         let mut remaining_issues = Vec::new();
         let mut verified = false;
         let mut connectivity_restored = false;
-        
+
         // Check current instance state
-        match self.ec2_client.describe_instances().instance_ids(instance_id).send().await {
+        match self
+            .ec2_client
+            .describe_instances()
+            .instance_ids(instance_id)
+            .send()
+            .await
+        {
             Ok(response) => {
                 if let Some(reservation) = response.reservations().first() {
                     if let Some(instance) = reservation.instances().first() {
-                        let state = instance.state()
+                        let state = instance
+                            .state()
                             .and_then(|s| s.name())
                             .map(|n| format!("{:?}", n))
                             .unwrap_or_else(|| "unknown".to_string());
-                        
+
                         verification_details.push(format!("Instance state: {}", state));
-                        
+
                         if state.contains("running") {
                             verified = true;
-                            verification_details.push("Instance is running successfully".to_string());
-                            
+                            verification_details
+                                .push("Instance is running successfully".to_string());
+
                             // Check SSM connectivity
                             match self.check_ssm_agent_state(instance_id).await {
                                 Ok(ssm_state) => {
-                                    if ssm_state.registered && ssm_state.ping_status.contains("Online") {
+                                    if ssm_state.registered
+                                        && ssm_state.ping_status.contains("Online")
+                                    {
                                         connectivity_restored = true;
-                                        verification_details.push("SSM connectivity verified".to_string());
+                                        verification_details
+                                            .push("SSM connectivity verified".to_string());
                                     } else {
-                                        remaining_issues.push("SSM agent not online yet".to_string());
+                                        remaining_issues
+                                            .push("SSM agent not online yet".to_string());
                                     }
                                 }
                                 Err(_) => {
-                                    remaining_issues.push("Unable to verify SSM connectivity".to_string());
+                                    remaining_issues
+                                        .push("Unable to verify SSM connectivity".to_string());
                                 }
                             }
                         } else {
-                            remaining_issues.push(format!("Instance not in running state: {}", state));
+                            remaining_issues
+                                .push(format!("Instance not in running state: {}", state));
                         }
                     }
                 }
@@ -1567,7 +1903,7 @@ impl AutoFixManager for DefaultAutoFixManager {
                 remaining_issues.push(format!("Failed to verify instance state: {}", e));
             }
         }
-        
+
         Ok(FixVerificationResult {
             fix_type: "instance_start".to_string(),
             instance_id: instance_id.to_string(),
@@ -1582,12 +1918,12 @@ impl AutoFixManager for DefaultAutoFixManager {
     /// Verify SSM agent fix effectiveness
     async fn verify_ssm_agent_fix(&self, instance_id: &str) -> Result<FixVerificationResult> {
         info!("Verifying SSM agent fix for: {}", instance_id);
-        
+
         let mut verification_details = Vec::new();
         let mut remaining_issues = Vec::new();
         let mut verified = false;
         let mut connectivity_restored = false;
-        
+
         // Check SSM agent state
         match self.check_ssm_agent_state(instance_id).await {
             Ok(ssm_state) => {
@@ -1595,24 +1931,28 @@ impl AutoFixManager for DefaultAutoFixManager {
                 verification_details.push(format!("Ping status: {}", ssm_state.ping_status));
                 verification_details.push(format!("Agent version: {}", ssm_state.agent_version));
                 verification_details.push(format!("Last ping: {}", ssm_state.last_ping_time));
-                
+
                 if ssm_state.registered {
                     verified = true;
                     if ssm_state.ping_status.contains("Online") {
                         connectivity_restored = true;
                         verification_details.push("SSM agent is healthy and online".to_string());
                     } else {
-                        remaining_issues.push(format!("SSM agent registered but not online: {}", ssm_state.ping_status));
+                        remaining_issues.push(format!(
+                            "SSM agent registered but not online: {}",
+                            ssm_state.ping_status
+                        ));
                     }
                 } else {
-                    remaining_issues.push("SSM agent not registered with Systems Manager".to_string());
+                    remaining_issues
+                        .push("SSM agent not registered with Systems Manager".to_string());
                 }
             }
             Err(e) => {
                 remaining_issues.push(format!("Failed to verify SSM agent state: {}", e));
             }
         }
-        
+
         Ok(FixVerificationResult {
             fix_type: "ssm_agent".to_string(),
             instance_id: instance_id.to_string(),
@@ -1627,31 +1967,39 @@ impl AutoFixManager for DefaultAutoFixManager {
     /// Verify IAM permissions fix effectiveness
     async fn verify_iam_permissions_fix(&self, instance_id: &str) -> Result<FixVerificationResult> {
         info!("Verifying IAM permissions fix for: {}", instance_id);
-        
+
         let mut verification_details = Vec::new();
         let mut remaining_issues = Vec::new();
         let mut verified = false;
         let mut connectivity_restored = false;
-        
+
         // Get instance details to check IAM instance profile
         match self.get_instance_details(instance_id).await {
             Ok(instance_details) => {
                 if let Some(iam_profile) = &instance_details.iam_instance_profile {
-                    verification_details.push(format!("IAM instance profile attached: {}", iam_profile));
+                    verification_details
+                        .push(format!("IAM instance profile attached: {}", iam_profile));
                     verified = true;
-                    
+
                     // Check if SSM agent can communicate (indicates proper permissions)
                     match self.check_ssm_agent_state(instance_id).await {
                         Ok(ssm_state) => {
                             if ssm_state.registered {
                                 connectivity_restored = true;
-                                verification_details.push("SSM registration successful - IAM permissions working".to_string());
+                                verification_details.push(
+                                    "SSM registration successful - IAM permissions working"
+                                        .to_string(),
+                                );
                             } else {
-                                remaining_issues.push("IAM profile attached but SSM registration failed".to_string());
+                                remaining_issues.push(
+                                    "IAM profile attached but SSM registration failed".to_string(),
+                                );
                             }
                         }
                         Err(_) => {
-                            remaining_issues.push("Unable to verify SSM connectivity after IAM fix".to_string());
+                            remaining_issues.push(
+                                "Unable to verify SSM connectivity after IAM fix".to_string(),
+                            );
                         }
                     }
                 } else {
@@ -1662,7 +2010,7 @@ impl AutoFixManager for DefaultAutoFixManager {
                 remaining_issues.push(format!("Failed to verify instance details: {}", e));
             }
         }
-        
+
         Ok(FixVerificationResult {
             fix_type: "iam_permissions".to_string(),
             instance_id: instance_id.to_string(),
@@ -1677,45 +2025,58 @@ impl AutoFixManager for DefaultAutoFixManager {
     /// Verify security group fix effectiveness
     async fn verify_security_group_fix(&self, instance_id: &str) -> Result<FixVerificationResult> {
         info!("Verifying security group fix for: {}", instance_id);
-        
+
         let mut verification_details = Vec::new();
         let mut remaining_issues = Vec::new();
         let mut verified = false;
         let mut connectivity_restored = false;
-        
+
         // Get instance details to check security groups
         match self.get_instance_details(instance_id).await {
             Ok(instance_details) => {
-                verification_details.push(format!("Security groups count: {}", instance_details.security_groups.len()));
-                
+                verification_details.push(format!(
+                    "Security groups count: {}",
+                    instance_details.security_groups.len()
+                ));
+
                 for sg in &instance_details.security_groups {
-                    verification_details.push(format!("Security group: {} ({})", sg.group_name, sg.group_id));
-                    
+                    verification_details.push(format!(
+                        "Security group: {} ({})",
+                        sg.group_name, sg.group_id
+                    ));
+
                     // Check security group rules
                     match self.check_security_group_rules(&sg.group_id).await {
                         Ok(has_https_outbound) => {
                             if has_https_outbound {
-                                verification_details.push(format!("HTTPS outbound rule found in {}", sg.group_id));
+                                verification_details
+                                    .push(format!("HTTPS outbound rule found in {}", sg.group_id));
                                 verified = true;
                             } else {
-                                remaining_issues.push(format!("No HTTPS outbound rule in {}", sg.group_id));
+                                remaining_issues
+                                    .push(format!("No HTTPS outbound rule in {}", sg.group_id));
                             }
                         }
                         Err(e) => {
-                            remaining_issues.push(format!("Failed to check rules for {}: {}", sg.group_id, e));
+                            remaining_issues
+                                .push(format!("Failed to check rules for {}: {}", sg.group_id, e));
                         }
                     }
                 }
-                
+
                 // Test general connectivity if security groups look good
                 if verified {
                     match self.verify_general_connectivity(instance_id).await {
                         Ok(connected) => {
                             if connected {
                                 connectivity_restored = true;
-                                verification_details.push("General connectivity test passed".to_string());
+                                verification_details
+                                    .push("General connectivity test passed".to_string());
                             } else {
-                                remaining_issues.push("Security groups updated but connectivity test failed".to_string());
+                                remaining_issues.push(
+                                    "Security groups updated but connectivity test failed"
+                                        .to_string(),
+                                );
                             }
                         }
                         Err(e) => {
@@ -1728,7 +2089,7 @@ impl AutoFixManager for DefaultAutoFixManager {
                 remaining_issues.push(format!("Failed to verify instance details: {}", e));
             }
         }
-        
+
         Ok(FixVerificationResult {
             fix_type: "security_group".to_string(),
             instance_id: instance_id.to_string(),
@@ -1743,16 +2104,27 @@ impl AutoFixManager for DefaultAutoFixManager {
     /// Check security group rules for HTTPS outbound access
     async fn check_security_group_rules(&self, group_id: &str) -> Result<bool> {
         debug!("Checking security group rules for: {}", group_id);
-        
-        match self.ec2_client.describe_security_groups().group_ids(group_id).send().await {
+
+        match self
+            .ec2_client
+            .describe_security_groups()
+            .group_ids(group_id)
+            .send()
+            .await
+        {
             Ok(response) => {
                 if let Some(sg) = response.security_groups().first() {
                     // Check egress rules for HTTPS (port 443)
                     for rule in sg.ip_permissions_egress() {
                         if let Some(from_port) = rule.from_port() {
                             if let Some(to_port) = rule.to_port() {
-                                if (from_port <= 443 && to_port >= 443) || (from_port == -1 && to_port == -1) {
-                                    debug!("Found HTTPS outbound rule in security group {}", group_id);
+                                if (from_port <= 443 && to_port >= 443)
+                                    || (from_port == -1 && to_port == -1)
+                                {
+                                    debug!(
+                                        "Found HTTPS outbound rule in security group {}",
+                                        group_id
+                                    );
                                     return Ok(true);
                                 }
                             }
@@ -1764,32 +2136,52 @@ impl AutoFixManager for DefaultAutoFixManager {
             Err(e) => {
                 error!("Failed to describe security group {}: {}", group_id, e);
                 Err(Ec2ConnectError::Aws(AwsError::Ec2ServiceError {
-                    message: format!("Failed to describe security group: {}", e)
-                }).into())
+                    message: format!("Failed to describe security group: {}", e),
+                })
+                .into())
             }
         }
     }
 
     /// Verify general connectivity to AWS services
     async fn verify_general_connectivity(&self, instance_id: &str) -> Result<bool> {
-        debug!("Verifying general connectivity for instance: {}", instance_id);
-        
+        debug!(
+            "Verifying general connectivity for instance: {}",
+            instance_id
+        );
+
         // Try to get instance information as a connectivity test
-        match self.ec2_client.describe_instances().instance_ids(instance_id).send().await {
+        match self
+            .ec2_client
+            .describe_instances()
+            .instance_ids(instance_id)
+            .send()
+            .await
+        {
             Ok(_) => {
                 // Try SSM connectivity test
-                match self.ssm_client.describe_instance_information()
+                match self
+                    .ssm_client
+                    .describe_instance_information()
                     .instance_information_filter_list(
                         aws_sdk_ssm::types::InstanceInformationFilter::builder()
                             .key(aws_sdk_ssm::types::InstanceInformationFilterKey::InstanceIds)
                             .value_set(instance_id)
                             .build()
-                            .map_err(|e| Ec2ConnectError::Aws(AwsError::SsmServiceError {
-                                message: format!("Failed to build instance filter: {}", e)
-                            }))?
-                    ).send().await {
+                            .map_err(|e| {
+                                Ec2ConnectError::Aws(AwsError::SsmServiceError {
+                                    message: format!("Failed to build instance filter: {}", e),
+                                })
+                            })?,
+                    )
+                    .send()
+                    .await
+                {
                     Ok(_) => {
-                        debug!("General connectivity test passed for instance: {}", instance_id);
+                        debug!(
+                            "General connectivity test passed for instance: {}",
+                            instance_id
+                        );
                         Ok(true)
                     }
                     Err(e) => {
@@ -1804,25 +2196,36 @@ impl AutoFixManager for DefaultAutoFixManager {
             }
         }
     }
-    
+
     async fn verify_fix(&self, instance_id: &str, fix_type: &str) -> Result<bool> {
-        info!("Verifying fix for instance {} with fix type: {}", instance_id, fix_type);
-        
+        info!(
+            "Verifying fix for instance {} with fix type: {}",
+            instance_id, fix_type
+        );
+
         let verification_result = match fix_type {
             "instance_start" => self.verify_instance_start_fix(instance_id).await?,
             "ssm_agent" => self.verify_ssm_agent_fix(instance_id).await?,
             "iam_permissions" => self.verify_iam_permissions_fix(instance_id).await?,
             "security_group" => self.verify_security_group_fix(instance_id).await?,
             _ => {
-                info!("Unknown fix type: {}, performing general connectivity test", fix_type);
+                info!(
+                    "Unknown fix type: {}, performing general connectivity test",
+                    fix_type
+                );
                 let connectivity = self.verify_general_connectivity(instance_id).await?;
                 return Ok(connectivity);
             }
         };
-        
-        info!("Verification result for {} ({}): verified={}, connectivity_restored={}", 
-              instance_id, fix_type, verification_result.verified, verification_result.connectivity_restored);
-        
+
+        info!(
+            "Verification result for {} ({}): verified={}, connectivity_restored={}",
+            instance_id,
+            fix_type,
+            verification_result.verified,
+            verification_result.connectivity_restored
+        );
+
         Ok(verification_result.verified && verification_result.connectivity_restored)
     }
 }
@@ -1843,7 +2246,7 @@ mod tests {
         assert_eq!(action.description, "Start the instance");
         assert_eq!(action.target_resource, "i-1234567890abcdef0");
         assert_eq!(action.risk_level, RiskLevel::Low);
-        assert!(action.requires_confirmation);
+        assert!(!action.requires_confirmation);
     }
 
     #[test]
@@ -1860,7 +2263,8 @@ mod tests {
             "Start instance".to_string(),
             "i-1234567890abcdef0".to_string(),
         );
-        assert!(!unsafe_action.is_safe_to_auto_execute());
+        // Task 26.1: instance start is safe to auto-execute (low risk, no confirmation)
+        assert!(unsafe_action.is_safe_to_auto_execute());
     }
 
     #[test]

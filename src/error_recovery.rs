@@ -171,22 +171,29 @@ impl ErrorRecoveryManager {
             // Configuration errors - try with default configuration
             Ec2ConnectError::Config(config_error) => {
                 info!("Attempting fallback with default configuration for: {}", config_error);
-                
+
                 // Wait a moment for any transient issues to resolve
                 sleep(Duration::from_millis(100)).await;
-                
-                // Try the operation again (assuming it will use fallback config internally)
-                match operation() {
-                    Ok(result) => {
-                        info!("Fallback recovery successful with default configuration");
-                        Ok(result)
-                    },
-                    Err(fallback_error) => {
-                        warn!("Fallback recovery failed: {}", fallback_error);
-                        // Return the original error for better context
-                        Err(error.clone())
+
+                // Try the operation again (assuming it will use fallback config internally).
+                // If it still fails, do one more attempt after a brief delay.
+                for attempt in 1..=2u32 {
+                    match operation() {
+                        Ok(result) => {
+                            info!("Fallback recovery successful with default configuration (attempt {})", attempt);
+                            return Ok(result);
+                        }
+                        Err(fallback_error) => {
+                            warn!("Fallback recovery attempt {} failed: {}", attempt, fallback_error);
+                            if attempt < 2 {
+                                sleep(Duration::from_millis(200)).await;
+                            }
+                        }
                     }
                 }
+
+                // Return the original error for better context
+                Err(error.clone())
             },
             
             // AWS region errors - try with default region
@@ -212,17 +219,23 @@ impl ErrorRecoveryManager {
             _ => {
                 info!("Attempting simple fallback retry for: {}", error);
                 sleep(Duration::from_millis(500)).await;
-                
-                match operation() {
-                    Ok(result) => {
-                        info!("Simple fallback retry successful");
-                        Ok(result)
-                    },
-                    Err(_) => {
-                        warn!("Simple fallback retry failed");
-                        Err(error.clone())
+
+                for attempt in 1..=2u32 {
+                    match operation() {
+                        Ok(result) => {
+                            info!("Simple fallback retry successful (attempt {})", attempt);
+                            return Ok(result);
+                        }
+                        Err(fallback_error) => {
+                            warn!("Simple fallback retry attempt {} failed: {}", attempt, fallback_error);
+                            if attempt < 2 {
+                                sleep(Duration::from_millis(200)).await;
+                            }
+                        }
                     }
                 }
+
+                Err(error.clone())
             }
         }
     }
@@ -237,21 +250,31 @@ impl ErrorRecoveryManager {
             // Resource errors - try with reduced functionality
             Ec2ConnectError::Resource(resource_error) => {
                 info!("Attempting graceful degradation for resource error: {}", resource_error);
-                
+
                 // Wait for resources to potentially free up
                 sleep(Duration::from_secs(1)).await;
-                
-                // Try operation again (assuming it will use reduced resources)
-                match operation() {
-                    Ok(result) => {
-                        info!("Graceful degradation successful - operating with reduced functionality");
-                        Ok(result)
-                    },
-                    Err(_) => {
-                        warn!("Graceful degradation failed");
-                        Err(error.clone())
+
+                // Try operation again (assuming it will use reduced resources).
+                // If it still fails, do one more attempt after a brief delay.
+                for attempt in 1..=2u32 {
+                    match operation() {
+                        Ok(result) => {
+                            info!(
+                                "Graceful degradation successful - operating with reduced functionality (attempt {})",
+                                attempt
+                            );
+                            return Ok(result);
+                        }
+                        Err(degraded_error) => {
+                            warn!("Graceful degradation attempt {} failed: {}", attempt, degraded_error);
+                            if attempt < 2 {
+                                sleep(Duration::from_millis(200)).await;
+                            }
+                        }
                     }
                 }
+
+                Err(error.clone())
             },
             
             // UI errors - continue without UI enhancements
@@ -298,17 +321,23 @@ impl ErrorRecoveryManager {
             _ => {
                 info!("Attempting conservative retry for: {}", error);
                 sleep(Duration::from_millis(1000)).await;
-                
-                match operation() {
-                    Ok(result) => {
-                        info!("Conservative retry successful");
-                        Ok(result)
-                    },
-                    Err(_) => {
-                        warn!("Conservative retry failed");
-                        Err(error.clone())
+
+                for attempt in 1..=2u32 {
+                    match operation() {
+                        Ok(result) => {
+                            info!("Conservative retry successful (attempt {})", attempt);
+                            return Ok(result);
+                        }
+                        Err(retry_error) => {
+                            warn!("Conservative retry attempt {} failed: {}", attempt, retry_error);
+                            if attempt < 2 {
+                                sleep(Duration::from_millis(200)).await;
+                            }
+                        }
                     }
                 }
+
+                Err(error.clone())
             }
         }
     }
