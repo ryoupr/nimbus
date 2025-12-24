@@ -186,12 +186,12 @@ EC2 Connect ツールを Python から Rust に完全移行し、パフォーマ
     - **実装完了**: ConnectionLikelihood enum with percentage calculation (90%, 70%, 40%, 10%), comprehensive severity classification (Critical, High, Medium, Low, Info), and detailed fix suggestions with SuggestionGenerator implementation
 
 - [x] 26. 自動修復機能の拡張
-  - [ ] 26.1 インスタンス状態自動修復
+  - [x] 26.1 インスタンス状態自動修復
     - 停止インスタンスの自動起動機能（ユーザー承認不要）
     - 起動プロセスの監視と進捗表示
     - _要件: 10.1_
   
-  - [ ] 26.2 SSM登録待機機能の実装
+  - [x] 26.2 SSM登録待機機能の実装
     - インスタンス起動後のSSM登録状態監視
     - 定期的な登録確認（3秒間隔）
     - 待機状況と経過時間のリアルタイム表示
@@ -333,6 +333,7 @@ cargo run -- fix ssm-agent --instance-id i-1234567890abcdef0
 ## 実装された機能
 
 ### コア機能
+
 - ✅ 自動セッション維持・監視
 - ✅ 高速自動再接続（指数バックオフ）
 - ✅ セッション管理最適化
@@ -344,6 +345,7 @@ cargo run -- fix ssm-agent --instance-id i-1234567890abcdef0
 - ✅ エラーハンドリング・回復
 
 ### 診断機能
+
 - ✅ 包括的 SSM 接続診断
 - ✅ 予防的接続チェック
 - ✅ AWS 設定検証（統合版含む）
@@ -355,6 +357,7 @@ cargo run -- fix ssm-agent --instance-id i-1234567890abcdef0
 - 🔄 **強化中**: 予防的チェック機能の実装
 
 ### UI・インターフェース
+
 - ✅ 完全な CLI インターフェース
 - ✅ リッチターミナル UI
 - ✅ マルチセッション管理 UI
@@ -371,6 +374,7 @@ cargo run -- fix ssm-agent --instance-id i-1234567890abcdef0
 - **同時セッション**: 最大10セッションの同時管理
 
 テストの実行：
+
 ```bash
 # 統合テスト実行
 cargo test --test integration_test

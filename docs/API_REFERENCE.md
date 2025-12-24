@@ -22,23 +22,38 @@ EC2 Connect v3.0 の完全な API リファレンスです。このドキュメ�
 #### `connect` - EC2 インスタンスに接続
 
 ```bash
-ec2-connect connect [OPTIONS] --instance-id <INSTANCE_ID>
+ec2-connect connect [OPTIONS] (--instance-id <INSTANCE_ID> | --target <NAME>)
 ```
 
-**必須パラメータ:**
+**必須パラメータ（いずれか）:**
+
 - `--instance-id, -i <INSTANCE_ID>` - EC2 インスタンス ID
+- `--target <NAME>` - targets ファイルから選択する接続先名
 
 **オプションパラメータ:**
+
+- `--targets-file <PATH>` - targets ファイルのパス（省略時は `~/.config/ec2-connect/targets.json`）
 - `--local-port, -l <PORT>` - ローカルポート番号 (デフォルト: 8080)
 - `--remote-port, -r <PORT>` - リモートポート番号 (デフォルト: 80)
 - `--profile, -p <PROFILE>` - AWS プロファイル名
 - `--region <REGION>` - AWS リージョン
 - `--priority <PRIORITY>` - セッション優先度 (low, normal, high, critical)
 
+**解決ルール:**
+
+- CLI で指定した値が最優先。未指定の項目は targets の値を採用します。
+
 **例:**
+
 ```bash
 # 基本的な接続
 ec2-connect connect -i i-1234567890abcdef0
+
+# targets ファイルから接続（例: ~/.config/ec2-connect/targets.json）
+ec2-connect connect --target dev
+
+# targets ファイルのパスを明示
+ec2-connect connect --targets-file ~/.config/ec2-connect/targets.json --target dev
 
 # カスタムポートとプロファイル
 ec2-connect connect -i i-1234567890abcdef0 -l 8080 -r 443 -p production
@@ -48,6 +63,7 @@ ec2-connect connect -i i-1234567890abcdef0 --priority high
 ```
 
 **戻り値:**
+
 - 成功時: 0
 - 接続失敗: 1
 - 設定エラー: 2
@@ -60,6 +76,7 @@ ec2-connect list
 ```
 
 **出力形式:**
+
 ```
 📋 Active Sessions:
   • Session ID: session-abc123
@@ -76,6 +93,7 @@ ec2-connect terminate <SESSION_ID>
 ```
 
 **パラメータ:**
+
 - `<SESSION_ID>` - 終了するセッション ID
 
 #### `status` - セッション状態確認
@@ -85,6 +103,7 @@ ec2-connect status [SESSION_ID]
 ```
 
 **パラメータ:**
+
 - `[SESSION_ID]` - 特定のセッション ID (省略時は全セッション)
 
 ### UI コマンド
@@ -96,12 +115,14 @@ ec2-connect tui
 ```
 
 **機能:**
+
 - リアルタイムセッション監視
 - リソース使用量表示
 - 進捗インジケーター
 - 警告・通知表示
 
 **キーバインド:**
+
 - `q` - 終了
 - `r` - 更新
 - `↑/↓` - ナビゲーション
@@ -114,12 +135,14 @@ ec2-connect multi-session
 ```
 
 **機能:**
+
 - 複数セッション同時管理
 - リソース監視
 - セッション優先度制御
 - 統合状態表示
 
 **タブ:**
+
 - `1` - セッション一覧
 - `2` - リソース監視
 - `3` - 警告・通知
@@ -134,6 +157,7 @@ ec2-connect metrics
 ```
 
 **出力項目:**
+
 - メモリ使用量 (MB)
 - CPU 使用率 (%)
 - アクティブプロセス数
@@ -147,6 +171,7 @@ ec2-connect resources
 ```
 
 **機能:**
+
 - 現在のリソース使用状況
 - 最適化の実行
 - 監視状態の確認
@@ -159,9 +184,11 @@ ec2-connect health [OPTIONS] [SESSION_ID]
 ```
 
 **オプション:**
+
 - `--comprehensive, -c` - 包括的ヘルスチェック
 
 **チェック項目:**
+
 - SSM セッション健全性
 - ネットワーク接続性
 - リソース可用性
@@ -184,6 +211,7 @@ ec2-connect diagnose full [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **オプション:**
+
 - `--instance-id, -i <ID>` - EC2 インスタンス ID
 - `--local-port <PORT>` - ローカルポート
 - `--remote-port <PORT>` - リモートポート
@@ -199,6 +227,7 @@ ec2-connect diagnose preventive [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **機能:**
+
 - 接続前の事前チェック
 - 問題の早期発見
 - 接続成功率の予測
@@ -211,6 +240,7 @@ ec2-connect diagnose aws-config [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **検証項目:**
+
 - AWS 認証情報
 - IAM 権限
 - VPC 設定
@@ -224,6 +254,7 @@ ec2-connect diagnose interactive [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **機能:**
+
 - リアルタイム UI
 - 進捗表示
 - 色分け表示
@@ -236,6 +267,7 @@ ec2-connect precheck [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **出力形式:**
+
 - `text` - 人間が読みやすい形式
 - `json` - 機械処理用
 - `yaml` - 構造化データ
@@ -247,6 +279,7 @@ ec2-connect fix [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **オプション:**
+
 - `--auto-fix` - 確認なしで自動修復
 - `--safe-only` - 安全な修復のみ
 - `--dry-run` - 実行せずに表示のみ
@@ -280,6 +313,7 @@ ec2-connect config generate [OPTIONS]
 ```
 
 **オプション:**
+
 - `--output, -o <FILE>` - 出力ファイル (デフォルト: config.json)
 - `--format, -f <FORMAT>` - 形式 (json, toml)
 
@@ -370,6 +404,7 @@ ec2-connect database cleanup [OPTIONS]
 ```
 
 **オプション:**
+
 - `--days, -d <DAYS>` - 保持期間 (デフォルト: 30)
 
 ##### `export` - データエクスポート
@@ -379,6 +414,7 @@ ec2-connect database export [OPTIONS]
 ```
 
 **オプション:**
+
 - `--output, -o <FILE>` - 出力ファイル
 - `--format, -f <FORMAT>` - 形式 (json, csv)
 
@@ -548,6 +584,7 @@ pub struct ReconnectionPolicy {
 ```
 
 **プリセット:**
+
 - `ReconnectionPolicy::new()` - デフォルト (5回試行、指数バックオフ)
 - `ReconnectionPolicy::aggressive()` - アグレッシブ (10回試行、500ms間隔)
 - `ReconnectionPolicy::conservative()` - 保守的 (3回試行、長い間隔)

@@ -43,5 +43,16 @@
     "file_logging": true,
     "log_file": null,
     "json_format": false
+  },
+  "vscode": {
+    "vscode_path": null,
+    "ssh_config_path": null,
+    "auto_launch_enabled": true,
+    "notifications_enabled": true,
+    "launch_delay_seconds": 2,
+    "auto_update_ssh_config": true,
+    "ssh_user": null,
+    "ssh_identity_file": null,
+    "ssh_identities_only": false
   }
 }
