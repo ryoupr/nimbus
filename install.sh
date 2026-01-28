@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-REPO="your-org/nimbus"
+REPO="ryoupr/nimbus"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 
 # Detect OS and architecture

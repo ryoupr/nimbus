@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use anyhow::{Context, Result};
 use aws_config::{BehaviorVersion, Region};
 use aws_sdk_ec2::Client as Ec2Client;

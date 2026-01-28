@@ -28,8 +28,8 @@ GitHub Actions が自動で以下を実行:
 
 ```bash
 # sha256を取得
-curl -sL https://github.com/your-org/nimbus/releases/download/v3.1.0/nimbus-darwin-x86_64.tar.gz.sha256
-curl -sL https://github.com/your-org/nimbus/releases/download/v3.1.0/nimbus-darwin-arm64.tar.gz.sha256
+curl -sL https://github.com/ryoupr/nimbus/releases/download/v3.1.0/nimbus-darwin-x86_64.tar.gz.sha256
+curl -sL https://github.com/ryoupr/nimbus/releases/download/v3.1.0/nimbus-darwin-arm64.tar.gz.sha256
 ```
 
 `Formula/nimbus.rb` の以下を更新:
@@ -38,7 +38,7 @@ curl -sL https://github.com/your-org/nimbus/releases/download/v3.1.0/nimbus-darw
 
 ### 4. Homebrew Tap リポジトリへ反映
 
-Tap用リポジトリ（`your-org/homebrew-tap`）に Formula をコピー:
+Tap用リポジトリ（`ryoupr/homebrew-tap`）に Formula をコピー:
 
 ```bash
 cp Formula/nimbus.rb ../homebrew-tap/Formula/
@@ -62,13 +62,13 @@ homebrew-tap/
 
 ユーザーは以下でインストール可能に:
 ```bash
-brew tap your-org/tap
+brew tap ryoupr/tap
 brew install nimbus
 ```
 
 ### GitHub リポジトリ設定
 
-`your-org` を実際の GitHub organization/username に置き換え:
+`ryoupr` を実際の GitHub organization/username に置き換え:
 
 - `.github/workflows/release.yml`
 - `install.sh`

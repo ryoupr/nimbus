@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$Repo = "your-org/nimbus"
+$Repo = "ryoupr/nimbus"
 $InstallDir = if ($env:INSTALL_DIR) { $env:INSTALL_DIR } else { "$env:LOCALAPPDATA\nimbus" }
 
 # Get latest version

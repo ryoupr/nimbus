@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::error::{NimbusError, ConfigError, AwsError, SessionError, ConnectionError, ResourceError, UiError};
 use std::collections::HashMap;
 

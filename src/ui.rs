@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::session::Session;
 use crate::error::Result;
 use crossterm::{
@@ -235,7 +237,6 @@ impl TerminalUi {
                     UiEvent::ScrollDown => {
                         self.state.scroll_offset += 1;
                     },
-                    _ => {}
                 }
                 // Redraw immediately after handling events
                 self.draw()?;
