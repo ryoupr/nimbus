@@ -39,7 +39,6 @@ brew install --cask session-manager-plugin
 ### ビルド
 
 ```bash
-cd tools/ec2-connect-rust
 cargo build --release
 ```
 
@@ -58,6 +57,10 @@ cargo install --path .
 ```bash
 # EC2 インスタンスに接続
 ec2-connect connect --instance-id i-1234567890abcdef0 --local-port 8080 --remote-port 80
+
+# リモートホスト経由でポートフォワード（踏み台経由で内部ALB等に接続）
+ec2-connect connect --instance-id i-1234567890abcdef0 --local-port 10443 --remote-port 443 \
+  --remote-host internal-alb-xxx.ap-northeast-1.elb.amazonaws.com
 
 # 接続先一覧（targetsファイル）から接続
 # 例: ~/.config/ec2-connect/targets.json に targets を定義しておき、名前で選択
@@ -250,7 +253,7 @@ ec2-connect vscode cleanup [SESSION_ID]
 
 | コマンド | 説明 | 主要オプション |
 |---------|------|---------------|
-| `connect` | EC2 インスタンスに接続 | `--instance-id`, `--local-port`, `--remote-port`, `--profile`, `--region`, `--priority` |
+| `connect` | EC2 インスタンスに接続 | `--instance-id`, `--local-port`, `--remote-port`, `--remote-host`, `--profile`, `--region`, `--priority` |
 | `list` | アクティブセッション一覧 | なし |
 | `terminate` | セッション終了 | `session_id` |
 | `status` | セッション状態確認 | `[session_id]` |

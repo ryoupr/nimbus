@@ -19,7 +19,7 @@ EC2 Connect v3.0 の実践的な使用方法を学ぶためのチュートリア
 
 ```bash
 # 1. プロジェクトディレクトリに移動
-cd tools/ec2-connect-rust
+# プロジェクトルートで実行
 
 # 2. 設定ファイル生成
 cargo run -- config generate --output ~/.config/ec2-connect/config.json
@@ -609,7 +609,7 @@ jobs:
     
     - name: Build EC2 Connect
       run: |
-        cd tools/ec2-connect-rust
+        # プロジェクトルートで実行
         cargo build --release
     
     - name: Configure AWS credentials
@@ -621,7 +621,7 @@ jobs:
     
     - name: Test connection to staging
       run: |
-        cd tools/ec2-connect-rust
+        # プロジェクトルートで実行
         
         # 予防的チェック
         cargo run -- diagnose preventive \
@@ -660,7 +660,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: connection-test-results
-        path: tools/ec2-connect-rust/preventive-check.json
+        path: preventive-check.json
 ```
 
 **2. デプロイメント検証スクリプト**

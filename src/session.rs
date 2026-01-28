@@ -58,6 +58,8 @@ pub struct Session {
     pub instance_id: String,
     pub local_port: u16,
     pub remote_port: u16,
+    /// Remote host for port forwarding through the instance
+    pub remote_host: Option<String>,
     pub status: SessionStatus,
     pub created_at: SystemTime,
     pub last_activity: SystemTime,
@@ -87,6 +89,7 @@ impl Session {
             instance_id,
             local_port,
             remote_port,
+            remote_host: None,
             status: SessionStatus::Connecting,
             created_at: now,
             last_activity: now,
@@ -189,6 +192,8 @@ pub struct SessionConfig {
     pub instance_id: String,
     pub local_port: u16,
     pub remote_port: u16,
+    /// Remote host for port forwarding through the instance (uses AWS-StartPortForwardingSessionToRemoteHost)
+    pub remote_host: Option<String>,
     pub aws_profile: Option<String>,
     pub region: String,
     pub priority: SessionPriority,
@@ -207,11 +212,17 @@ impl SessionConfig {
             instance_id,
             local_port,
             remote_port,
+            remote_host: None,
             aws_profile,
             region,
             priority: SessionPriority::default(),
             tags: std::collections::HashMap::new(),
         }
+    }
+    
+    pub fn with_remote_host(mut self, host: Option<String>) -> Self {
+        self.remote_host = host;
+        self
     }
     
     pub fn with_priority(mut self, priority: SessionPriority) -> Self {

@@ -23,6 +23,10 @@ pub struct TargetConfig {
     #[serde(default)]
     pub remote_port: Option<u16>,
 
+    /// Remote host for port forwarding through the instance (uses AWS-StartPortForwardingSessionToRemoteHost)
+    #[serde(default)]
+    pub remote_host: Option<String>,
+
     #[serde(default)]
     pub profile: Option<String>,
     #[serde(default)]

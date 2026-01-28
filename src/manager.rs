@@ -196,6 +196,25 @@ impl DefaultSessionManager {
         // AWS CLI requires the Session Manager plugin to actually open the local listener.
         let plugin_dir = Self::ensure_session_manager_plugin_available()?;
 
+        // Determine document name and parameters based on remote_host
+        let (document_name, parameters) = if let Some(ref host) = config.remote_host {
+            (
+                "AWS-StartPortForwardingSessionToRemoteHost",
+                format!(
+                    r#"{{"portNumber":["{}"],"localPortNumber":["{}"],"host":["{}"]}}"#,
+                    config.remote_port, config.local_port, host
+                ),
+            )
+        } else {
+            (
+                "AWS-StartPortForwardingSession",
+                format!(
+                    "portNumber={},localPortNumber={}",
+                    config.remote_port, config.local_port
+                ),
+            )
+        };
+
         let mut cmd = Command::new("aws");
         cmd.args([
             "ssm",
@@ -203,12 +222,9 @@ impl DefaultSessionManager {
             "--target",
             &config.instance_id,
             "--document-name",
-            "AWS-StartPortForwardingSession",
+            document_name,
             "--parameters",
-            &format!(
-                "portNumber={},localPortNumber={}",
-                config.remote_port, config.local_port
-            ),
+            &parameters,
             "--no-cli-pager",
         ])
         .stdin(Stdio::null())

@@ -461,6 +461,10 @@ enum Commands {
         #[arg(short, long)]
         remote_port: Option<u16>,
 
+        /// Remote host for port forwarding through the instance (uses AWS-StartPortForwardingSessionToRemoteHost)
+        #[arg(long)]
+        remote_host: Option<String>,
+
         /// AWS profile to use
         #[arg(short, long)]
         profile: Option<String>,
@@ -674,6 +678,7 @@ async fn main() -> Result<()> {
             instance_id,
             local_port,
             remote_port,
+            remote_host,
             profile,
             region,
             priority,
@@ -708,6 +713,10 @@ async fn main() -> Result<()> {
                 .or_else(|| target_config.as_ref().and_then(|t| t.remote_port))
                 .unwrap_or(80);
 
+            // Resolve remote_host from CLI or target config
+            let resolved_remote_host = remote_host
+                .or_else(|| target_config.as_ref().and_then(|t| t.remote_host.clone()));
+
             let resolved_profile =
                 profile.or_else(|| target_config.as_ref().and_then(|t| t.profile.clone()));
             let resolved_region =
@@ -735,6 +744,7 @@ async fn main() -> Result<()> {
                 resolved_instance_id,
                 resolved_local_port,
                 resolved_remote_port,
+                resolved_remote_host,
                 resolved_profile,
                 resolved_region,
                 priority,
@@ -861,6 +871,7 @@ async fn handle_connect_with_recovery(
     instance_id: String,
     local_port: u16,
     remote_port: u16,
+    remote_host: Option<String>,
     profile: Option<String>,
     region: Option<String>,
     priority: String,
@@ -878,6 +889,7 @@ async fn handle_connect_with_recovery(
         instance_id.clone(),
         local_port,
         remote_port,
+        remote_host.clone(),
         profile.clone(),
         region.clone(),
         priority.clone(),
@@ -903,6 +915,7 @@ async fn handle_connect_with_recovery(
 
                 // Create a proper recovery operation that actually retries the connection
                 let instance_id_clone = instance_id.clone();
+                let remote_host_clone = remote_host.clone();
                 let profile_clone = profile.clone();
                 let region_clone = region.clone();
                 let priority_clone = priority.clone();
@@ -925,6 +938,7 @@ async fn handle_connect_with_recovery(
                             instance_id_clone,
                             local_port,
                             remote_port,
+                            remote_host_clone,
                             profile_clone,
                             region_clone,
                             priority_clone,
@@ -1110,6 +1124,7 @@ async fn handle_connect(
     instance_id: String,
     local_port: u16,
     remote_port: u16,
+    remote_host: Option<String>,
     profile: Option<String>,
     region: Option<String>,
     priority: String,
@@ -1118,10 +1133,17 @@ async fn handle_connect(
     info!("Initiating connection to instance {}", instance_id);
 
     println!("🚀 Connecting to EC2 instance: {}", instance_id);
-    println!(
-        "📡 Port forwarding: {}:{} -> localhost:{}",
-        instance_id, remote_port, local_port
-    );
+    if let Some(ref host) = remote_host {
+        println!(
+            "📡 Port forwarding: localhost:{} -> {} -> {}:{}",
+            local_port, instance_id, host, remote_port
+        );
+    } else {
+        println!(
+            "📡 Port forwarding: {}:{} -> localhost:{}",
+            instance_id, remote_port, local_port
+        );
+    }
 
     if let Some(profile) = &profile {
         println!("🔐 Using AWS profile: {}", profile);
@@ -1207,6 +1229,7 @@ async fn handle_connect(
         profile.clone(),
         region_for_session,
     )
+    .with_remote_host(remote_host)
     .with_priority(session_priority);
 
     // Check for existing sessions
@@ -1625,6 +1648,7 @@ async fn handle_tui(_config: &Config) -> Result<()> {
             instance_id: "i-1234567890abcdef0".to_string(),
             local_port: 8080,
             remote_port: 80,
+            remote_host: None,
             status: session::SessionStatus::Active,
             created_at: std::time::SystemTime::now() - std::time::Duration::from_secs(300),
             last_activity: std::time::SystemTime::now() - std::time::Duration::from_secs(30),
@@ -1641,6 +1665,7 @@ async fn handle_tui(_config: &Config) -> Result<()> {
             instance_id: "i-0987654321fedcba0".to_string(),
             local_port: 8081,
             remote_port: 443,
+            remote_host: None,
             status: session::SessionStatus::Connecting,
             created_at: std::time::SystemTime::now() - std::time::Duration::from_secs(60),
             last_activity: std::time::SystemTime::now() - std::time::Duration::from_secs(10),
@@ -2863,6 +2888,7 @@ async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()> {
                                         instance_id: "i-test123456789abcdef".to_string(),
                                         local_port: 8080,
                                         remote_port: 22,
+                                        remote_host: None,
                                         status: session::SessionStatus::Active,
                                         created_at: std::time::SystemTime::now(),
                                         last_activity: std::time::SystemTime::now(),
@@ -2882,6 +2908,7 @@ async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()> {
                                         instance_id: "i-test123456789abcdef".to_string(),
                                         local_port: 8080,
                                         remote_port: 22,
+                                        remote_host: None,
                                         status: session::SessionStatus::Active,
                                         created_at: std::time::SystemTime::now(),
                                         last_activity: std::time::SystemTime::now(),

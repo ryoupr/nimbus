@@ -64,6 +64,7 @@ impl DefaultAutoReconnector {
             instance_id: original_session.instance_id.clone(),
             local_port: original_session.local_port,
             remote_port: original_session.remote_port,
+            remote_host: original_session.remote_host.clone(),
             aws_profile: original_session.aws_profile.clone(),
             region: original_session.region.clone(),
             priority: original_session.priority,

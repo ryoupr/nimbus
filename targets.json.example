@@ -19,6 +19,14 @@
       "ssh_user": "ec2-user",
       "ssh_identity_file": "~/.ssh/prod.pem",
       "ssh_identities_only": true
+    },
+    "internal-alb": {
+      "instance_id": "i-bastion123456789",
+      "local_port": 10443,
+      "remote_port": 443,
+      "remote_host": "internal-alb-xxx.ap-northeast-1.elb.amazonaws.com",
+      "profile": "production",
+      "region": "ap-northeast-1"
     }
   }
 }
