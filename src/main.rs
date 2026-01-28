@@ -486,6 +486,10 @@ enum Commands {
         /// Session priority (low, normal, high, critical)
         #[arg(long, default_value = "normal")]
         priority: String,
+
+        /// Run preventive checks before connection
+        #[arg(long)]
+        precheck: bool,
     },
 
     /// List active sessions
@@ -692,6 +696,7 @@ async fn main() -> Result<()> {
             profile,
             region,
             priority,
+            precheck,
         } => {
             let mut effective_config = config.clone();
 
@@ -758,6 +763,7 @@ async fn main() -> Result<()> {
                 resolved_profile,
                 resolved_region,
                 priority,
+                precheck,
                 &effective_config,
                 &recovery_manager,
                 &message_system,
@@ -886,6 +892,7 @@ async fn handle_connect_with_recovery(
     profile: Option<String>,
     region: Option<String>,
     priority: String,
+    precheck: bool,
     config: &Config,
     recovery_manager: &ErrorRecoveryManager,
     message_system: &UserMessageSystem,
@@ -904,6 +911,7 @@ async fn handle_connect_with_recovery(
         profile.clone(),
         region.clone(),
         priority.clone(),
+        precheck,
         config,
     )
     .await
@@ -953,6 +961,7 @@ async fn handle_connect_with_recovery(
                             profile_clone,
                             region_clone,
                             priority_clone,
+                            precheck,
                             &config_clone,
                         )
                         .await
@@ -1139,6 +1148,7 @@ async fn handle_connect(
     profile: Option<String>,
     region: Option<String>,
     priority: String,
+    precheck: bool,
     config: &Config,
 ) -> Result<()> {
     info!("Initiating connection to instance {}", instance_id);
@@ -1265,44 +1275,45 @@ async fn handle_connect(
         }
     }
 
-    // Run preventive checks before creating session
-    println!("🛡️  Running preventive checks before connection...");
-    let preventive_config = PreventiveCheckConfig::new(instance_id.clone())
-        .with_ports(local_port, remote_port)
-        .with_aws_config(region.clone(), profile.clone())
-        .with_abort_on_critical(true)
-        .with_timeout(std::time::Duration::from_secs(30));
+    // Run preventive checks only if --precheck flag is set
+    if precheck {
+        println!("🛡️  Running preventive checks before connection...");
+        let preventive_config = PreventiveCheckConfig::new(instance_id.clone())
+            .with_ports(local_port, remote_port)
+            .with_aws_config(region.clone(), profile.clone())
+            .with_abort_on_critical(true)
+            .with_timeout(std::time::Duration::from_secs(30));
 
-    let preventive_check = match DefaultPreventiveCheck::with_aws_config(
-        preventive_config.region.clone(),
-        preventive_config.profile.clone(),
-    )
-    .await
-    {
-        Ok(checker) => checker,
-        Err(e) => {
-            warn!(
-                "Failed to create preventive check, proceeding without: {}",
-                e
-            );
-            println!(
-                "⚠️  Preventive check unavailable, proceeding with connection: {}",
-                e
-            );
-            // Continue without preventive check
-            DefaultPreventiveCheck::new().await.map_err(|e| {
-                Ec2ConnectError::System(format!(
-                    "Failed to create fallback preventive check: {}",
-                    e
-                ))
-            })?
-        }
-    };
-
-    match preventive_check
-        .run_preventive_checks(preventive_config.clone())
+        let preventive_check = match DefaultPreventiveCheck::with_aws_config(
+            preventive_config.region.clone(),
+            preventive_config.profile.clone(),
+        )
         .await
-    {
+        {
+            Ok(checker) => checker,
+            Err(e) => {
+                warn!(
+                    "Failed to create preventive check, proceeding without: {}",
+                    e
+                );
+                println!(
+                    "⚠️  Preventive check unavailable, proceeding with connection: {}",
+                    e
+                );
+                // Continue without preventive check
+                DefaultPreventiveCheck::new().await.map_err(|e| {
+                    Ec2ConnectError::System(format!(
+                        "Failed to create fallback preventive check: {}",
+                        e
+                    ))
+                })?
+            }
+        };
+
+        match preventive_check
+            .run_preventive_checks(preventive_config.clone())
+            .await
+        {
         Ok(mut result) => {
             println!(
                 "🎯 Connection Likelihood: {} ({}%)",
@@ -1450,8 +1461,9 @@ async fn handle_connect(
                 e
             );
         }
+        }
+        println!();
     }
-    println!();
 
     // Create new session
     match session_manager.create_session(session_config).await {
