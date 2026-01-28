@@ -388,27 +388,3 @@ pub struct ComprehensiveHealthResult {
     pub check_duration_ms: u64,
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
-
-/// Health monitoring configuration
-#[derive(Debug, Clone)]
-pub struct HealthConfig {
-    pub check_interval: Duration,
-    pub warning_threshold_ms: u64,
-    pub error_threshold_ms: u64,
-    pub memory_warning_threshold_mb: f64,
-    pub cpu_warning_threshold_percent: f64,
-    pub enable_notifications: bool,
-}
-
-impl Default for HealthConfig {
-    fn default() -> Self {
-        Self {
-            check_interval: Duration::from_secs(30),
-            warning_threshold_ms: 1000,
-            error_threshold_ms: 5000,
-            memory_warning_threshold_mb: 100.0,
-            cpu_warning_threshold_percent: 20.0,
-            enable_notifications: true,
-        }
-    }
-}

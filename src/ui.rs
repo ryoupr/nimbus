@@ -20,8 +20,6 @@ use tracing::info;
 pub enum UiEvent {
     Quit,
     Refresh,
-    SelectSession(String),
-    TerminateSession(String),
     CreateSession,
     ShowMetrics,
     NextTab,
@@ -34,7 +32,7 @@ pub enum UiEvent {
 #[derive(Debug, Clone)]
 pub struct ProgressInfo {
     pub operation: String,
-    pub progress: f64, // 0.0 to 1.0
+    pub progress: f64,
     pub message: String,
     pub started_at: Instant,
 }
@@ -65,9 +63,7 @@ impl Default for ResourceMetrics {
 #[derive(Debug, Clone)]
 pub struct UiState {
     pub sessions: Vec<Session>,
-    pub selected_session: Option<String>,
     pub current_tab: usize,
-    pub show_help: bool,
     pub progress: Option<ProgressInfo>,
     pub metrics: ResourceMetrics,
     pub last_update: Instant,
@@ -79,9 +75,7 @@ impl Default for UiState {
     fn default() -> Self {
         Self {
             sessions: Vec::new(),
-            selected_session: None,
             current_tab: 0,
-            show_help: false,
             progress: None,
             metrics: ResourceMetrics::default(),
             last_update: Instant::now(),

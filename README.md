@@ -26,7 +26,6 @@ EC2 Connect v3.0 は、Rust で完全に書き直された高性能な EC2 イ�
 
 ### 前提条件
 
-- Rust 1.70 以上
 - AWS CLI
 - AWS Session Manager Plugin
 
@@ -36,15 +35,29 @@ macOS で `session-manager-plugin` が見つからない場合は以下で導入
 brew install --cask session-manager-plugin
 ```
 
-### ビルド
+### Mac (Homebrew)
 
 ```bash
-cargo build --release
+brew tap your-org/tap
+brew install ec2-connect
 ```
 
-### インストール
+### Mac / Linux (スクリプト)
 
 ```bash
+curl -sSL https://raw.githubusercontent.com/your-org/ec2-connect/main/install.sh | bash
+```
+
+### Windows (PowerShell)
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/your-org/ec2-connect/main/install.ps1 | iex
+```
+
+### ソースからビルド
+
+```bash
+# Rust 1.70以上が必要
 cargo install --path .
 ```
 
