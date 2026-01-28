@@ -1,4 +1,4 @@
-# EC2 Connect v3.0 (Rust) - Windows PowerShell Launcher Script
+# Nimbus v3.0 (Rust) - Windows PowerShell Launcher Script
 
 param(
     [Parameter(Position=0)]
@@ -13,7 +13,7 @@ $ErrorActionPreference = "Stop"
 
 # Get script directory
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectName = "ec2-connect"
+$ProjectName = "nimbus"
 
 # Logging functions
 function Write-Log {
@@ -131,7 +131,7 @@ function Install-Project {
     try {
         cargo install --path .
         Write-Success-Log "$ProjectName installed successfully"
-        Write-Log "You can now run 'ec2-connect' from anywhere"
+        Write-Log "You can now run 'nimbus' from anywhere"
     }
     finally {
         Pop-Location
@@ -193,7 +193,7 @@ function Test-Dependencies {
 
 # Show help
 function Show-Help {
-    Write-Host "EC2 Connect v3.0 (Rust) - Windows PowerShell Launcher" -ForegroundColor Cyan
+    Write-Host "Nimbus v3.0 (Rust) - Windows PowerShell Launcher" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Usage: .\run.ps1 [COMMAND] [OPTIONS]" -ForegroundColor White
     Write-Host ""

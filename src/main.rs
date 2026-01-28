@@ -45,7 +45,7 @@ use diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager};
 use preventive_check::{
     DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig,
 };
-use error::Ec2ConnectError;
+use error::NimbusError;
 use error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager, RecoveryConfig};
 use health::{DefaultHealthChecker, HealthChecker};
 use logging::{LoggingConfig, StructuredLogger};
@@ -65,7 +65,7 @@ use user_messages::UserMessageSystem;
 use vscode::VsCodeIntegration;
 
 #[derive(Parser)]
-#[command(name = "ec2-connect")]
+#[command(name = "nimbus")]
 #[command(about = "High-performance EC2 SSM connection manager with automatic session management")]
 #[command(version = "3.0.0")]
 struct Cli {
@@ -455,7 +455,7 @@ enum Commands {
         #[arg(long)]
         target: Option<String>,
 
-        /// Targets file path (optional; defaults to ~/.config/ec2-connect/targets.json)
+        /// Targets file path (optional; defaults to ~/.config/nimbus/targets.json)
         #[arg(long)]
         targets_file: Option<String>,
 
@@ -646,7 +646,7 @@ async fn main() -> Result<()> {
         console_enabled: true,
         file_enabled: true,
         log_dir: std::path::PathBuf::from("logs"),
-        file_prefix: "ec2-connect".to_string(),
+        file_prefix: "nimbus".to_string(),
         rotation: "daily".to_string(),
         max_files: 7,
         json_format: false,
@@ -658,7 +658,7 @@ async fn main() -> Result<()> {
         return Err(anyhow::anyhow!("Failed to initialize logging: {}", e));
     }
 
-    info!("Starting EC2 Connect v3.0.0");
+    info!("Starting Nimbus v3.0.0");
 
     // Initialize error recovery manager
     let recovery_manager = ErrorRecoveryManager::new(RecoveryConfig::default());
@@ -670,7 +670,7 @@ async fn main() -> Result<()> {
     let config = match Config::load(cli.config.as_deref()).await {
         Ok(config) => config,
         Err(e) => {
-            let ec2_error = Ec2ConnectError::from(e);
+            let ec2_error = NimbusError::from(e);
             let context = ErrorContext::new("load_config", "main")
                 .with_info("config_path", cli.config.as_deref().unwrap_or("default"));
             let contextual_error = ContextualError::new(ec2_error, context);
@@ -865,9 +865,9 @@ async fn main() -> Result<()> {
 
     // Handle any errors that occurred during command execution
     if let Err(e) = result {
-        let ec2_error = match e.downcast::<Ec2ConnectError>() {
+        let ec2_error = match e.downcast::<NimbusError>() {
             Ok(ec2_err) => ec2_err,
-            Err(other_err) => Ec2ConnectError::System(other_err.to_string()),
+            Err(other_err) => NimbusError::System(other_err.to_string()),
         };
 
         let context = ErrorContext::new("command_execution", "main");
@@ -918,9 +918,9 @@ async fn handle_connect_with_recovery(
     {
         Ok(_) => Ok(()),
         Err(e) => {
-            let ec2_error = match e.downcast::<Ec2ConnectError>() {
+            let ec2_error = match e.downcast::<NimbusError>() {
                 Ok(ec2_err) => ec2_err,
-                Err(other_err) => Ec2ConnectError::System(other_err.to_string()),
+                Err(other_err) => NimbusError::System(other_err.to_string()),
             };
 
             let contextual_error = ContextualError::new(ec2_error, context);
@@ -973,10 +973,10 @@ async fn handle_connect_with_recovery(
                             }
                             Err(retry_error) => {
                                 let retry_ec2_error =
-                                    match retry_error.downcast::<Ec2ConnectError>() {
+                                    match retry_error.downcast::<NimbusError>() {
                                         Ok(ec2_err) => ec2_err,
                                         Err(other_err) => {
-                                            Ec2ConnectError::System(other_err.to_string())
+                                            NimbusError::System(other_err.to_string())
                                         }
                                     };
                                 let user_message =
@@ -1011,9 +1011,9 @@ async fn handle_list_with_recovery(
     match handle_list(config).await {
         Ok(_) => Ok(()),
         Err(e) => {
-            let ec2_error = match e.downcast::<Ec2ConnectError>() {
+            let ec2_error = match e.downcast::<NimbusError>() {
                 Ok(ec2_err) => ec2_err,
-                Err(other_err) => Ec2ConnectError::System(other_err.to_string()),
+                Err(other_err) => NimbusError::System(other_err.to_string()),
             };
 
             let contextual_error = ContextualError::new(ec2_error, context);
@@ -1041,10 +1041,10 @@ async fn handle_list_with_recovery(
                             Ok(_) => Ok(()),
                             Err(retry_error) => {
                                 let retry_ec2_error =
-                                    match retry_error.downcast::<Ec2ConnectError>() {
+                                    match retry_error.downcast::<NimbusError>() {
                                         Ok(ec2_err) => ec2_err,
                                         Err(other_err) => {
-                                            Ec2ConnectError::System(other_err.to_string())
+                                            NimbusError::System(other_err.to_string())
                                         }
                                     };
                                 let user_message =
@@ -1081,9 +1081,9 @@ async fn handle_terminate_with_recovery(
     match handle_terminate(session_id.clone(), config).await {
         Ok(_) => Ok(()),
         Err(e) => {
-            let ec2_error = match e.downcast::<Ec2ConnectError>() {
+            let ec2_error = match e.downcast::<NimbusError>() {
                 Ok(ec2_err) => ec2_err,
-                Err(other_err) => Ec2ConnectError::System(other_err.to_string()),
+                Err(other_err) => NimbusError::System(other_err.to_string()),
             };
 
             let contextual_error = ContextualError::new(ec2_error, context);
@@ -1112,10 +1112,10 @@ async fn handle_terminate_with_recovery(
                             Ok(_) => Ok(()),
                             Err(retry_error) => {
                                 let retry_ec2_error =
-                                    match retry_error.downcast::<Ec2ConnectError>() {
+                                    match retry_error.downcast::<NimbusError>() {
                                         Ok(ec2_err) => ec2_err,
                                         Err(other_err) => {
-                                            Ec2ConnectError::System(other_err.to_string())
+                                            NimbusError::System(other_err.to_string())
                                         }
                                     };
                                 let user_message =
@@ -1193,7 +1193,7 @@ async fn handle_connect(
         (Some(p), Some(_r)) => {
             // Create AWS manager with both profile and region
             let _aws_manager = AwsManager::with_profile(p).await.map_err(|e| {
-                Ec2ConnectError::Aws(crate::error::AwsError::AuthenticationFailed {
+                NimbusError::Aws(crate::error::AwsError::AuthenticationFailed {
                     message: format!(
                         "Failed to initialize AWS manager with profile '{}': {}",
                         p, e
@@ -1203,7 +1203,7 @@ async fn handle_connect(
             DefaultSessionManager::with_profile(3, p)
                 .await
                 .map_err(|e| {
-                    Ec2ConnectError::Session(crate::error::SessionError::CreationFailed {
+                    NimbusError::Session(crate::error::SessionError::CreationFailed {
                         reason: format!(
                             "Failed to create session manager with profile '{}': {}",
                             p, e
@@ -1214,7 +1214,7 @@ async fn handle_connect(
         (Some(p), None) => DefaultSessionManager::with_profile(3, p)
             .await
             .map_err(|e| {
-                Ec2ConnectError::Session(crate::error::SessionError::CreationFailed {
+                NimbusError::Session(crate::error::SessionError::CreationFailed {
                     reason: format!(
                         "Failed to create session manager with profile '{}': {}",
                         p, e
@@ -1224,7 +1224,7 @@ async fn handle_connect(
         (None, Some(r)) => DefaultSessionManager::with_region(3, r)
             .await
             .map_err(|e| {
-                Ec2ConnectError::Session(crate::error::SessionError::CreationFailed {
+                NimbusError::Session(crate::error::SessionError::CreationFailed {
                     reason: format!(
                         "Failed to create session manager with region '{}': {}",
                         r, e
@@ -1232,7 +1232,7 @@ async fn handle_connect(
                 })
             })?,
         (None, None) => DefaultSessionManager::new(3).await.map_err(|e| {
-            Ec2ConnectError::Session(crate::error::SessionError::CreationFailed {
+            NimbusError::Session(crate::error::SessionError::CreationFailed {
                 reason: format!("Failed to create default session manager: {}", e),
             })
         })?,
@@ -1258,7 +1258,7 @@ async fn handle_connect(
         .find_existing_sessions(&instance_id, local_port)
         .await
         .map_err(|e| {
-            Ec2ConnectError::Session(crate::error::SessionError::CreationFailed {
+            NimbusError::Session(crate::error::SessionError::CreationFailed {
                 reason: format!("Failed to search for existing sessions: {}", e),
             })
         })?;
@@ -1302,7 +1302,7 @@ async fn handle_connect(
                 );
                 // Continue without preventive check
                 DefaultPreventiveCheck::new().await.map_err(|e| {
-                    Ec2ConnectError::System(format!(
+                    NimbusError::System(format!(
                         "Failed to create fallback preventive check: {}",
                         e
                     ))
@@ -1345,7 +1345,7 @@ async fn handle_connect(
                         )
                         .await
                         .map_err(|e| {
-                            Ec2ConnectError::System(format!(
+                            NimbusError::System(format!(
                                 "Failed to create auto-fix manager: {}",
                                 e
                             ))
@@ -1408,20 +1408,20 @@ async fn handle_connect(
                     }
                     println!();
                     println!(
-                        "Run 'ec2-connect diagnose preventive --instance-id {}' for detailed analysis.",
+                        "Run 'nimbus diagnose preventive --instance-id {}' for detailed analysis.",
                         instance_id
                     );
                     if !config.diagnostic.auto_fix_enabled {
                         println!();
                         println!("💡 Auto-fix is currently disabled. You can enable it with:");
-                        println!("   ec2-connect diagnose settings auto-fix --enable --safe-only");
+                        println!("   nimbus diagnose settings auto-fix --enable --safe-only");
                         println!(
-                            "   (or run: ec2-connect fix --instance-id {} --auto-fix)",
+                            "   (or run: nimbus fix --instance-id {} --auto-fix)",
                             instance_id
                         );
                     }
 
-                    return Err(Ec2ConnectError::Connection(
+                    return Err(NimbusError::Connection(
                         crate::error::ConnectionError::PreventiveCheckFailed {
                             reason: "Critical issues detected during preventive checks".to_string(),
                             issues: result
@@ -1542,9 +1542,9 @@ async fn handle_connect(
         Err(e) => {
             error!("Failed to create session: {}", e);
 
-            // Convert to appropriate EC2ConnectError
+            // Convert to appropriate NimbusError
             let ec2_error = match e {
-                _ => Ec2ConnectError::Session(crate::error::SessionError::CreationFailed {
+                _ => NimbusError::Session(crate::error::SessionError::CreationFailed {
                     reason: e.to_string(),
                 }),
             };
@@ -2621,10 +2621,10 @@ async fn handle_config(action: ConfigCommands, config: &Config) -> Result<()> {
 
             println!();
             println!("Example Usage:");
-            println!("  export EC2_CONNECT_AWS_REGION=us-west-2");
-            println!("  export EC2_CONNECT_MAX_SESSIONS=5");
-            println!("  export EC2_CONNECT_RECONNECTION_ENABLED=true");
-            println!("  export EC2_CONNECT_LOG_LEVEL=debug");
+            println!("  export NIMBUS_AWS_REGION=us-west-2");
+            println!("  export NIMBUS_MAX_SESSIONS=5");
+            println!("  export NIMBUS_RECONNECTION_ENABLED=true");
+            println!("  export NIMBUS_LOG_LEVEL=debug");
             println!();
             println!("For more information, see: docs/CONFIGURATION.md");
         }
@@ -2647,7 +2647,7 @@ async fn handle_config(action: ConfigCommands, config: &Config) -> Result<()> {
             }
 
             if !found_any {
-                println!("  (No EC2_CONNECT_* environment variables set)");
+                println!("  (No NIMBUS_* environment variables set)");
             }
 
             println!();
@@ -2675,7 +2675,7 @@ async fn handle_multi_session(_config: &Config) -> Result<()> {
 
     // Create session manager and monitor
     let session_manager = DefaultSessionManager::new(10).await.map_err(|e| {
-        Ec2ConnectError::Session(crate::error::SessionError::CreationFailed {
+        NimbusError::Session(crate::error::SessionError::CreationFailed {
             reason: format!("Failed to create session manager: {}", e),
         })
     })?;
@@ -2865,7 +2865,7 @@ async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()> {
                                     "    • Install VS Code from https://code.visualstudio.com/"
                                 );
                                 println!(
-                                    "    • Or set EC2_CONNECT_VSCODE_PATH environment variable"
+                                    "    • Or set NIMBUS_VSCODE_PATH environment variable"
                                 );
                             }
                             if !status.ssh_config_writable {
@@ -3090,7 +3090,7 @@ async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()> {
                                 );
                                 println!();
                                 println!("    🔧 Alternative: Set custom path");
-                                println!("      export EC2_CONNECT_VSCODE_PATH=/path/to/code");
+                                println!("      export NIMBUS_VSCODE_PATH=/path/to/code");
                                 println!();
                             }
 
@@ -3104,7 +3104,7 @@ async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()> {
                             }
 
                             println!("  🔄 After completing setup, run:");
-                            println!("    ec2-connect vscode status");
+                            println!("    nimbus vscode status");
                         }
                     }
                     Err(e) => {
@@ -3139,9 +3139,9 @@ async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()> {
                             }
                         }
                         None => {
-                            println!("🧹 Cleaning up all EC2 Connect entries from SSH config...");
+                            println!("🧹 Cleaning up all Nimbus entries from SSH config...");
 
-                            // Read SSH config and remove all EC2 Connect entries
+                            // Read SSH config and remove all Nimbus entries
                             match integration.check_integration_status().await {
                                 Ok(status) => {
                                     let ssh_config_path = &status.ssh_config_path;
@@ -3155,8 +3155,8 @@ async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()> {
                                                 for line in lines {
                                                     let trimmed = line.trim();
 
-                                                    // Skip EC2 Connect sections
-                                                    if trimmed.starts_with("# EC2 Connect") {
+                                                    // Skip Nimbus sections
+                                                    if trimmed.starts_with("# Nimbus") {
                                                         skip_section = true;
                                                         continue;
                                                     }
@@ -3191,7 +3191,7 @@ async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()> {
                                                     .await
                                                 {
                                                     Ok(_) => {
-                                                        println!("  ✅ All EC2 Connect entries removed from SSH config");
+                                                        println!("  ✅ All Nimbus entries removed from SSH config");
                                                     }
                                                     Err(e) => {
                                                         error!("Failed to write cleaned SSH config: {}", e);
@@ -3361,8 +3361,8 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                         println!();
                         println!("💡 Next steps:");
                         println!("   • Review error details above");
-                        println!("   • Run 'ec2-connect diagnose precheck' for quick fixes");
-                        println!("   • Use 'ec2-connect diagnose item' for specific issues");
+                        println!("   • Run 'nimbus diagnose precheck' for quick fixes");
+                        println!("   • Use 'nimbus diagnose item' for specific issues");
                     } else if warning_count > 0 {
                         println!();
                         println!("💡 Connection should work, but consider addressing warnings");
@@ -3465,7 +3465,7 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                             "🎯 Pre-connection checks passed! You can proceed with connection."
                         );
                         println!(
-                            "💡 Run: ec2-connect connect --instance-id {}",
+                            "💡 Run: nimbus connect --instance-id {}",
                             results
                                 .first()
                                 .map(|r| r.item_name.as_str())
@@ -3475,7 +3475,7 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                         println!(
                             "🛑 Critical issues detected. Please resolve them before connecting."
                         );
-                        println!("💡 Run: ec2-connect diagnose full --instance-id {} for detailed analysis", 
+                        println!("💡 Run: nimbus diagnose full --instance-id {} for detailed analysis", 
                                 results.first().map(|r| r.item_name.as_str()).unwrap_or("INSTANCE_ID"));
                     }
                 }
@@ -3600,13 +3600,13 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                     if result.should_abort_connection {
                         println!("🛑 Connection aborted due to critical issues.");
                         println!("   Please resolve the critical issues above before attempting connection.");
-                        println!("   Run 'ec2-connect diagnose full --instance-id {}' for detailed analysis.", instance_id);
+                        println!("   Run 'nimbus diagnose full --instance-id {}' for detailed analysis.", instance_id);
                     } else {
                         match result.overall_status {
                             preventive_check::PreventiveCheckStatus::Ready => {
                                 println!("🚀 All checks passed! You can proceed with connection.");
                                 println!(
-                                    "   Run: ec2-connect connect --instance-id {}",
+                                    "   Run: nimbus connect --instance-id {}",
                                     instance_id
                                 );
                             }
@@ -3616,7 +3616,7 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                                     "   Consider addressing warnings for optimal performance."
                                 );
                                 println!(
-                                    "   Run: ec2-connect connect --instance-id {}",
+                                    "   Run: nimbus connect --instance-id {}",
                                     instance_id
                                 );
                             }
@@ -3743,8 +3743,8 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
 
             println!();
             println!("💡 Usage examples:");
-            println!("   ec2-connect diagnose item --item instance_state --instance-id i-1234567890abcdef0");
-            println!("   ec2-connect diagnose item --item local_port_availability --instance-id i-1234567890abcdef0 --local-port 8080");
+            println!("   nimbus diagnose item --item instance_state --instance-id i-1234567890abcdef0");
+            println!("   nimbus diagnose item --item local_port_availability --instance-id i-1234567890abcdef0 --local-port 8080");
         }
 
         DiagnosticCommands::AwsConfig {
@@ -3947,12 +3947,12 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                     println!();
                     println!("💡 Next Steps:");
                     if validation_result.overall_compliance_score >= minimum_score {
-                        println!("   • Run 'ec2-connect connect --instance-id {}' to test the connection", instance_id);
-                        println!("   • Use 'ec2-connect diagnose preventive --instance-id {}' for pre-connection checks", instance_id);
+                        println!("   • Run 'nimbus connect --instance-id {}' to test the connection", instance_id);
+                        println!("   • Use 'nimbus diagnose preventive --instance-id {}' for pre-connection checks", instance_id);
                     } else {
                         println!("   • Address the high-priority suggestions above");
                         println!("   • Re-run this validation after making changes");
-                        println!("   • Use 'ec2-connect diagnose full --instance-id {}' for detailed diagnostics", instance_id);
+                        println!("   • Use 'nimbus diagnose full --instance-id {}' for detailed diagnostics", instance_id);
                     }
                 }
                 Err(e) => {
@@ -4227,15 +4227,15 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                     println!();
                     println!("💡 Next Steps:");
                     if validation_result.overall_compliance_score >= minimum_score {
-                        println!("   • Run 'ec2-connect connect --instance-id {}' to test the connection", instance_id);
-                        println!("   • Use 'ec2-connect diagnose preventive --instance-id {}' for pre-connection checks", instance_id);
+                        println!("   • Run 'nimbus connect --instance-id {}' to test the connection", instance_id);
+                        println!("   • Use 'nimbus diagnose preventive --instance-id {}' for pre-connection checks", instance_id);
                         println!("   • Cache will be used for faster subsequent validations");
                     } else {
                         println!("   • Address the high-priority suggestions above in the recommended order");
                         println!(
                             "   • Re-run this validation with --clear-cache after making changes"
                         );
-                        println!("   • Use 'ec2-connect diagnose full --instance-id {}' for detailed diagnostics", instance_id);
+                        println!("   • Use 'nimbus diagnose full --instance-id {}' for detailed diagnostics", instance_id);
                     }
                 }
                 Err(e) => {
@@ -4398,7 +4398,7 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                                 println!("🎉 All diagnostics completed successfully!");
                                 println!("   Connection should work without issues.");
                                 println!(
-                                    "   Run: ec2-connect connect --instance-id {}",
+                                    "   Run: nimbus connect --instance-id {}",
                                     instance_id
                                 );
                             } else {
@@ -4410,7 +4410,7 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                         Some(realtime_feedback::FeedbackStatus::Interrupted) => {
                             println!();
                             println!("⏸️  Diagnostics were interrupted by user.");
-                            println!("   Run the command again to resume or use 'ec2-connect diagnose full' for non-interactive mode.");
+                            println!("   Run the command again to resume or use 'nimbus diagnose full' for non-interactive mode.");
                         }
                         Some(realtime_feedback::FeedbackStatus::Failed) => {
                             println!();
@@ -4566,7 +4566,7 @@ async fn handle_precheck(
                         println!("{} {} - {}", status_icon, result.item_name, result.message);
 
                         if result.auto_fixable {
-                            println!("   🔧 This issue can be auto-fixed with: ec2-connect fix --instance-id {}", instance_id);
+                            println!("   🔧 This issue can be auto-fixed with: nimbus fix --instance-id {}", instance_id);
                         }
                     }
 
@@ -4575,13 +4575,13 @@ async fn handle_precheck(
                         println!(
                             "🎯 Pre-connection checks passed! You can proceed with connection."
                         );
-                        println!("💡 Run: ec2-connect connect --instance-id {}", instance_id);
+                        println!("💡 Run: nimbus connect --instance-id {}", instance_id);
                     } else {
                         println!(
                             "🛑 Critical issues detected. Please resolve them before connecting."
                         );
-                        println!("💡 Run: ec2-connect fix --instance-id {} --auto-fix for automatic fixes", instance_id);
-                        println!("💡 Run: ec2-connect diagnose full --instance-id {} for detailed analysis", instance_id);
+                        println!("💡 Run: nimbus fix --instance-id {} --auto-fix for automatic fixes", instance_id);
+                        println!("💡 Run: nimbus diagnose full --instance-id {} for detailed analysis", instance_id);
                     }
 
                     if let Some(output_path) = output {
@@ -4919,7 +4919,7 @@ async fn handle_fix(
                     println!();
                     println!("🎉 {} issues were successfully fixed!", success_count);
                     println!(
-                        "💡 Run: ec2-connect precheck --instance-id {} to verify fixes",
+                        "💡 Run: nimbus precheck --instance-id {} to verify fixes",
                         instance_id
                     );
                 }
@@ -4930,7 +4930,7 @@ async fn handle_fix(
                         "⚠️  {} issues could not be automatically fixed",
                         failed_count
                     );
-                    println!("💡 Run: ec2-connect diagnose full --instance-id {} for manual fix instructions", instance_id);
+                    println!("💡 Run: nimbus diagnose full --instance-id {} for manual fix instructions", instance_id);
                 }
             }
 
@@ -5216,7 +5216,7 @@ async fn handle_diagnostic_settings(
             match current_config.save(&config_path).await {
                 Ok(_) => {
                     println!("✅ Diagnostic settings reset to defaults successfully");
-                    println!("💡 Run 'ec2-connect diagnose settings show' to see current settings");
+                    println!("💡 Run 'nimbus diagnose settings show' to see current settings");
                 }
                 Err(e) => {
                     error!("Failed to save config: {}", e);

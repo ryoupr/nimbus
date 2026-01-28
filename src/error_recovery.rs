@@ -1,4 +1,4 @@
-use crate::error::{Ec2ConnectError, ErrorSeverity, Result};
+use crate::error::{NimbusError, ErrorSeverity, Result};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use tracing::{error, warn, info, debug};
@@ -49,27 +49,27 @@ impl ErrorRecoveryManager {
     }
 
     /// Determine recovery strategy based on error type
-    pub fn get_strategy(&self, error: &Ec2ConnectError) -> RecoveryStrategy {
+    pub fn get_strategy(&self, error: &NimbusError) -> RecoveryStrategy {
         match error {
             // Recoverable network/connection errors - retry with backoff
-            Ec2ConnectError::Connection(_) if error.is_recoverable() => {
+            NimbusError::Connection(_) if error.is_recoverable() => {
                 RecoveryStrategy::Retry(self.config.clone())
             },
-            Ec2ConnectError::Aws(_) if error.is_recoverable() => {
+            NimbusError::Aws(_) if error.is_recoverable() => {
                 RecoveryStrategy::Retry(self.config.clone())
             },
-            Ec2ConnectError::Session(_) if error.is_recoverable() => {
+            NimbusError::Session(_) if error.is_recoverable() => {
                 RecoveryStrategy::Retry(self.config.clone())
             },
             
             // Configuration errors - try fallback
-            Ec2ConnectError::Config(_) => RecoveryStrategy::Fallback,
+            NimbusError::Config(_) => RecoveryStrategy::Fallback,
             
             // Resource errors - graceful degradation
-            Ec2ConnectError::Resource(_) => RecoveryStrategy::Degrade,
+            NimbusError::Resource(_) => RecoveryStrategy::Degrade,
             
             // UI errors - graceful degradation
-            Ec2ConnectError::Ui(_) => RecoveryStrategy::Degrade,
+            NimbusError::Ui(_) => RecoveryStrategy::Degrade,
             
             // Critical errors - fail immediately
             _ => RecoveryStrategy::Fail,
@@ -77,7 +77,7 @@ impl ErrorRecoveryManager {
     }
 
     /// Execute recovery strategy
-    pub async fn recover<F, T>(&self, operation: F, error: &Ec2ConnectError) -> Result<T>
+    pub async fn recover<F, T>(&self, operation: F, error: &NimbusError) -> Result<T>
     where
         F: Fn() -> Result<T> + Send + Sync,
         T: Send,
@@ -104,14 +104,14 @@ impl ErrorRecoveryManager {
     }
 
     /// Attempt fallback recovery methods
-    async fn attempt_fallback_recovery<F, T>(&self, operation: F, error: &Ec2ConnectError) -> Result<T>
+    async fn attempt_fallback_recovery<F, T>(&self, operation: F, error: &NimbusError) -> Result<T>
     where
         F: Fn() -> Result<T> + Send + Sync,
         T: Send,
     {
         match error {
             // Configuration errors - try with default configuration
-            Ec2ConnectError::Config(config_error) => {
+            NimbusError::Config(config_error) => {
                 info!("Attempting fallback with default configuration for: {}", config_error);
 
                 // Wait a moment for any transient issues to resolve
@@ -164,14 +164,14 @@ impl ErrorRecoveryManager {
     }
 
     /// Attempt graceful degradation
-    async fn attempt_graceful_degradation<F, T>(&self, operation: F, error: &Ec2ConnectError) -> Result<T>
+    async fn attempt_graceful_degradation<F, T>(&self, operation: F, error: &NimbusError) -> Result<T>
     where
         F: Fn() -> Result<T> + Send + Sync,
         T: Send,
     {
         match error {
             // Resource errors - try with reduced functionality
-            Ec2ConnectError::Resource(resource_error) => {
+            NimbusError::Resource(resource_error) => {
                 info!("Attempting graceful degradation for resource error: {}", resource_error);
 
                 // Wait for resources to potentially free up
@@ -201,7 +201,7 @@ impl ErrorRecoveryManager {
             },
             
             // UI errors - continue without UI enhancements
-            Ec2ConnectError::Ui(ui_error) => {
+            NimbusError::Ui(ui_error) => {
                 info!("Graceful degradation for UI error: {} - continuing without enhanced UI", ui_error);
                 
                 // For UI errors, we might want to continue with basic functionality
@@ -222,7 +222,7 @@ impl ErrorRecoveryManager {
             },
             
             // VS Code errors - continue without VS Code integration
-            Ec2ConnectError::VsCode(vscode_error) => {
+            NimbusError::VsCode(vscode_error) => {
                 info!("Graceful degradation for VS Code error: {} - continuing without VS Code integration", vscode_error);
                 
                 // VS Code integration is optional, so we can continue without it
@@ -278,7 +278,7 @@ impl ErrorRecoveryManager {
             // Check timeout
             if start_time.elapsed() > config.timeout {
                 error!("Recovery timeout exceeded after {} attempts", attempt - 1);
-                return Err(Ec2ConnectError::System(
+                return Err(NimbusError::System(
                     "Recovery timeout exceeded".to_string()
                 ));
             }
@@ -358,27 +358,13 @@ impl ErrorContext {
 /// Enhanced error with context
 #[derive(Debug)]
 pub struct ContextualError {
-    pub error: Ec2ConnectError,
+    pub error: NimbusError,
     pub context: ErrorContext,
 }
 
 impl ContextualError {
-    pub fn new(error: Ec2ConnectError, context: ErrorContext) -> Self {
+    pub fn new(error: NimbusError, context: ErrorContext) -> Self {
         Self { error, context }
-    }
-
-    /// Get detailed error information for logging
-    pub fn detailed_info(&self) -> String {
-        format!(
-            "Error in {}.{}: {} | Session: {} | Instance: {} | Time: {:?} | Additional: {:?}",
-            self.context.component,
-            self.context.operation,
-            self.error,
-            self.context.session_id.as_deref().unwrap_or("N/A"),
-            self.context.instance_id.as_deref().unwrap_or("N/A"),
-            self.context.timestamp,
-            self.context.additional_info
-        )
     }
 
     /// Get user-friendly error message
@@ -422,14 +408,14 @@ mod tests {
         let manager = ErrorRecoveryManager::new(RecoveryConfig::default());
         
         // Recoverable errors should use retry strategy
-        let connection_error = Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed {
+        let connection_error = NimbusError::Connection(ConnectionError::PreventiveCheckFailed {
             reason: "test".to_string(),
             issues: vec!["issue1".to_string()],
         });
         matches!(manager.get_strategy(&connection_error), RecoveryStrategy::Retry(_));
         
         // Non-recoverable errors should fail immediately
-        let session_error = Ec2ConnectError::Session(SessionError::NotFound {
+        let session_error = NimbusError::Session(SessionError::NotFound {
             session_id: "test".to_string()
         });
         matches!(manager.get_strategy(&session_error), RecoveryStrategy::Fail);
@@ -440,7 +426,7 @@ mod tests {
         let manager = ErrorRecoveryManager::new(RecoveryConfig::default());
         
         // Test connection error fallback
-        let connection_error = Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed {
+        let connection_error = NimbusError::Connection(ConnectionError::PreventiveCheckFailed {
             reason: "test".to_string(),
             issues: vec!["issue1".to_string()],
         });
@@ -468,7 +454,7 @@ mod tests {
         let manager = ErrorRecoveryManager::new(RecoveryConfig::default());
         
         // Test session error degradation
-        let session_error = Ec2ConnectError::Session(SessionError::CreationFailed {
+        let session_error = NimbusError::Session(SessionError::CreationFailed {
             reason: "test".to_string()
         });
         
@@ -501,7 +487,7 @@ mod tests {
         };
         let manager = ErrorRecoveryManager::new(config);
         
-        let connection_error = Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed {
+        let connection_error = NimbusError::Connection(ConnectionError::PreventiveCheckFailed {
             reason: "test".to_string(),
             issues: vec!["issue1".to_string()],
         });
@@ -531,7 +517,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_contextual_error() {
-        let error = Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed {
+        let error = NimbusError::Connection(ConnectionError::PreventiveCheckFailed {
             reason: "test".to_string(),
             issues: vec!["issue1".to_string()],
         });

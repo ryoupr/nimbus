@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-REPO="your-org/ec2-connect"
+REPO="your-org/nimbus"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 
 # Detect OS and architecture
@@ -27,10 +27,10 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
-echo "Installing ec2-connect $VERSION for $OS-$ARCH..."
+echo "Installing nimbus $VERSION for $OS-$ARCH..."
 
 # Download
-FILENAME="ec2-connect-${OS}-${ARCH}.tar.gz"
+FILENAME="nimbus-${OS}-${ARCH}.tar.gz"
 URL="https://github.com/$REPO/releases/download/$VERSION/$FILENAME"
 
 TMPDIR=$(mktemp -d)
@@ -51,10 +51,10 @@ fi
 tar -xzf "$FILENAME"
 
 if [ -w "$INSTALL_DIR" ]; then
-  mv ec2-connect "$INSTALL_DIR/"
+  mv nimbus "$INSTALL_DIR/"
 else
-  sudo mv ec2-connect "$INSTALL_DIR/"
+  sudo mv nimbus "$INSTALL_DIR/"
 fi
 
-echo "✓ ec2-connect installed to $INSTALL_DIR/ec2-connect"
-echo "Run 'ec2-connect --help' to get started"
+echo "✓ nimbus installed to $INSTALL_DIR/nimbus"
+echo "Run 'nimbus --help' to get started"

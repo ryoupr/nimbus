@@ -1,4 +1,4 @@
-use crate::error::{Ec2ConnectError, ErrorSeverity};
+use crate::error::{NimbusError, ErrorSeverity};
 use crate::error_recovery::ContextualError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -43,7 +43,7 @@ impl Default for LoggingConfig {
             console_enabled: true,
             file_enabled: true,
             log_dir: PathBuf::from("logs"),
-            file_prefix: "ec2-connect".to_string(),
+            file_prefix: "nimbus".to_string(),
             rotation: "daily".to_string(),
             max_files: 7,
             json_format: false,
@@ -162,7 +162,7 @@ impl ErrorLogEntry {
         }
     }
 
-    pub fn from_error(error: &Ec2ConnectError, component: &str, operation: &str) -> Self {
+    pub fn from_error(error: &NimbusError, component: &str, operation: &str) -> Self {
         Self {
             timestamp: SystemTime::now(),
             level: match error.severity() {
@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_error_log_entry_creation() {
-        let error = Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed {
+        let error = NimbusError::Connection(ConnectionError::PreventiveCheckFailed {
             reason: "test".to_string(),
             issues: vec!["issue1".to_string()],
         });

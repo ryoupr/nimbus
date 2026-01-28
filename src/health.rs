@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use std::process::Command;
 use std::net::{TcpStream, SocketAddr};
 use std::str::FromStr;
-use sysinfo::{System, Pid};
+use sysinfo::System;
 use tracing::{info, warn, error, debug};
 use async_trait::async_trait;
 
@@ -37,43 +37,16 @@ pub trait HealthChecker {
 
 /// Default implementation of health checker
 pub struct DefaultHealthChecker {
-    check_interval: Duration,
-    system: System,
     warning_threshold_ms: u64,
     error_threshold_ms: u64,
 }
 
 impl DefaultHealthChecker {
-    pub fn new(check_interval: Duration) -> Self {
+    pub fn new(_check_interval: Duration) -> Self {
         Self {
-            check_interval,
-            system: System::new_all(),
             warning_threshold_ms: 1000,  // 1 second warning threshold
             error_threshold_ms: 5000,    // 5 second error threshold
         }
-    }
-    
-    pub fn with_thresholds(check_interval: Duration, warning_ms: u64, error_ms: u64) -> Self {
-        Self {
-            check_interval,
-            system: System::new_all(),
-            warning_threshold_ms: warning_ms,
-            error_threshold_ms: error_ms,
-        }
-    }
-    
-    /// Check if a process is running by name
-    fn is_process_running(&mut self, process_name: &str) -> bool {
-        self.system.refresh_processes();
-        self.system.processes().values().any(|process| {
-            process.name().to_string().to_lowercase().contains(&process_name.to_lowercase())
-        })
-    }
-    
-    /// Check if a process is running by PID
-    fn is_process_running_by_pid(&mut self, pid: u32) -> bool {
-        self.system.refresh_processes();
-        self.system.process(Pid::from(pid as usize)).is_some()
     }
     
     /// Test TCP connectivity to a host:port

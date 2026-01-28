@@ -1,8 +1,8 @@
-# EC2 Connect トラブルシューティングガイド
+# Nimbus トラブルシューティングガイド
 
 ## 概要
 
-EC2 Connect v3.0 で発生する可能性のある問題と、その解決方法を体系的にまとめたガイドです。問題の種類別に整理し、段階的な診断手順と解決策を提供します。
+Nimbus v3.0 で発生する可能性のある問題と、その解決方法を体系的にまとめたガイドです。問題の種類別に整理し、段階的な診断手順と解決策を提供します。
 
 ## 目次
 
@@ -173,7 +173,7 @@ cargo run -- connect \
   --profile alternative-profile
 
 # タイムアウト延長
-export EC2_CONNECT_CONNECTION_TIMEOUT=60
+export NIMBUS_CONNECTION_TIMEOUT=60
 cargo run -- connect --instance-id <INSTANCE_ID>
 ```
 
@@ -213,32 +213,32 @@ done
 
 ```bash
 # アグレッシブ再接続モード
-export EC2_CONNECT_AGGRESSIVE_RECONNECTION=true
-export EC2_CONNECT_AGGRESSIVE_ATTEMPTS=20
-export EC2_CONNECT_AGGRESSIVE_INTERVAL_MS=200
+export NIMBUS_AGGRESSIVE_RECONNECTION=true
+export NIMBUS_AGGRESSIVE_ATTEMPTS=20
+export NIMBUS_AGGRESSIVE_INTERVAL_MS=200
 
 # 最大再試行回数増加
-export EC2_CONNECT_MAX_RECONNECTION_ATTEMPTS=15
+export NIMBUS_MAX_RECONNECTION_ATTEMPTS=15
 ```
 
 **2. ヘルスチェック間隔調整**
 
 ```bash
 # より頻繁なヘルスチェック
-export EC2_CONNECT_HEALTH_CHECK_INTERVAL=2
+export NIMBUS_HEALTH_CHECK_INTERVAL=2
 
 # タイムアウト予測閾値調整
-export EC2_CONNECT_TIMEOUT_PREDICTION_THRESHOLD=240
+export NIMBUS_TIMEOUT_PREDICTION_THRESHOLD=240
 ```
 
 **3. ネットワーク最適化**
 
 ```bash
 # レイテンシ閾値調整
-export EC2_CONNECT_LATENCY_THRESHOLD_MS=300
+export NIMBUS_LATENCY_THRESHOLD_MS=300
 
 # 最適化有効化
-export EC2_CONNECT_OPTIMIZATION_ENABLED=true
+export NIMBUS_OPTIMIZATION_ENABLED=true
 ```
 
 ### 問題 3: ポートフォワーディングが機能しない
@@ -349,8 +349,8 @@ cargo run -- list
 cargo run -- metrics
 
 # プロセス別メモリ使用量確認
-ps aux | grep ec2-connect
-top -p $(pgrep -f ec2-connect)
+ps aux | grep nimbus
+top -p $(pgrep -f nimbus)
 ```
 
 #### 解決策
@@ -371,13 +371,13 @@ done
 
 ```bash
 # 一時的な制限緩和
-export EC2_CONNECT_MAX_MEMORY_MB=15
+export NIMBUS_MAX_MEMORY_MB=15
 
 # 省電力モード有効化
-export EC2_CONNECT_LOW_POWER_MODE=true
+export NIMBUS_LOW_POWER_MODE=true
 
 # 監視間隔延長
-export EC2_CONNECT_MONITORING_INTERVAL=10
+export NIMBUS_MONITORING_INTERVAL=10
 ```
 
 **3. 最適化実行**
@@ -408,8 +408,8 @@ find logs/ -name "*.log" -mtime +7 -delete
 
 ```bash
 # CPU 使用率詳細確認
-top -p $(pgrep -f ec2-connect)
-htop -p $(pgrep -f ec2-connect)
+top -p $(pgrep -f nimbus)
+htop -p $(pgrep -f nimbus)
 
 # プロファイリング実行
 cargo run --release -- metrics
@@ -422,31 +422,31 @@ perf record -g cargo run -- tui
 
 ```bash
 # 監視間隔延長
-export EC2_CONNECT_HEALTH_CHECK_INTERVAL=10
-export EC2_CONNECT_MONITORING_INTERVAL=15
+export NIMBUS_HEALTH_CHECK_INTERVAL=10
+export NIMBUS_MONITORING_INTERVAL=15
 
 # UI 更新間隔延長
-export EC2_CONNECT_UI_UPDATE_INTERVAL_MS=2000
+export NIMBUS_UI_UPDATE_INTERVAL_MS=2000
 ```
 
 **2. 省電力モード**
 
 ```bash
 # 省電力モード強制有効化
-export EC2_CONNECT_LOW_POWER_MODE=true
+export NIMBUS_LOW_POWER_MODE=true
 
 # パフォーマンス監視無効化
-export EC2_CONNECT_PERFORMANCE_MONITORING=false
+export NIMBUS_PERFORMANCE_MONITORING=false
 ```
 
 **3. セッション数制限**
 
 ```bash
 # 同時セッション数制限
-export EC2_CONNECT_MAX_SESSIONS=2
+export NIMBUS_MAX_SESSIONS=2
 
 # インスタンス別セッション制限
-export EC2_CONNECT_MAX_SESSIONS_PER_INSTANCE=1
+export NIMBUS_MAX_SESSIONS_PER_INSTANCE=1
 ```
 
 ### 問題 6: 接続速度が遅い
@@ -486,7 +486,7 @@ done
 
 ```bash
 # 最も近いリージョンを使用
-export EC2_CONNECT_AWS_REGION=us-west-2  # 西海岸の場合
+export NIMBUS_AWS_REGION=us-west-2  # 西海岸の場合
 
 # リージョン別レイテンシテスト
 ./scripts/region-latency-test.sh
@@ -496,13 +496,13 @@ export EC2_CONNECT_AWS_REGION=us-west-2  # 西海岸の場合
 
 ```bash
 # 最適化有効化
-export EC2_CONNECT_OPTIMIZATION_ENABLED=true
+export NIMBUS_OPTIMIZATION_ENABLED=true
 
 # レイテンシ閾値調整
-export EC2_CONNECT_LATENCY_THRESHOLD_MS=300
+export NIMBUS_LATENCY_THRESHOLD_MS=300
 
 # 接続タイムアウト延長
-export EC2_CONNECT_CONNECTION_TIMEOUT=45
+export NIMBUS_CONNECTION_TIMEOUT=45
 ```
 
 **3. ネットワーク設定確認**
@@ -528,20 +528,20 @@ ip route show
 ```
 ❌ Configuration validation failed: Invalid format
 ❌ Failed to load configuration: File not found
-❌ Environment variable invalid: EC2_CONNECT_MAX_MEMORY_MB='invalid'
+❌ Environment variable invalid: NIMBUS_MAX_MEMORY_MB='invalid'
 ```
 
 #### 診断手順
 
 ```bash
 # 設定ファイル存在確認
-ls -la ~/.config/ec2-connect/config.json
+ls -la ~/.config/nimbus/config.json
 
 # 設定ファイル形式確認
-jq . ~/.config/ec2-connect/config.json
+jq . ~/.config/nimbus/config.json
 
 # 環境変数確認
-env | grep EC2_CONNECT_
+env | grep NIMBUS_
 ```
 
 #### 解決策
@@ -550,10 +550,10 @@ env | grep EC2_CONNECT_
 
 ```bash
 # バックアップから復元
-cp ~/.config/ec2-connect/config.json.backup ~/.config/ec2-connect/config.json
+cp ~/.config/nimbus/config.json.backup ~/.config/nimbus/config.json
 
 # デフォルト設定生成
-cargo run -- config generate --output ~/.config/ec2-connect/config.json
+cargo run -- config generate --output ~/.config/nimbus/config.json
 
 # 設定検証
 cargo run -- config validate
@@ -563,7 +563,7 @@ cargo run -- config validate
 
 ```bash
 # JSON 形式チェック
-jq . ~/.config/ec2-connect/config.json
+jq . ~/.config/nimbus/config.json
 
 # 一般的な JSON エラー修正
 # - 末尾のカンマ削除
@@ -575,11 +575,11 @@ jq . ~/.config/ec2-connect/config.json
 
 ```bash
 # 無効な環境変数削除
-unset EC2_CONNECT_INVALID_VARIABLE
+unset NIMBUS_INVALID_VARIABLE
 
 # 正しい形式で設定
-export EC2_CONNECT_MAX_MEMORY_MB=10.0
-export EC2_CONNECT_RECONNECTION_ENABLED=true
+export NIMBUS_MAX_MEMORY_MB=10.0
+export NIMBUS_RECONNECTION_ENABLED=true
 
 # 設定テスト
 cargo run -- config test
@@ -590,7 +590,7 @@ cargo run -- config test
 #### 症状
 
 ```
-❌ Permission denied: ~/.config/ec2-connect/config.json
+❌ Permission denied: ~/.config/nimbus/config.json
 ❌ Failed to create log file: Permission denied
 ❌ SSH config not writable
 ```
@@ -599,11 +599,11 @@ cargo run -- config test
 
 ```bash
 # ファイル権限確認
-ls -la ~/.config/ec2-connect/
+ls -la ~/.config/nimbus/
 ls -la ~/.ssh/config
 
 # ディレクトリ権限確認
-ls -ld ~/.config/ec2-connect/
+ls -ld ~/.config/nimbus/
 ls -ld ~/.ssh/
 ```
 
@@ -613,11 +613,11 @@ ls -ld ~/.ssh/
 
 ```bash
 # 設定ディレクトリ作成
-mkdir -p ~/.config/ec2-connect/
-chmod 755 ~/.config/ec2-connect/
+mkdir -p ~/.config/nimbus/
+chmod 755 ~/.config/nimbus/
 
 # 設定ファイル権限修正
-chmod 644 ~/.config/ec2-connect/config.json
+chmod 644 ~/.config/nimbus/config.json
 
 # SSH 設定権限修正
 chmod 600 ~/.ssh/config
@@ -696,8 +696,8 @@ export AWS_SESSION_TOKEN=...
 ```bash
 # ロール引き受け
 aws sts assume-role \
-  --role-arn arn:aws:iam::123456789012:role/EC2ConnectRole \
-  --role-session-name ec2-connect-session
+  --role-arn arn:aws:iam::123456789012:role/NimbusRole \
+  --role-session-name nimbus-session
 
 # 認証情報設定
 export AWS_ACCESS_KEY_ID=...
@@ -740,7 +740,7 @@ cargo run -- connect \
 
 # 環境変数設定
 export AWS_DEFAULT_REGION=us-east-1
-export EC2_CONNECT_AWS_REGION=us-east-1
+export NIMBUS_AWS_REGION=us-east-1
 ```
 
 **2. プロファイル設定**
@@ -772,7 +772,7 @@ cargo run -- connect \
 ```bash
 # ディスク使用量確認
 df -h
-du -sh ~/.config/ec2-connect/
+du -sh ~/.config/nimbus/
 du -sh logs/
 
 # 大きなファイル検索
@@ -788,7 +788,7 @@ find . -type f -size +10M -ls
 find logs/ -name "*.log" -mtime +7 -delete
 
 # ログローテーション設定
-logrotate -f /etc/logrotate.d/ec2-connect
+logrotate -f /etc/logrotate.d/nimbus
 ```
 
 **2. データベースクリーンアップ**
@@ -798,15 +798,15 @@ logrotate -f /etc/logrotate.d/ec2-connect
 cargo run -- database cleanup --days 7
 
 # データベース最適化
-sqlite3 ~/.config/ec2-connect/sessions.db "VACUUM;"
+sqlite3 ~/.config/nimbus/sessions.db "VACUUM;"
 ```
 
 **3. 一時ファイルクリーンアップ**
 
 ```bash
 # 一時ファイル削除
-rm -rf /tmp/ec2-connect-*
-rm -rf ~/.cache/ec2-connect/
+rm -rf /tmp/nimbus-*
+rm -rf ~/.cache/nimbus/
 
 # システム一時ファイル削除
 sudo apt-get clean  # Ubuntu/Debian
@@ -827,11 +827,11 @@ sudo yum clean all  # RHEL/CentOS
 
 ```bash
 # プロセス数確認
-ps aux | grep ec2-connect | wc -l
-pgrep -c ec2-connect
+ps aux | grep nimbus | wc -l
+pgrep -c nimbus
 
 # ファイルディスクリプタ確認
-lsof -p $(pgrep ec2-connect) | wc -l
+lsof -p $(pgrep nimbus) | wc -l
 ulimit -n
 ```
 
@@ -853,7 +853,7 @@ echo "* hard nofile 4096" | sudo tee -a /etc/security/limits.conf
 
 ```bash
 # 古いプロセス終了
-pkill -f "ec2-connect.*terminated"
+pkill -f "nimbus.*terminated"
 
 # ゾンビプロセス確認
 ps aux | grep -E "defunct|<zombie>"
@@ -908,7 +908,7 @@ sudo apt install code
 which code
 
 # 環境変数設定
-export EC2_CONNECT_VSCODE_PATH=/usr/local/bin/code
+export NIMBUS_VSCODE_PATH=/usr/local/bin/code
 
 # 設定ファイル更新
 cargo run -- config show
@@ -954,11 +954,11 @@ grep -n "Host ec2-" ~/.ssh/config
 **1. SSH 設定クリーンアップ**
 
 ```bash
-# EC2 Connect 関連エントリ削除
+# Nimbus 関連エントリ削除
 cargo run -- vscode cleanup
 
 # 手動クリーンアップ
-sed -i '/# EC2 Connect - Start/,/# EC2 Connect - End/d' ~/.ssh/config
+sed -i '/# Nimbus - Start/,/# Nimbus - End/d' ~/.ssh/config
 ```
 
 **2. SSH 設定バックアップと復元**
@@ -990,14 +990,14 @@ cargo run -- vscode setup
 
 ```bash
 # データベース整合性チェック
-sqlite3 ~/.config/ec2-connect/sessions.db "PRAGMA integrity_check;"
+sqlite3 ~/.config/nimbus/sessions.db "PRAGMA integrity_check;"
 
 # データベース情報確認
 cargo run -- database info
 
 # データベースファイル確認
-ls -la ~/.config/ec2-connect/sessions.db
-file ~/.config/ec2-connect/sessions.db
+ls -la ~/.config/nimbus/sessions.db
+file ~/.config/nimbus/sessions.db
 ```
 
 #### 解決策
@@ -1006,20 +1006,20 @@ file ~/.config/ec2-connect/sessions.db
 
 ```bash
 # データベースバックアップ
-cp ~/.config/ec2-connect/sessions.db ~/.config/ec2-connect/sessions.db.backup
+cp ~/.config/nimbus/sessions.db ~/.config/nimbus/sessions.db.backup
 
 # データベース修復
-sqlite3 ~/.config/ec2-connect/sessions.db ".recover" | sqlite3 ~/.config/ec2-connect/sessions_recovered.db
+sqlite3 ~/.config/nimbus/sessions.db ".recover" | sqlite3 ~/.config/nimbus/sessions_recovered.db
 
 # 修復されたデータベースに置き換え
-mv ~/.config/ec2-connect/sessions_recovered.db ~/.config/ec2-connect/sessions.db
+mv ~/.config/nimbus/sessions_recovered.db ~/.config/nimbus/sessions.db
 ```
 
 **2. データベース再初期化**
 
 ```bash
 # 古いデータベース削除
-rm ~/.config/ec2-connect/sessions.db
+rm ~/.config/nimbus/sessions.db
 
 # データベース再初期化
 cargo run -- database init
@@ -1046,7 +1046,7 @@ cargo run -- database export --output backup-data.json --format json
 ls -la logs/
 
 # 日付別ログファイル
-ls -la logs/ec2-connect.$(date +%Y-%m-%d)
+ls -la logs/nimbus.$(date +%Y-%m-%d)
 
 # 設定されたログファイル
 cargo run -- config show | grep log_file
@@ -1057,44 +1057,44 @@ cargo run -- config show | grep log_file
 **接続成功:**
 
 ```
-INFO ec2_connect: Starting EC2 Connect v3.0.0
-INFO ec2_connect::session: Session created successfully: session-abc123
-INFO ec2_connect::monitor: Session monitoring started for session-abc123
+INFO nimbus: Starting Nimbus v3.0.0
+INFO nimbus::session: Session created successfully: session-abc123
+INFO nimbus::monitor: Session monitoring started for session-abc123
 ```
 
 **接続失敗:**
 
 ```
-ERROR ec2_connect::aws: AWS API error: AuthenticationFailed
-ERROR ec2_connect::session: Failed to create session: Connection timeout
-WARN ec2_connect::reconnect: Reconnection attempt 3/5 failed
+ERROR nimbus::aws: AWS API error: AuthenticationFailed
+ERROR nimbus::session: Failed to create session: Connection timeout
+WARN nimbus::reconnect: Reconnection attempt 3/5 failed
 ```
 
 **パフォーマンス問題:**
 
 ```
-WARN ec2_connect::resource: Memory usage exceeded: 12.5MB > 10.0MB
-WARN ec2_connect::performance: High latency detected: 450ms
-INFO ec2_connect::resource: Optimization completed: 12.5MB -> 8.2MB
+WARN nimbus::resource: Memory usage exceeded: 12.5MB > 10.0MB
+WARN nimbus::performance: High latency detected: 450ms
+INFO nimbus::resource: Optimization completed: 12.5MB -> 8.2MB
 ```
 
 ### ログ分析コマンド
 
 ```bash
 # エラーログ抽出
-grep -i error logs/ec2-connect.$(date +%Y-%m-%d)
+grep -i error logs/nimbus.$(date +%Y-%m-%d)
 
 # 警告ログ抽出
-grep -i warn logs/ec2-connect.$(date +%Y-%m-%d)
+grep -i warn logs/nimbus.$(date +%Y-%m-%d)
 
 # 特定セッションのログ
-grep "session-abc123" logs/ec2-connect.$(date +%Y-%m-%d)
+grep "session-abc123" logs/nimbus.$(date +%Y-%m-%d)
 
 # パフォーマンス関連ログ
-grep -E "(latency|memory|cpu)" logs/ec2-connect.$(date +%Y-%m-%d)
+grep -E "(latency|memory|cpu)" logs/nimbus.$(date +%Y-%m-%d)
 
 # 時系列でのエラー分析
-tail -f logs/ec2-connect.$(date +%Y-%m-%d) | grep -E "(ERROR|WARN)"
+tail -f logs/nimbus.$(date +%Y-%m-%d) | grep -E "(ERROR|WARN)"
 ```
 
 ## 高度なトラブルシューティング
@@ -1103,7 +1103,7 @@ tail -f logs/ec2-connect.$(date +%Y-%m-%d) | grep -E "(ERROR|WARN)"
 
 ```bash
 # デバッグログ有効化
-export EC2_CONNECT_LOG_LEVEL=debug
+export NIMBUS_LOG_LEVEL=debug
 export RUST_LOG=debug
 
 # 詳細ログ付きで実行
@@ -1119,11 +1119,11 @@ cargo run -- diagnose full --instance-id <INSTANCE_ID>
 ```bash
 # プロファイリング実行
 cargo build --release
-perf record --call-graph=dwarf target/release/ec2-connect connect --instance-id <INSTANCE_ID>
+perf record --call-graph=dwarf target/release/nimbus connect --instance-id <INSTANCE_ID>
 perf report
 
 # メモリ使用量分析
-valgrind --tool=massif target/release/ec2-connect connect --instance-id <INSTANCE_ID>
+valgrind --tool=massif target/release/nimbus connect --instance-id <INSTANCE_ID>
 ms_print massif.out.*
 ```
 
@@ -1131,7 +1131,7 @@ ms_print massif.out.*
 
 ```bash
 # パケットキャプチャ
-sudo tcpdump -i any -w ec2-connect.pcap host ssm.<region>.amazonaws.com
+sudo tcpdump -i any -w nimbus.pcap host ssm.<region>.amazonaws.com
 
 # SSL/TLS 接続分析
 openssl s_client -connect ssm.<region>.amazonaws.com:443 -servername ssm.<region>.amazonaws.com
@@ -1145,7 +1145,7 @@ nslookup ssm.<region>.amazonaws.com
 
 ```bash
 # システムコール追跡
-strace -f -o ec2-connect.strace cargo run -- connect --instance-id <INSTANCE_ID>
+strace -f -o nimbus.strace cargo run -- connect --instance-id <INSTANCE_ID>
 
 # ファイルアクセス分析
 strace -e trace=file cargo run -- connect --instance-id <INSTANCE_ID>
@@ -1163,19 +1163,19 @@ strace -e trace=network cargo run -- connect --instance-id <INSTANCE_ID>
 cargo run -- list | grep -E "session-" | awk '{print $3}' | xargs -I {} cargo run -- terminate {}
 
 # 2. プロセス強制終了
-pkill -f ec2-connect
+pkill -f nimbus
 
 # 3. 設定ファイル削除
-rm -rf ~/.config/ec2-connect/
+rm -rf ~/.config/nimbus/
 
 # 4. ログファイル削除
 rm -rf logs/
 
 # 5. SSH 設定クリーンアップ
-sed -i '/# EC2 Connect/d' ~/.ssh/config
+sed -i '/# Nimbus/d' ~/.ssh/config
 
 # 6. 環境変数クリア
-unset $(env | grep EC2_CONNECT_ | cut -d= -f1)
+unset $(env | grep NIMBUS_ | cut -d= -f1)
 
 # 7. 再初期化
 cargo run -- config generate
@@ -1186,10 +1186,10 @@ cargo run -- database init
 
 ```bash
 # 設定ファイル復元
-cp ~/.config/ec2-connect/config.json.backup ~/.config/ec2-connect/config.json
+cp ~/.config/nimbus/config.json.backup ~/.config/nimbus/config.json
 
 # データベース復元
-cp ~/.config/ec2-connect/sessions.db.backup ~/.config/ec2-connect/sessions.db
+cp ~/.config/nimbus/sessions.db.backup ~/.config/nimbus/sessions.db
 
 # SSH 設定復元
 cp ~/.ssh/config.backup ~/.ssh/config
@@ -1221,19 +1221,19 @@ echo "=== Resource Usage ===" >> debug-info.txt
 cargo run -- resources >> debug-info.txt
 
 echo "=== Recent Logs ===" >> debug-info.txt
-tail -50 logs/ec2-connect.$(date +%Y-%m-%d) >> debug-info.txt
+tail -50 logs/nimbus.$(date +%Y-%m-%d) >> debug-info.txt
 ```
 
 ### よくある質問 (FAQ)
 
 **Q: 接続が遅いのですが、どうすれば改善できますか？**
-A: まず `cargo run -- diagnose full` で包括的な診断を実行し、ネットワーク品質とAWS設定を確認してください。最適なリージョンの選択と、`EC2_CONNECT_OPTIMIZATION_ENABLED=true` の設定が効果的です。
+A: まず `cargo run -- diagnose full` で包括的な診断を実行し、ネットワーク品質とAWS設定を確認してください。最適なリージョンの選択と、`NIMBUS_OPTIMIZATION_ENABLED=true` の設定が効果的です。
 
 **Q: メモリ使用量が制限を超えてしまいます。**
-A: 不要なセッションを終了し、`EC2_CONNECT_LOW_POWER_MODE=true` を設定してください。また、`cargo run -- database cleanup` で古いデータを削除することも効果的です。
+A: 不要なセッションを終了し、`NIMBUS_LOW_POWER_MODE=true` を設定してください。また、`cargo run -- database cleanup` で古いデータを削除することも効果的です。
 
 **Q: VS Code 統合が機能しません。**
-A: `cargo run -- vscode status` で統合状態を確認し、VS Code のパスが正しく設定されているか確認してください。必要に応じて `EC2_CONNECT_VSCODE_PATH` 環境変数を設定してください。
+A: `cargo run -- vscode status` で統合状態を確認し、VS Code のパスが正しく設定されているか確認してください。必要に応じて `NIMBUS_VSCODE_PATH` 環境変数を設定してください。
 
 **Q: 設定ファイルが見つからないエラーが出ます。**
 A: `cargo run -- config generate` で新しい設定ファイルを生成してください。設定ディレクトリの権限も確認してください。

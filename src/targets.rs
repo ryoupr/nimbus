@@ -53,7 +53,7 @@ impl TargetsConfig {
                 .or_else(dirs::config_dir)
                 .context("Could not determine config directory")?
         }
-        .join("ec2-connect");
+        .join("nimbus");
 
         Ok(base_dir.join("targets.json"))
     }

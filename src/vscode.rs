@@ -7,7 +7,7 @@ use tokio::fs;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, warn};
 
-use crate::error::{Ec2ConnectError, VsCodeError};
+use crate::error::{NimbusError, VsCodeError};
 use crate::logging::StructuredLogger;
 use crate::session::Session;
 
@@ -190,7 +190,7 @@ impl VsCodeIntegration {
 
         // デフォルトのSSH設定ファイルパス
         let home_dir = dirs::home_dir().ok_or_else(|| {
-            Ec2ConnectError::VsCode(VsCodeError::ConfigurationError {
+            NimbusError::VsCode(VsCodeError::ConfigurationError {
                 message: "Could not determine home directory".to_string(),
             })
         })?;
@@ -347,7 +347,7 @@ impl VsCodeIntegration {
 
         format!(
             r#"
-# EC2 Connect - Session: {}
+# Nimbus - Session: {}
 Host {}
     HostName localhost
     Port {}
@@ -376,39 +376,39 @@ Host {}
         let lines: Vec<&str> = config_content.lines().collect();
         let mut result_lines = Vec::new();
         let mut skip_until_next_host = false;
-        let mut in_ec2_connect_section = false;
+        let mut in_nimbus_section = false;
 
         for line in lines {
             let trimmed = line.trim();
 
-            // EC2 Connectセクションの開始を検出
-            if trimmed.starts_with("# EC2 Connect") {
-                in_ec2_connect_section = true;
+            // Nimbusセクションの開始を検出
+            if trimmed.starts_with("# Nimbus") {
+                in_nimbus_section = true;
                 continue;
             }
 
             // ホストエントリの開始を検出
             if trimmed.starts_with("Host ") {
-                if in_ec2_connect_section {
+                if in_nimbus_section {
                     let host_in_line = trimmed.strip_prefix("Host ").unwrap_or("").trim();
                     if host_in_line == host_name {
                         skip_until_next_host = true;
-                        in_ec2_connect_section = false;
+                        in_nimbus_section = false;
                         continue;
                     }
                 }
                 skip_until_next_host = false;
-                in_ec2_connect_section = false;
+                in_nimbus_section = false;
             }
 
-            // 空行でEC2 Connectセクションを終了
-            if in_ec2_connect_section && trimmed.is_empty() {
-                in_ec2_connect_section = false;
+            // 空行でNimbusセクションを終了
+            if in_nimbus_section && trimmed.is_empty() {
+                in_nimbus_section = false;
                 continue;
             }
 
             // スキップ中でなければ行を保持
-            if !skip_until_next_host && !in_ec2_connect_section {
+            if !skip_until_next_host && !in_nimbus_section {
                 result_lines.push(line.to_string());
             }
         }
@@ -419,7 +419,7 @@ Host {}
     /// VS Codeを起動
     async fn launch_vscode(&self, connection_info: &ConnectionInfo) -> Result<()> {
         let vscode_path = self.vscode_path.as_ref().ok_or_else(|| {
-            Ec2ConnectError::VsCode(VsCodeError::NotFound {
+            NimbusError::VsCode(VsCodeError::NotFound {
                 message: "VS Code executable not found".to_string(),
             })
         })?;
@@ -464,7 +464,7 @@ Host {}
             }
             Err(e) => {
                 error!("Failed to launch VS Code: {}", e);
-                Err(Ec2ConnectError::VsCode(VsCodeError::LaunchFailed {
+                Err(NimbusError::VsCode(VsCodeError::LaunchFailed {
                     message: format!("Failed to launch VS Code: {}", e),
                 })
                 .into())
@@ -474,7 +474,7 @@ Host {}
 
     /// 通知を送信
     async fn send_notification(&self, connection_info: &ConnectionInfo) -> Result<()> {
-        let title = "EC2 Connect - VS Code Integration";
+        let title = "Nimbus - VS Code Integration";
         let message = format!(
             "VS Code integration completed for instance {}\nSSH Host: {}\nLocal Port: {}",
             connection_info.instance_id, connection_info.ssh_host, connection_info.local_port
@@ -511,7 +511,7 @@ Host {}
                 $template.SelectSingleNode('//text[@id="1"]').AppendChild($template.CreateTextNode('{}')) | Out-Null
                 $template.SelectSingleNode('//text[@id="2"]').AppendChild($template.CreateTextNode('{}')) | Out-Null
                 $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
-                [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('EC2 Connect').Show($toast)
+                [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Nimbus').Show($toast)
                 "#,
                 title,
                 message.replace('\n', " - ")
@@ -562,8 +562,8 @@ Host {}
             let line = lines[i];
             let trimmed = line.trim();
 
-            // EC2 Connectセッションの開始を検出（セッションIDベース）
-            if trimmed.starts_with("# EC2 Connect - Session:") && trimmed.contains(session_id) {
+            // Nimbusセッションの開始を検出（セッションIDベース）
+            if trimmed.starts_with("# Nimbus - Session:") && trimmed.contains(session_id) {
                 // このセッション全体をスキップ
                 i += 1; // セッションヘッダーをスキップ
 
@@ -573,7 +573,7 @@ Host {}
                     let current_trimmed = current_line.trim();
 
                     // 次のセッションの開始で停止
-                    if current_trimmed.starts_with("# EC2 Connect - Session:") {
+                    if current_trimmed.starts_with("# Nimbus - Session:") {
                         break;
                     }
 
@@ -629,7 +629,7 @@ Host {}
 
                         // 次のホストまたはセクションの開始で停止
                         if current_trimmed.starts_with("Host ")
-                            || current_trimmed.starts_with("# EC2 Connect")
+                            || current_trimmed.starts_with("# Nimbus")
                         {
                             break;
                         }

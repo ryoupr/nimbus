@@ -1,4 +1,4 @@
-use crate::error::{Ec2ConnectError, ConfigError, AwsError, SessionError, ConnectionError, ResourceError, UiError};
+use crate::error::{NimbusError, ConfigError, AwsError, SessionError, ConnectionError, ResourceError, UiError};
 use std::collections::HashMap;
 
 /// User-friendly error messages and help system
@@ -32,14 +32,14 @@ impl UserMessageSystem {
     }
 
     /// Get user-friendly error message with solutions
-    pub fn get_error_message(&self, error: &Ec2ConnectError) -> UserErrorMessage {
+    pub fn get_error_message(&self, error: &NimbusError) -> UserErrorMessage {
         match error {
-            Ec2ConnectError::Config(config_error) => self.handle_config_error(config_error),
-            Ec2ConnectError::Aws(aws_error) => self.handle_aws_error(aws_error),
-            Ec2ConnectError::Session(session_error) => self.handle_session_error(session_error),
-            Ec2ConnectError::Connection(connection_error) => self.handle_connection_error(connection_error),
-            Ec2ConnectError::Resource(resource_error) => self.handle_resource_error(resource_error),
-            Ec2ConnectError::Ui(ui_error) => self.handle_ui_error(ui_error),
+            NimbusError::Config(config_error) => self.handle_config_error(config_error),
+            NimbusError::Aws(aws_error) => self.handle_aws_error(aws_error),
+            NimbusError::Session(session_error) => self.handle_session_error(session_error),
+            NimbusError::Connection(connection_error) => self.handle_connection_error(connection_error),
+            NimbusError::Resource(resource_error) => self.handle_resource_error(resource_error),
+            NimbusError::Ui(ui_error) => self.handle_ui_error(ui_error),
             _ => UserErrorMessage {
                 title: "予期しないエラー".to_string(),
                 message: error.to_string(),
@@ -48,7 +48,7 @@ impl UserMessageSystem {
                     "アプリケーションを再起動してください".to_string(),
                     "問題が続く場合は、ログファイルを確認してください".to_string(),
                 ],
-                help_command: Some("ec2-connect --help".to_string()),
+                help_command: Some("nimbus --help".to_string()),
             },
         }
     }
@@ -61,7 +61,7 @@ impl UserMessageSystem {
             solutions: vec![
                 "設定ファイルを確認してください".to_string(),
             ],
-            help_command: Some("ec2-connect config --help".to_string()),
+            help_command: Some("nimbus config --help".to_string()),
         }
     }
 
@@ -121,7 +121,7 @@ impl UserMessageSystem {
                     "新しいセッションを作成してください".to_string(),
                     "アクティブなセッションのリストを確認".to_string(),
                 ],
-                help_command: Some("ec2-connect list-sessions".to_string()),
+                help_command: Some("nimbus list-sessions".to_string()),
             },
             SessionError::CreationFailed { reason } => UserErrorMessage {
                 title: "セッションの作成に失敗しました".to_string(),
@@ -133,7 +133,7 @@ impl UserMessageSystem {
                     "ネットワーク接続を確認".to_string(),
                     "しばらく待ってから再試行".to_string(),
                 ],
-                help_command: Some("ec2-connect status".to_string()),
+                help_command: Some("nimbus status".to_string()),
             },
             SessionError::LimitExceeded { max_sessions } => UserErrorMessage {
                 title: "セッション数の上限に達しました".to_string(),
@@ -141,10 +141,10 @@ impl UserMessageSystem {
                 severity: "medium".to_string(),
                 solutions: vec![
                     "不要なセッションを終了してください".to_string(),
-                    "ec2-connect list-sessions で確認".to_string(),
-                    "ec2-connect terminate <session-id> で終了".to_string(),
+                    "nimbus list-sessions で確認".to_string(),
+                    "nimbus terminate <session-id> で終了".to_string(),
                 ],
-                help_command: Some("ec2-connect list-sessions".to_string()),
+                help_command: Some("nimbus list-sessions".to_string()),
             },
         }
     }
@@ -156,7 +156,7 @@ impl UserMessageSystem {
                 message: format!("理由: {}", reason),
                 severity: "high".to_string(),
                 solutions: issues.clone(),
-                help_command: Some("ec2-connect diagnose".to_string()),
+                help_command: Some("nimbus diagnose".to_string()),
             },
         }
     }
@@ -187,7 +187,7 @@ impl UserMessageSystem {
             "aws_auth".to_string(),
             HelpMessage {
                 title: "AWS認証の設定".to_string(),
-                description: "EC2 Connectを使用するには、適切なAWS認証情報が必要です。".to_string(),
+                description: "Nimbusを使用するには、適切なAWS認証情報が必要です。".to_string(),
                 solutions: vec![
                     Solution {
                         step: 1,
@@ -224,19 +224,19 @@ impl UserMessageSystem {
                     Solution {
                         step: 1,
                         description: "アクティブなセッションを確認".to_string(),
-                        command: Some("ec2-connect list-sessions".to_string()),
+                        command: Some("nimbus list-sessions".to_string()),
                         example: None,
                     },
                     Solution {
                         step: 2,
                         description: "新しいセッションを作成".to_string(),
-                        command: Some("ec2-connect connect <instance-id>".to_string()),
-                        example: Some("ec2-connect connect i-1234567890abcdef0".to_string()),
+                        command: Some("nimbus connect <instance-id>".to_string()),
+                        example: Some("nimbus connect i-1234567890abcdef0".to_string()),
                     },
                     Solution {
                         step: 3,
                         description: "セッションを終了".to_string(),
-                        command: Some("ec2-connect terminate <session-id>".to_string()),
+                        command: Some("nimbus terminate <session-id>".to_string()),
                         example: None,
                     },
                 ],
@@ -309,7 +309,7 @@ mod tests {
     fn test_user_message_system() {
         let system = UserMessageSystem::new();
         
-        let error = Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed {
+        let error = NimbusError::Connection(ConnectionError::PreventiveCheckFailed {
             reason: "test".to_string(),
             issues: vec!["issue1".to_string()],
         });

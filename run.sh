@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# EC2 Connect v3.0 (Rust) - Unix Launcher Script
+# Nimbus v3.0 (Rust) - Unix Launcher Script
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_NAME="ec2-connect"
+PROJECT_NAME="nimbus"
 
 # Colors for output
 RED='\033[0;31m'
@@ -101,7 +101,7 @@ install_project() {
     cargo install --path .
     
     success "$PROJECT_NAME installed successfully"
-    log "You can now run 'ec2-connect' from anywhere"
+    log "You can now run 'nimbus' from anywhere"
 }
 
 # Run tests
@@ -135,7 +135,7 @@ clean_project() {
 
 # Show help
 show_help() {
-    echo "EC2 Connect v3.0 (Rust) - Unix Launcher"
+    echo "Nimbus v3.0 (Rust) - Unix Launcher"
     echo ""
     echo "Usage: $0 [COMMAND] [OPTIONS]"
     echo ""

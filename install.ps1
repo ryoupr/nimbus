@@ -1,16 +1,16 @@
 $ErrorActionPreference = "Stop"
 
-$Repo = "your-org/ec2-connect"
-$InstallDir = if ($env:INSTALL_DIR) { $env:INSTALL_DIR } else { "$env:LOCALAPPDATA\ec2-connect" }
+$Repo = "your-org/nimbus"
+$InstallDir = if ($env:INSTALL_DIR) { $env:INSTALL_DIR } else { "$env:LOCALAPPDATA\nimbus" }
 
 # Get latest version
 $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
 $Version = $Release.tag_name
 
-Write-Host "Installing ec2-connect $Version..."
+Write-Host "Installing nimbus $Version..."
 
 # Download
-$Filename = "ec2-connect-windows-x86_64.zip"
+$Filename = "nimbus-windows-x86_64.zip"
 $Url = "https://github.com/$Repo/releases/download/$Version/$Filename"
 
 $TmpDir = New-TemporaryFile | ForEach-Object { Remove-Item $_; New-Item -ItemType Directory -Path $_ }
@@ -38,5 +38,5 @@ if ($UserPath -notlike "*$InstallDir*") {
 
 Remove-Item -Recurse -Force $TmpDir
 
-Write-Host "`n✓ ec2-connect installed to $InstallDir\ec2-connect.exe"
-Write-Host "Run 'ec2-connect --help' to get started"
+Write-Host "`n✓ nimbus installed to $InstallDir\nimbus.exe"
+Write-Host "Run 'nimbus --help' to get started"

@@ -1,4 +1,4 @@
-# EC2 Connect Configuration Example (TOML format)
+# Nimbus Configuration Example (TOML format)
 
 [aws]
 # AWS profile to use (optional, uses default if not specified)

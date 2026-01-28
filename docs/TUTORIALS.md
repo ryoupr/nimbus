@@ -1,8 +1,8 @@
-# EC2 Connect チュートリアル & 使用例
+# Nimbus チュートリアル & 使用例
 
 ## 概要
 
-EC2 Connect v3.0 の実践的な使用方法を学ぶためのチュートリアルと使用例集です。初心者から上級者まで、段階的に機能を習得できるように構成されています。
+Nimbus v3.0 の実践的な使用方法を学ぶためのチュートリアルと使用例集です。初心者から上級者まで、段階的に機能を習得できるように構成されています。
 
 ## 目次
 
@@ -22,7 +22,7 @@ EC2 Connect v3.0 の実践的な使用方法を学ぶためのチュートリア
 # プロジェクトルートで実行
 
 # 2. 設定ファイル生成
-cargo run -- config generate --output ~/.config/ec2-connect/config.json
+cargo run -- config generate --output ~/.config/nimbus/config.json
 
 # 3. 設定確認
 cargo run -- config validate
@@ -38,7 +38,7 @@ cargo run -- health
 cargo run -- connect --instance-id i-1234567890abcdef0
 
 # 接続先一覧（targetsファイル）から接続（推奨: サーバーごとの設定を名前で管理）
-# 例: ~/.config/ec2-connect/targets.json を作成してから
+# 例: ~/.config/nimbus/targets.json を作成してから
 cargo run -- connect --target dev
 
 # 接続状態確認
@@ -103,7 +103,7 @@ cargo run -- connect \
 cargo run -- connect --target dev
 
 # targets ファイルのパスを明示して接続
-cargo run -- connect --targets-file ~/.config/ec2-connect/targets.json --target dev
+cargo run -- connect --targets-file ~/.config/nimbus/targets.json --target dev
 ```
 
 **ステップ 3: 接続状態の監視**
@@ -216,7 +216,7 @@ cargo run -- health --comprehensive
 
 ```bash
 # 設定ファイル編集
-nano ~/.config/ec2-connect/config.json
+nano ~/.config/nimbus/config.json
 ```
 
 ```json
@@ -239,9 +239,9 @@ nano ~/.config/ec2-connect/config.json
 
 ```bash
 # アグレッシブ再接続モード
-export EC2_CONNECT_AGGRESSIVE_RECONNECTION=true
-export EC2_CONNECT_AGGRESSIVE_ATTEMPTS=10
-export EC2_CONNECT_AGGRESSIVE_INTERVAL_MS=250
+export NIMBUS_AGGRESSIVE_RECONNECTION=true
+export NIMBUS_AGGRESSIVE_ATTEMPTS=10
+export NIMBUS_AGGRESSIVE_INTERVAL_MS=250
 
 # 設定確認
 cargo run -- config test
@@ -265,7 +265,7 @@ cargo run -- tui
 
 ```bash
 # ログ確認
-tail -f logs/ec2-connect.$(date +%Y-%m-%d)
+tail -f logs/nimbus.$(date +%Y-%m-%d)
 
 # セッション状態確認
 cargo run -- status
@@ -299,7 +299,7 @@ cargo run -- vscode setup
 
 ```bash
 # 設定ファイル編集
-nano ~/.config/ec2-connect/config.json
+nano ~/.config/nimbus/config.json
 ```
 
 ```json
@@ -607,7 +607,7 @@ jobs:
       with:
         toolchain: stable
     
-    - name: Build EC2 Connect
+    - name: Build Nimbus
       run: |
         # プロジェクトルートで実行
         cargo build --release
@@ -816,11 +816,11 @@ cargo run -- database stats session-abc123
 
 ```bash
 # 1. アグレッシブ再接続モード有効化
-export EC2_CONNECT_AGGRESSIVE_RECONNECTION=true
-export EC2_CONNECT_AGGRESSIVE_ATTEMPTS=15
+export NIMBUS_AGGRESSIVE_RECONNECTION=true
+export NIMBUS_AGGRESSIVE_ATTEMPTS=15
 
 # 2. ヘルスチェック間隔短縮
-export EC2_CONNECT_HEALTH_CHECK_INTERVAL=3
+export NIMBUS_HEALTH_CHECK_INTERVAL=3
 
 # 3. 接続再試行
 cargo run -- connect --instance-id i-1234567890abcdef0
@@ -857,10 +857,10 @@ cargo run -- terminate session-old-001
 cargo run -- terminate session-old-002
 
 # 2. 省電力モード有効化
-export EC2_CONNECT_LOW_POWER_MODE=true
+export NIMBUS_LOW_POWER_MODE=true
 
 # 3. メモリ制限調整 (必要に応じて)
-export EC2_CONNECT_MAX_MEMORY_MB=8
+export NIMBUS_MAX_MEMORY_MB=8
 ```
 
 ### 実例 3: AWS 認証エラー
@@ -922,8 +922,8 @@ cargo run -- database export --format json --output audit-$(date +%Y%m%d).json
 
 ```bash
 # リソース制限の適切な設定
-export EC2_CONNECT_MAX_MEMORY_MB=8
-export EC2_CONNECT_MAX_CPU_PERCENT=0.3
+export NIMBUS_MAX_MEMORY_MB=8
+export NIMBUS_MAX_CPU_PERCENT=0.3
 
 # 予防的チェックの活用
 cargo run -- diagnose preventive --instance-id $INSTANCE_ID
@@ -936,27 +936,27 @@ cargo run -- resources
 
 ```bash
 # ログの適切な管理
-export EC2_CONNECT_LOG_LEVEL=info
-export EC2_CONNECT_FILE_LOGGING=true
-export EC2_CONNECT_JSON_LOGGING=true
+export NIMBUS_LOG_LEVEL=info
+export NIMBUS_FILE_LOGGING=true
+export NIMBUS_JSON_LOGGING=true
 
 # 定期的なヘルスチェック
-*/5 * * * * /path/to/ec2-connect health --comprehensive
+*/5 * * * * /path/to/nimbus health --comprehensive
 
 # データベースメンテナンス
-0 2 * * 0 /path/to/ec2-connect database cleanup --days 30
+0 2 * * 0 /path/to/nimbus database cleanup --days 30
 ```
 
 ### 4. チーム開発
 
 ```bash
 # 共通設定の管理
-git add .kiro/specs/ec2-connect-improvements/
-git commit -m "Update EC2 Connect configuration"
+git add .kiro/specs/nimbus-improvements/
+git commit -m "Update Nimbus configuration"
 
 # 環境別設定
-cp config.json.dev ~/.config/ec2-connect/config.json  # 開発環境
-cp config.json.prod ~/.config/ec2-connect/config.json # 本番環境
+cp config.json.dev ~/.config/nimbus/config.json  # 開発環境
+cp config.json.prod ~/.config/nimbus/config.json # 本番環境
 
 # ドキュメント更新
 cargo run -- config show > team-config-$(date +%Y%m%d).md
@@ -977,4 +977,4 @@ cargo run -- config show > team-config-$(date +%Y%m%d).md
 
 ---
 
-このチュートリアルが EC2 Connect v3.0 の効果的な活用に役立つことを願っています。質問や改善提案がありましたら、お気軽にお知らせください。
+このチュートリアルが Nimbus v3.0 の効果的な活用に役立つことを願っています。質問や改善提案がありましたら、お気軽にお知らせください。

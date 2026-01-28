@@ -2,7 +2,7 @@
 inclusion: always
 ---
 
-# EC2 Connect v3.0 - プロダクトガイド
+# Nimbus v3.0 - プロダクトガイド
 
 AWS EC2 SSM 接続管理 CLI ツール（Rust 実装）
 

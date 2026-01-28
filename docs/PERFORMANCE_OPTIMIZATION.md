@@ -1,8 +1,8 @@
-# EC2 Connect パフォーマンス最適化ガイド
+# Nimbus パフォーマンス最適化ガイド
 
 ## 概要
 
-EC2 Connect v3.0 のパフォーマンスを最大限に引き出すための包括的な最適化ガイドです。メモリ使用量、CPU 効率、接続速度、レスポンス性能の各側面から最適化手法を説明します。
+Nimbus v3.0 のパフォーマンスを最大限に引き出すための包括的な最適化ガイドです。メモリ使用量、CPU 効率、接続速度、レスポンス性能の各側面から最適化手法を説明します。
 
 ## 目次
 
@@ -45,24 +45,24 @@ EC2 Connect v3.0 のパフォーマンスを最大限に引き出すための包
 
 ```bash
 # 厳格なメモリ制限
-export EC2_CONNECT_MAX_MEMORY_MB=8.0
+export NIMBUS_MAX_MEMORY_MB=8.0
 
 # 省電力モード有効化
-export EC2_CONNECT_LOW_POWER_MODE=true
+export NIMBUS_LOW_POWER_MODE=true
 
 # 監視間隔延長
-export EC2_CONNECT_MONITORING_INTERVAL=10
+export NIMBUS_MONITORING_INTERVAL=10
 ```
 
 ### 2. セッション管理最適化
 
 ```bash
 # セッション数制限
-export EC2_CONNECT_MAX_SESSIONS_PER_INSTANCE=2
-export EC2_CONNECT_MAX_TOTAL_SESSIONS=5
+export NIMBUS_MAX_SESSIONS_PER_INSTANCE=2
+export NIMBUS_MAX_TOTAL_SESSIONS=5
 
 # 非アクティブタイムアウト短縮
-export EC2_CONNECT_INACTIVE_TIMEOUT=20
+export NIMBUS_INACTIVE_TIMEOUT=20
 
 # 自動クリーンアップ有効化
 cargo run -- database cleanup --days 3
@@ -94,11 +94,11 @@ echo "🗄️  Database optimization started"
 cargo run -- database cleanup --days 7
 
 # データベース最適化
-sqlite3 ~/.config/ec2-connect/sessions.db "VACUUM;"
-sqlite3 ~/.config/ec2-connect/sessions.db "REINDEX;"
+sqlite3 ~/.config/nimbus/sessions.db "VACUUM;"
+sqlite3 ~/.config/nimbus/sessions.db "REINDEX;"
 
 # 統計更新
-sqlite3 ~/.config/ec2-connect/sessions.db "ANALYZE;"
+sqlite3 ~/.config/nimbus/sessions.db "ANALYZE;"
 
 echo "✅ Database optimization completed"
 ```
@@ -140,14 +140,14 @@ done
 
 ```bash
 # 省電力モード強制有効化
-export EC2_CONNECT_LOW_POWER_MODE=true
+export NIMBUS_LOW_POWER_MODE=true
 
 # 監視頻度削減
-export EC2_CONNECT_HEALTH_CHECK_INTERVAL=10
-export EC2_CONNECT_MONITORING_INTERVAL=15
+export NIMBUS_HEALTH_CHECK_INTERVAL=10
+export NIMBUS_MONITORING_INTERVAL=15
 
 # UI 更新頻度削減
-export EC2_CONNECT_UI_UPDATE_INTERVAL_MS=2000
+export NIMBUS_UI_UPDATE_INTERVAL_MS=2000
 ```
 
 ### 2. 非同期処理最適化
@@ -170,7 +170,7 @@ export EC2_CONNECT_UI_UPDATE_INTERVAL_MS=2000
 #!/bin/bash
 # cpu-monitor.sh
 
-PROCESS_NAME="ec2-connect"
+PROCESS_NAME="nimbus"
 CPU_LIMIT=0.5
 
 while true; do
@@ -180,13 +180,13 @@ while true; do
     echo "⚠️  High CPU usage: ${CPU_USAGE}%"
     
     # 省電力モード強制有効化
-    export EC2_CONNECT_LOW_POWER_MODE=true
+    export NIMBUS_LOW_POWER_MODE=true
     
     # 監視間隔延長
-    export EC2_CONNECT_MONITORING_INTERVAL=20
+    export NIMBUS_MONITORING_INTERVAL=20
     
     # パフォーマンス監視一時無効化
-    export EC2_CONNECT_PERFORMANCE_MONITORING=false
+    export NIMBUS_PERFORMANCE_MONITORING=false
   fi
   
   sleep 60
@@ -222,22 +222,22 @@ cargo build --release --config 'profile.release.opt-level="z"'
 
 ```bash
 # 接続タイムアウト調整
-export EC2_CONNECT_CONNECTION_TIMEOUT=20
-export EC2_CONNECT_REQUEST_TIMEOUT=30
+export NIMBUS_CONNECTION_TIMEOUT=20
+export NIMBUS_REQUEST_TIMEOUT=30
 
 # 最適化有効化
-export EC2_CONNECT_OPTIMIZATION_ENABLED=true
+export NIMBUS_OPTIMIZATION_ENABLED=true
 
 # レイテンシ閾値調整
-export EC2_CONNECT_LATENCY_THRESHOLD_MS=150
+export NIMBUS_LATENCY_THRESHOLD_MS=150
 ```
 
 ### 2. 予防的チェック最適化
 
 ```bash
 # 高速予防的チェック設定
-export EC2_CONNECT_PREVENTIVE_CHECK_TIMEOUT=15
-export EC2_CONNECT_PREVENTIVE_CHECK_PARALLEL=true
+export NIMBUS_PREVENTIVE_CHECK_TIMEOUT=15
+export NIMBUS_PREVENTIVE_CHECK_PARALLEL=true
 
 # 重要チェックのみ実行
 cargo run -- diagnose preventive \
@@ -398,7 +398,7 @@ export NO_PROXY="169.254.169.254,ssm.amazonaws.com"
 
 ```bash
 # SQLite 最適化設定
-sqlite3 ~/.config/ec2-connect/sessions.db << EOF
+sqlite3 ~/.config/nimbus/sessions.db << EOF
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 PRAGMA cache_size = 10000;
@@ -410,11 +410,11 @@ EOF
 
 ```bash
 # RAM ディスク使用 (Linux)
-sudo mkdir -p /tmp/ec2-connect-ramdisk
-sudo mount -t tmpfs -o size=50M tmpfs /tmp/ec2-connect-ramdisk
+sudo mkdir -p /tmp/nimbus-ramdisk
+sudo mount -t tmpfs -o size=50M tmpfs /tmp/nimbus-ramdisk
 
 # 一時ディレクトリ設定
-export EC2_CONNECT_TEMP_DIR=/tmp/ec2-connect-ramdisk
+export NIMBUS_TEMP_DIR=/tmp/nimbus-ramdisk
 ```
 
 ## 設定最適化
@@ -566,15 +566,15 @@ done
 ```bash
 # CPU プロファイリング
 cargo build --release
-perf record --call-graph=dwarf ./target/release/ec2-connect connect --instance-id <INSTANCE_ID>
+perf record --call-graph=dwarf ./target/release/nimbus connect --instance-id <INSTANCE_ID>
 perf report
 
 # メモリプロファイリング
-valgrind --tool=massif ./target/release/ec2-connect connect --instance-id <INSTANCE_ID>
+valgrind --tool=massif ./target/release/nimbus connect --instance-id <INSTANCE_ID>
 ms_print massif.out.*
 
 # ヒープ分析
-valgrind --tool=memcheck --leak-check=full ./target/release/ec2-connect connect --instance-id <INSTANCE_ID>
+valgrind --tool=memcheck --leak-check=full ./target/release/nimbus connect --instance-id <INSTANCE_ID>
 ```
 
 ### 3. ベンチマーク実行
@@ -596,38 +596,38 @@ cargo bench
 
 ```bash
 # 最小リソース設定
-export EC2_CONNECT_MAX_MEMORY_MB=3.0
-export EC2_CONNECT_MAX_CPU_PERCENT=0.1
-export EC2_CONNECT_LOW_POWER_MODE=true
-export EC2_CONNECT_MONITORING_INTERVAL=30
-export EC2_CONNECT_UI_UPDATE_INTERVAL_MS=5000
-export EC2_CONNECT_PERFORMANCE_MONITORING=false
+export NIMBUS_MAX_MEMORY_MB=3.0
+export NIMBUS_MAX_CPU_PERCENT=0.1
+export NIMBUS_LOW_POWER_MODE=true
+export NIMBUS_MONITORING_INTERVAL=30
+export NIMBUS_UI_UPDATE_INTERVAL_MS=5000
+export NIMBUS_PERFORMANCE_MONITORING=false
 ```
 
 ### 2. 高性能ハードウェア最適化
 
 ```bash
 # 高性能設定
-export EC2_CONNECT_MAX_MEMORY_MB=50.0
-export EC2_CONNECT_MAX_CPU_PERCENT=2.0
-export EC2_CONNECT_MAX_SESSIONS_PER_INSTANCE=10
-export EC2_CONNECT_HEALTH_CHECK_INTERVAL=1
-export EC2_CONNECT_UI_UPDATE_INTERVAL_MS=100
-export EC2_CONNECT_AGGRESSIVE_RECONNECTION=true
+export NIMBUS_MAX_MEMORY_MB=50.0
+export NIMBUS_MAX_CPU_PERCENT=2.0
+export NIMBUS_MAX_SESSIONS_PER_INSTANCE=10
+export NIMBUS_HEALTH_CHECK_INTERVAL=1
+export NIMBUS_UI_UPDATE_INTERVAL_MS=100
+export NIMBUS_AGGRESSIVE_RECONNECTION=true
 ```
 
 ### 3. クラウド環境最適化
 
 ```bash
 # AWS EC2 インスタンス最適化
-export EC2_CONNECT_AWS_REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
-export EC2_CONNECT_OPTIMIZATION_ENABLED=true
-export EC2_CONNECT_CONNECTION_TIMEOUT=10
+export NIMBUS_AWS_REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+export NIMBUS_OPTIMIZATION_ENABLED=true
+export NIMBUS_CONNECTION_TIMEOUT=10
 
 # コンテナ環境最適化
-export EC2_CONNECT_MAX_MEMORY_MB=8.0
-export EC2_CONNECT_FILE_LOGGING=false
-export EC2_CONNECT_JSON_LOGGING=true
+export NIMBUS_MAX_MEMORY_MB=8.0
+export NIMBUS_FILE_LOGGING=false
+export NIMBUS_JSON_LOGGING=true
 ```
 
 ## ベンチマークとテスト
@@ -689,15 +689,15 @@ CPU=$(cargo run -- metrics | grep "CPU usage" | awk '{print $3}' | sed 's/%//')
 
 # 閾値チェック
 if (( $(echo "$MEMORY > $THRESHOLD_MEMORY" | bc -l) )); then
-  echo "⚠️  Memory usage alert: ${MEMORY}MB > ${THRESHOLD_MEMORY}MB" | mail -s "EC2 Connect Memory Alert" $ALERT_EMAIL
+  echo "⚠️  Memory usage alert: ${MEMORY}MB > ${THRESHOLD_MEMORY}MB" | mail -s "Nimbus Memory Alert" $ALERT_EMAIL
 fi
 
 if (( $(echo "$CPU > $THRESHOLD_CPU" | bc -l) )); then
-  echo "⚠️  CPU usage alert: ${CPU}% > ${THRESHOLD_CPU}%" | mail -s "EC2 Connect CPU Alert" $ALERT_EMAIL
+  echo "⚠️  CPU usage alert: ${CPU}% > ${THRESHOLD_CPU}%" | mail -s "Nimbus CPU Alert" $ALERT_EMAIL
 fi
 
 # メトリクス記録
-echo "$(date '+%Y-%m-%d %H:%M:%S'),$MEMORY,$CPU" >> /var/log/ec2-connect-performance.csv
+echo "$(date '+%Y-%m-%d %H:%M:%S'),$MEMORY,$CPU" >> /var/log/nimbus-performance.csv
 ```
 
 ### 3. 回帰テスト
@@ -770,4 +770,4 @@ fi
 
 ---
 
-このパフォーマンス最適化ガイドを活用して、EC2 Connect v3.0 の性能を最大限に引き出してください。定期的な監視と継続的な最適化により、常に最高のパフォーマンスを維持できます。
+このパフォーマンス最適化ガイドを活用して、Nimbus v3.0 の性能を最大限に引き出してください。定期的な監視と継続的な最適化により、常に最高のパフォーマンスを維持できます。

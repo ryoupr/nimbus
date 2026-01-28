@@ -215,12 +215,6 @@ impl SuggestionPriority {
 /// Trait for AWS configuration validation
 #[async_trait]
 pub trait AwsConfigValidator {
-    /// Perform comprehensive AWS configuration validation
-    async fn validate_aws_configuration(&self, config: AwsConfigValidationConfig) -> Result<AwsConfigValidationResult, Box<dyn std::error::Error>>;
-    
-    /// Perform integrated AWS configuration validation with cross-validation and caching
-    async fn validate_integrated_aws_configuration(&self, config: AwsConfigValidationConfig) -> Result<AwsConfigValidationResult, Box<dyn std::error::Error>>;
-    
     /// Validate AWS credentials
     async fn validate_credentials(&self, config: &AwsConfigValidationConfig) -> Result<ValidationCheckResult, Box<dyn std::error::Error>>;
     
@@ -238,9 +232,6 @@ pub trait AwsConfigValidator {
     
     /// Generate improvement suggestions
     fn generate_improvement_suggestions(&self, check_results: &[ValidationCheckResult]) -> Vec<ImprovementSuggestion>;
-    
-    /// Clear integration cache
-    async fn clear_integration_cache(&self);
 }
 
 /// Default implementation of AWS configuration validator
@@ -1063,122 +1054,6 @@ impl DefaultAwsConfigValidator {
 
 #[async_trait]
 impl AwsConfigValidator for DefaultAwsConfigValidator {
-    async fn validate_aws_configuration(&self, config: AwsConfigValidationConfig) -> Result<AwsConfigValidationResult, Box<dyn std::error::Error>> {
-        info!("Starting AWS configuration validation for instance: {}", config.instance_id);
-        let start_time = Instant::now();
-
-        let mut check_results = Vec::new();
-
-        // Validate credentials if enabled
-        if config.include_credential_check {
-            match self.validate_credentials(&config).await {
-                Ok(result) => check_results.push(result),
-                Err(e) => {
-                    warn!("Credential validation failed: {}", e);
-                    check_results.push(ValidationCheckResult::new(
-                        "credentials".to_string(),
-                        DiagnosticStatus::Error,
-                        format!("Credential validation failed: {}", e),
-                        0.0,
-                        0.25,
-                    ));
-                }
-            }
-        }
-
-        // Validate IAM permissions if enabled
-        if config.include_iam_check {
-            match self.validate_iam_permissions(&config).await {
-                Ok(result) => check_results.push(result),
-                Err(e) => {
-                    warn!("IAM validation failed: {}", e);
-                    check_results.push(ValidationCheckResult::new(
-                        "iam_permissions".to_string(),
-                        DiagnosticStatus::Error,
-                        format!("IAM validation failed: {}", e),
-                        0.0,
-                        0.3,
-                    ));
-                }
-            }
-        }
-
-        // Validate VPC configuration if enabled
-        if config.include_vpc_check {
-            match self.validate_vpc_configuration(&config).await {
-                Ok(result) => check_results.push(result),
-                Err(e) => {
-                    warn!("VPC validation failed: {}", e);
-                    check_results.push(ValidationCheckResult::new(
-                        "vpc_configuration".to_string(),
-                        DiagnosticStatus::Error,
-                        format!("VPC validation failed: {}", e),
-                        0.0,
-                        0.25,
-                    ));
-                }
-            }
-        }
-
-        // Validate security groups if enabled
-        if config.include_security_group_check {
-            match self.validate_security_groups(&config).await {
-                Ok(result) => check_results.push(result),
-                Err(e) => {
-                    warn!("Security group validation failed: {}", e);
-                    check_results.push(ValidationCheckResult::new(
-                        "security_groups".to_string(),
-                        DiagnosticStatus::Error,
-                        format!("Security group validation failed: {}", e),
-                        0.0,
-                        0.2,
-                    ));
-                }
-            }
-        }
-
-        // Calculate overall compliance score
-        let overall_compliance_score = self.calculate_compliance_score(&check_results);
-        let compliance_status = ComplianceStatus::from_score(overall_compliance_score);
-
-        // Generate improvement suggestions
-        let improvement_suggestions = self.generate_improvement_suggestions(&check_results);
-
-        // Create summary
-        let summary = ValidationSummary {
-            total_checks: check_results.len(),
-            passed_checks: check_results.iter().filter(|r| r.status == DiagnosticStatus::Success).count(),
-            warning_checks: check_results.iter().filter(|r| r.status == DiagnosticStatus::Warning).count(),
-            failed_checks: check_results.iter().filter(|r| r.status == DiagnosticStatus::Error).count(),
-            skipped_checks: check_results.iter().filter(|r| r.status == DiagnosticStatus::Skipped).count(),
-            average_score: if check_results.is_empty() { 0.0 } else { check_results.iter().map(|r| r.score).sum::<f64>() / check_results.len() as f64 },
-            weighted_score: overall_compliance_score,
-        };
-
-        let result = AwsConfigValidationResult {
-            instance_id: config.instance_id.clone(),
-            overall_compliance_score,
-            compliance_status,
-            check_results,
-            summary,
-            improvement_suggestions,
-            validation_timestamp: chrono::Utc::now(),
-        };
-
-        info!("AWS configuration validation completed in {:?} with score: {:.1}%", 
-              start_time.elapsed(), overall_compliance_score);
-
-        Ok(result)
-    }
-
-    async fn validate_integrated_aws_configuration(&self, config: AwsConfigValidationConfig) -> Result<AwsConfigValidationResult, Box<dyn std::error::Error>> {
-        self.validate_integrated_aws_configuration(config).await
-    }
-
-    async fn clear_integration_cache(&self) {
-        self.clear_integration_cache().await
-    }
-
     async fn validate_credentials(&self, _config: &AwsConfigValidationConfig) -> Result<ValidationCheckResult, Box<dyn std::error::Error>> {
         info!("Validating AWS credentials");
         let start_time = Instant::now();

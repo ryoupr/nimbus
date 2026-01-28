@@ -256,14 +256,9 @@ impl RealtimeFeedbackManager {
                 progress.total
             )))?;
 
-            execute!(stdout, Print(format!(
-                "Elapsed: {:.1}s",
-                progress.elapsed.as_secs_f64()
-            )))?;
-
             if let Some(remaining) = progress.estimated_remaining {
                 execute!(stdout, Print(format!(
-                    " | Estimated remaining: {:.1}s",
+                    "Estimated remaining: {:.1}s",
                     remaining.as_secs_f64()
                 )))?;
             }

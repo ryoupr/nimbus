@@ -1,16 +1,16 @@
 [package]
-name = "ec2-connect"
+name = "nimbus"
 version = "3.0.0"
 edition = "2021"
 description = "High-performance EC2 SSM connection manager with automatic session management"
-authors = ["EC2 Connect Team"]
+authors = ["Nimbus Team"]
 license = "MIT"
-repository = "https://github.com/your-org/ec2-connect"
+repository = "https://github.com/your-org/nimbus"
 keywords = ["aws", "ec2", "ssm", "connection", "automation"]
 categories = ["command-line-utilities", "network-programming"]
 
 [[bin]]
-name = "ec2-connect"
+name = "nimbus"
 path = "src/main.rs"
 
 [dependencies]

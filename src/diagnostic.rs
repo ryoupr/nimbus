@@ -146,7 +146,6 @@ pub struct DiagnosticProgress {
     pub current_item: String,
     pub completed: usize,
     pub total: usize,
-    pub elapsed: Duration,
     pub estimated_remaining: Option<Duration>,
 }
 
@@ -164,7 +163,6 @@ impl DiagnosticProgress {
             current_item,
             completed,
             total,
-            elapsed,
             estimated_remaining,
         }
     }
@@ -272,18 +270,6 @@ impl DefaultDiagnosticManager {
         self.realtime_feedback = Some(feedback_manager);
         
         info!("Real-time feedback system enabled");
-        Ok(())
-    }
-
-    /// Start real-time feedback display (should be called in a separate task)
-    pub async fn start_realtime_feedback_display(&mut self) -> Result<(), anyhow::Error> {
-        if let Some(feedback_manager) = &mut self.realtime_feedback {
-            // Clone the Arc to get a mutable reference
-            let manager = feedback_manager.clone();
-            let mut manager_mut = std::sync::Arc::try_unwrap(manager)
-                .map_err(|_| anyhow::anyhow!("Cannot get exclusive access to feedback manager"))?;
-            manager_mut.start_feedback_display().await?;
-        }
         Ok(())
     }
 

@@ -3,10 +3,9 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
-use std::time::Duration;
 use tokio::fs;
 
-/// Main configuration structure for EC2 Connect
+/// Main configuration structure for Nimbus
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     /// AWS configuration
@@ -211,7 +210,7 @@ impl Default for DiagnosticSettings {
         // Use standard data directory for diagnostic reports
         let reports_dir = dirs::data_dir()
             .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))
-            .map(|d| d.join("ec2-connect").join("reports"))
+            .map(|d| d.join("nimbus").join("reports"))
             .unwrap_or_else(|| PathBuf::from("reports"));
 
         Self {
@@ -302,8 +301,8 @@ impl Config {
         let mut paths = Vec::new();
 
         if let Some(os_config_dir) = dirs::config_dir() {
-            let legacy_json = os_config_dir.join("ec2-connect").join("config.json");
-            let legacy_toml = os_config_dir.join("ec2-connect").join("config.toml");
+            let legacy_json = os_config_dir.join("nimbus").join("config.json");
+            let legacy_toml = os_config_dir.join("nimbus").join("config.toml");
             paths.push(legacy_json);
             paths.push(legacy_toml);
         }
@@ -420,218 +419,218 @@ impl Config {
     /// Apply environment variable overrides to configuration
     pub fn apply_env_overrides(&mut self) -> Result<()> {
         // AWS configuration overrides
-        if let Ok(profile) = env::var("EC2_CONNECT_AWS_PROFILE") {
+        if let Ok(profile) = env::var("NIMBUS_AWS_PROFILE") {
             self.aws.default_profile = Some(profile);
         }
 
-        if let Ok(region) = env::var("EC2_CONNECT_AWS_REGION") {
+        if let Ok(region) = env::var("NIMBUS_AWS_REGION") {
             self.aws.default_region = region;
         }
 
-        if let Ok(timeout) = env::var("EC2_CONNECT_CONNECTION_TIMEOUT") {
+        if let Ok(timeout) = env::var("NIMBUS_CONNECTION_TIMEOUT") {
             self.aws.connection_timeout = timeout
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_CONNECTION_TIMEOUT value")?;
+                .with_context(|| "Invalid NIMBUS_CONNECTION_TIMEOUT value")?;
         }
 
-        if let Ok(timeout) = env::var("EC2_CONNECT_REQUEST_TIMEOUT") {
+        if let Ok(timeout) = env::var("NIMBUS_REQUEST_TIMEOUT") {
             self.aws.request_timeout = timeout
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_REQUEST_TIMEOUT value")?;
+                .with_context(|| "Invalid NIMBUS_REQUEST_TIMEOUT value")?;
         }
 
         // Session configuration overrides
-        if let Ok(max_sessions) = env::var("EC2_CONNECT_MAX_SESSIONS") {
+        if let Ok(max_sessions) = env::var("NIMBUS_MAX_SESSIONS") {
             self.session.max_sessions_per_instance = max_sessions
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_MAX_SESSIONS value")?;
+                .with_context(|| "Invalid NIMBUS_MAX_SESSIONS value")?;
         }
 
-        if let Ok(health_interval) = env::var("EC2_CONNECT_HEALTH_CHECK_INTERVAL") {
+        if let Ok(health_interval) = env::var("NIMBUS_HEALTH_CHECK_INTERVAL") {
             self.session.health_check_interval = health_interval
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_HEALTH_CHECK_INTERVAL value")?;
+                .with_context(|| "Invalid NIMBUS_HEALTH_CHECK_INTERVAL value")?;
         }
 
-        if let Ok(inactive_timeout) = env::var("EC2_CONNECT_INACTIVE_TIMEOUT") {
+        if let Ok(inactive_timeout) = env::var("NIMBUS_INACTIVE_TIMEOUT") {
             self.session.inactive_timeout = inactive_timeout
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_INACTIVE_TIMEOUT value")?;
+                .with_context(|| "Invalid NIMBUS_INACTIVE_TIMEOUT value")?;
         }
 
         // Reconnection policy overrides
-        if let Ok(enabled) = env::var("EC2_CONNECT_RECONNECTION_ENABLED") {
+        if let Ok(enabled) = env::var("NIMBUS_RECONNECTION_ENABLED") {
             self.session.reconnection.enabled = enabled.parse().with_context(|| {
-                "Invalid EC2_CONNECT_RECONNECTION_ENABLED value (use true/false)"
+                "Invalid NIMBUS_RECONNECTION_ENABLED value (use true/false)"
             })?;
         }
 
-        if let Ok(max_attempts) = env::var("EC2_CONNECT_MAX_RECONNECTION_ATTEMPTS") {
+        if let Ok(max_attempts) = env::var("NIMBUS_MAX_RECONNECTION_ATTEMPTS") {
             self.session.reconnection.max_attempts = max_attempts
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_MAX_RECONNECTION_ATTEMPTS value")?;
+                .with_context(|| "Invalid NIMBUS_MAX_RECONNECTION_ATTEMPTS value")?;
         }
 
-        if let Ok(base_delay) = env::var("EC2_CONNECT_RECONNECTION_BASE_DELAY_MS") {
+        if let Ok(base_delay) = env::var("NIMBUS_RECONNECTION_BASE_DELAY_MS") {
             self.session.reconnection.base_delay_ms = base_delay
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_RECONNECTION_BASE_DELAY_MS value")?;
+                .with_context(|| "Invalid NIMBUS_RECONNECTION_BASE_DELAY_MS value")?;
         }
 
-        if let Ok(max_delay) = env::var("EC2_CONNECT_RECONNECTION_MAX_DELAY_MS") {
+        if let Ok(max_delay) = env::var("NIMBUS_RECONNECTION_MAX_DELAY_MS") {
             self.session.reconnection.max_delay_ms = max_delay
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_RECONNECTION_MAX_DELAY_MS value")?;
+                .with_context(|| "Invalid NIMBUS_RECONNECTION_MAX_DELAY_MS value")?;
         }
 
-        if let Ok(aggressive) = env::var("EC2_CONNECT_AGGRESSIVE_RECONNECTION") {
+        if let Ok(aggressive) = env::var("NIMBUS_AGGRESSIVE_RECONNECTION") {
             self.session.reconnection.aggressive_mode = aggressive.parse().with_context(|| {
-                "Invalid EC2_CONNECT_AGGRESSIVE_RECONNECTION value (use true/false)"
+                "Invalid NIMBUS_AGGRESSIVE_RECONNECTION value (use true/false)"
             })?;
         }
 
-        if let Ok(aggressive_attempts) = env::var("EC2_CONNECT_AGGRESSIVE_ATTEMPTS") {
+        if let Ok(aggressive_attempts) = env::var("NIMBUS_AGGRESSIVE_ATTEMPTS") {
             self.session.reconnection.aggressive_attempts = aggressive_attempts
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_AGGRESSIVE_ATTEMPTS value")?;
+                .with_context(|| "Invalid NIMBUS_AGGRESSIVE_ATTEMPTS value")?;
         }
 
-        if let Ok(aggressive_interval) = env::var("EC2_CONNECT_AGGRESSIVE_INTERVAL_MS") {
+        if let Ok(aggressive_interval) = env::var("NIMBUS_AGGRESSIVE_INTERVAL_MS") {
             self.session.reconnection.aggressive_interval_ms = aggressive_interval
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_AGGRESSIVE_INTERVAL_MS value")?;
+                .with_context(|| "Invalid NIMBUS_AGGRESSIVE_INTERVAL_MS value")?;
         }
 
         // Performance configuration overrides
-        if let Ok(monitoring) = env::var("EC2_CONNECT_PERFORMANCE_MONITORING") {
+        if let Ok(monitoring) = env::var("NIMBUS_PERFORMANCE_MONITORING") {
             self.performance.monitoring_enabled = monitoring.parse().with_context(|| {
-                "Invalid EC2_CONNECT_PERFORMANCE_MONITORING value (use true/false)"
+                "Invalid NIMBUS_PERFORMANCE_MONITORING value (use true/false)"
             })?;
         }
 
-        if let Ok(threshold) = env::var("EC2_CONNECT_LATENCY_THRESHOLD_MS") {
+        if let Ok(threshold) = env::var("NIMBUS_LATENCY_THRESHOLD_MS") {
             self.performance.latency_threshold_ms = threshold
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_LATENCY_THRESHOLD_MS value")?;
+                .with_context(|| "Invalid NIMBUS_LATENCY_THRESHOLD_MS value")?;
         }
 
-        if let Ok(optimization) = env::var("EC2_CONNECT_OPTIMIZATION_ENABLED") {
+        if let Ok(optimization) = env::var("NIMBUS_OPTIMIZATION_ENABLED") {
             self.performance.optimization_enabled = optimization.parse().with_context(|| {
-                "Invalid EC2_CONNECT_OPTIMIZATION_ENABLED value (use true/false)"
+                "Invalid NIMBUS_OPTIMIZATION_ENABLED value (use true/false)"
             })?;
         }
 
         // Resource configuration overrides
-        if let Ok(max_memory) = env::var("EC2_CONNECT_MAX_MEMORY_MB") {
+        if let Ok(max_memory) = env::var("NIMBUS_MAX_MEMORY_MB") {
             self.resources.max_memory_mb = max_memory
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_MAX_MEMORY_MB value")?;
+                .with_context(|| "Invalid NIMBUS_MAX_MEMORY_MB value")?;
         }
 
-        if let Ok(max_cpu) = env::var("EC2_CONNECT_MAX_CPU_PERCENT") {
+        if let Ok(max_cpu) = env::var("NIMBUS_MAX_CPU_PERCENT") {
             self.resources.max_cpu_percent = max_cpu
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_MAX_CPU_PERCENT value")?;
+                .with_context(|| "Invalid NIMBUS_MAX_CPU_PERCENT value")?;
         }
 
-        if let Ok(low_power) = env::var("EC2_CONNECT_LOW_POWER_MODE") {
+        if let Ok(low_power) = env::var("NIMBUS_LOW_POWER_MODE") {
             self.resources.low_power_mode = low_power
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_LOW_POWER_MODE value (use true/false)")?;
+                .with_context(|| "Invalid NIMBUS_LOW_POWER_MODE value (use true/false)")?;
         }
 
         // UI configuration overrides
-        if let Ok(rich_ui) = env::var("EC2_CONNECT_RICH_UI") {
+        if let Ok(rich_ui) = env::var("NIMBUS_RICH_UI") {
             self.ui.rich_ui = rich_ui
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_RICH_UI value (use true/false)")?;
+                .with_context(|| "Invalid NIMBUS_RICH_UI value (use true/false)")?;
         }
 
-        if let Ok(update_interval) = env::var("EC2_CONNECT_UI_UPDATE_INTERVAL_MS") {
+        if let Ok(update_interval) = env::var("NIMBUS_UI_UPDATE_INTERVAL_MS") {
             self.ui.update_interval_ms = update_interval
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_UI_UPDATE_INTERVAL_MS value")?;
+                .with_context(|| "Invalid NIMBUS_UI_UPDATE_INTERVAL_MS value")?;
         }
 
-        if let Ok(notifications) = env::var("EC2_CONNECT_NOTIFICATIONS") {
+        if let Ok(notifications) = env::var("NIMBUS_NOTIFICATIONS") {
             self.ui.notifications = notifications
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_NOTIFICATIONS value (use true/false)")?;
+                .with_context(|| "Invalid NIMBUS_NOTIFICATIONS value (use true/false)")?;
         }
 
         // Logging configuration overrides
-        if let Ok(level) = env::var("EC2_CONNECT_LOG_LEVEL") {
+        if let Ok(level) = env::var("NIMBUS_LOG_LEVEL") {
             let valid_levels = ["trace", "debug", "info", "warn", "error"];
             if !valid_levels.contains(&level.to_lowercase().as_str()) {
                 anyhow::bail!(
-                    "Invalid EC2_CONNECT_LOG_LEVEL value. Must be one of: {}",
+                    "Invalid NIMBUS_LOG_LEVEL value. Must be one of: {}",
                     valid_levels.join(", ")
                 );
             }
             self.logging.level = level.to_lowercase();
         }
 
-        if let Ok(file_logging) = env::var("EC2_CONNECT_FILE_LOGGING") {
+        if let Ok(file_logging) = env::var("NIMBUS_FILE_LOGGING") {
             self.logging.file_logging = file_logging
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_FILE_LOGGING value (use true/false)")?;
+                .with_context(|| "Invalid NIMBUS_FILE_LOGGING value (use true/false)")?;
         }
 
-        if let Ok(log_file) = env::var("EC2_CONNECT_LOG_FILE") {
+        if let Ok(log_file) = env::var("NIMBUS_LOG_FILE") {
             self.logging.log_file = Some(PathBuf::from(log_file));
         }
 
-        if let Ok(json_format) = env::var("EC2_CONNECT_JSON_LOGGING") {
+        if let Ok(json_format) = env::var("NIMBUS_JSON_LOGGING") {
             self.logging.json_format = json_format
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_JSON_LOGGING value (use true/false)")?;
+                .with_context(|| "Invalid NIMBUS_JSON_LOGGING value (use true/false)")?;
         }
 
         // VS Code integration overrides
-        if let Ok(vscode_path) = env::var("EC2_CONNECT_VSCODE_PATH") {
+        if let Ok(vscode_path) = env::var("NIMBUS_VSCODE_PATH") {
             self.vscode.vscode_path = Some(vscode_path);
         }
 
-        if let Ok(ssh_config_path) = env::var("EC2_CONNECT_SSH_CONFIG_PATH") {
+        if let Ok(ssh_config_path) = env::var("NIMBUS_SSH_CONFIG_PATH") {
             self.vscode.ssh_config_path = Some(ssh_config_path);
         }
 
-        if let Ok(auto_launch) = env::var("EC2_CONNECT_VSCODE_AUTO_LAUNCH") {
+        if let Ok(auto_launch) = env::var("NIMBUS_VSCODE_AUTO_LAUNCH") {
             self.vscode.auto_launch_enabled = auto_launch
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_VSCODE_AUTO_LAUNCH value (use true/false)")?;
+                .with_context(|| "Invalid NIMBUS_VSCODE_AUTO_LAUNCH value (use true/false)")?;
         }
 
-        if let Ok(notifications) = env::var("EC2_CONNECT_VSCODE_NOTIFICATIONS") {
+        if let Ok(notifications) = env::var("NIMBUS_VSCODE_NOTIFICATIONS") {
             self.vscode.notifications_enabled = notifications.parse().with_context(|| {
-                "Invalid EC2_CONNECT_VSCODE_NOTIFICATIONS value (use true/false)"
+                "Invalid NIMBUS_VSCODE_NOTIFICATIONS value (use true/false)"
             })?;
         }
 
-        if let Ok(delay) = env::var("EC2_CONNECT_VSCODE_LAUNCH_DELAY") {
+        if let Ok(delay) = env::var("NIMBUS_VSCODE_LAUNCH_DELAY") {
             self.vscode.launch_delay_seconds = delay
                 .parse()
-                .with_context(|| "Invalid EC2_CONNECT_VSCODE_LAUNCH_DELAY value")?;
+                .with_context(|| "Invalid NIMBUS_VSCODE_LAUNCH_DELAY value")?;
         }
 
-        if let Ok(auto_update) = env::var("EC2_CONNECT_VSCODE_AUTO_UPDATE_SSH") {
+        if let Ok(auto_update) = env::var("NIMBUS_VSCODE_AUTO_UPDATE_SSH") {
             self.vscode.auto_update_ssh_config = auto_update.parse().with_context(|| {
-                "Invalid EC2_CONNECT_VSCODE_AUTO_UPDATE_SSH value (use true/false)"
+                "Invalid NIMBUS_VSCODE_AUTO_UPDATE_SSH value (use true/false)"
             })?;
         }
 
         // SSH configuration overrides (for generated ~/.ssh/config entry)
-        if let Ok(ssh_user) = env::var("EC2_CONNECT_SSH_USER") {
+        if let Ok(ssh_user) = env::var("NIMBUS_SSH_USER") {
             self.vscode.ssh_user = Some(ssh_user);
         }
 
-        if let Ok(identity_file) = env::var("EC2_CONNECT_SSH_IDENTITY_FILE") {
+        if let Ok(identity_file) = env::var("NIMBUS_SSH_IDENTITY_FILE") {
             self.vscode.ssh_identity_file = Some(identity_file);
         }
 
-        if let Ok(identities_only) = env::var("EC2_CONNECT_SSH_IDENTITIES_ONLY") {
+        if let Ok(identities_only) = env::var("NIMBUS_SSH_IDENTITIES_ONLY") {
             self.vscode.ssh_identities_only = identities_only.parse().with_context(|| {
-                "Invalid EC2_CONNECT_SSH_IDENTITIES_ONLY value (use true/false)"
+                "Invalid NIMBUS_SSH_IDENTITIES_ONLY value (use true/false)"
             })?;
         }
 
@@ -672,7 +671,7 @@ impl Config {
                 .context("Could not determine config directory")?
         };
 
-        Ok(config_dir.join("ec2-connect").join("config.json"))
+        Ok(config_dir.join("nimbus").join("config.json"))
     }
 
     /// Validate configuration values
@@ -827,21 +826,6 @@ impl Config {
         Ok(())
     }
 
-    /// Get reconnection delay for attempt number
-    pub fn get_reconnection_delay(&self, attempt: u32) -> Duration {
-        if self.session.reconnection.aggressive_mode
-            && attempt <= self.session.reconnection.aggressive_attempts
-        {
-            Duration::from_millis(self.session.reconnection.aggressive_interval_ms)
-        } else {
-            let delay_ms = std::cmp::min(
-                self.session.reconnection.base_delay_ms * (2_u64.pow(attempt.saturating_sub(1))),
-                self.session.reconnection.max_delay_ms,
-            );
-            Duration::from_millis(delay_ms)
-        }
-    }
-
     /// Print configuration summary for debugging
     pub fn print_summary(&self) {
         tracing::info!("Configuration Summary:");
@@ -868,123 +852,123 @@ impl Config {
     pub fn get_env_variables_help() -> Vec<(&'static str, &'static str)> {
         vec![
             (
-                "EC2_CONNECT_AWS_PROFILE",
+                "NIMBUS_AWS_PROFILE",
                 "AWS profile to use for connections",
             ),
-            ("EC2_CONNECT_AWS_REGION", "AWS region for EC2 instances"),
+            ("NIMBUS_AWS_REGION", "AWS region for EC2 instances"),
             (
-                "EC2_CONNECT_CONNECTION_TIMEOUT",
+                "NIMBUS_CONNECTION_TIMEOUT",
                 "Connection timeout in seconds",
             ),
-            ("EC2_CONNECT_REQUEST_TIMEOUT", "Request timeout in seconds"),
-            ("EC2_CONNECT_MAX_SESSIONS", "Maximum sessions per instance"),
+            ("NIMBUS_REQUEST_TIMEOUT", "Request timeout in seconds"),
+            ("NIMBUS_MAX_SESSIONS", "Maximum sessions per instance"),
             (
-                "EC2_CONNECT_HEALTH_CHECK_INTERVAL",
+                "NIMBUS_HEALTH_CHECK_INTERVAL",
                 "Health check interval in seconds",
             ),
             (
-                "EC2_CONNECT_INACTIVE_TIMEOUT",
+                "NIMBUS_INACTIVE_TIMEOUT",
                 "Inactive session timeout in seconds",
             ),
             (
-                "EC2_CONNECT_RECONNECTION_ENABLED",
+                "NIMBUS_RECONNECTION_ENABLED",
                 "Enable automatic reconnection (true/false)",
             ),
             (
-                "EC2_CONNECT_MAX_RECONNECTION_ATTEMPTS",
+                "NIMBUS_MAX_RECONNECTION_ATTEMPTS",
                 "Maximum reconnection attempts",
             ),
             (
-                "EC2_CONNECT_RECONNECTION_BASE_DELAY_MS",
+                "NIMBUS_RECONNECTION_BASE_DELAY_MS",
                 "Base delay between reconnection attempts (ms)",
             ),
             (
-                "EC2_CONNECT_RECONNECTION_MAX_DELAY_MS",
+                "NIMBUS_RECONNECTION_MAX_DELAY_MS",
                 "Maximum delay between reconnection attempts (ms)",
             ),
             (
-                "EC2_CONNECT_AGGRESSIVE_RECONNECTION",
+                "NIMBUS_AGGRESSIVE_RECONNECTION",
                 "Enable aggressive reconnection mode (true/false)",
             ),
             (
-                "EC2_CONNECT_AGGRESSIVE_ATTEMPTS",
+                "NIMBUS_AGGRESSIVE_ATTEMPTS",
                 "Number of aggressive reconnection attempts",
             ),
             (
-                "EC2_CONNECT_AGGRESSIVE_INTERVAL_MS",
+                "NIMBUS_AGGRESSIVE_INTERVAL_MS",
                 "Interval between aggressive attempts (ms)",
             ),
             (
-                "EC2_CONNECT_PERFORMANCE_MONITORING",
+                "NIMBUS_PERFORMANCE_MONITORING",
                 "Enable performance monitoring (true/false)",
             ),
             (
-                "EC2_CONNECT_LATENCY_THRESHOLD_MS",
+                "NIMBUS_LATENCY_THRESHOLD_MS",
                 "Latency threshold for optimization (ms)",
             ),
             (
-                "EC2_CONNECT_OPTIMIZATION_ENABLED",
+                "NIMBUS_OPTIMIZATION_ENABLED",
                 "Enable connection optimization (true/false)",
             ),
-            ("EC2_CONNECT_MAX_MEMORY_MB", "Maximum memory usage (MB)"),
-            ("EC2_CONNECT_MAX_CPU_PERCENT", "Maximum CPU usage (%)"),
+            ("NIMBUS_MAX_MEMORY_MB", "Maximum memory usage (MB)"),
+            ("NIMBUS_MAX_CPU_PERCENT", "Maximum CPU usage (%)"),
             (
-                "EC2_CONNECT_LOW_POWER_MODE",
+                "NIMBUS_LOW_POWER_MODE",
                 "Enable low power mode (true/false)",
             ),
             (
-                "EC2_CONNECT_RICH_UI",
+                "NIMBUS_RICH_UI",
                 "Enable rich terminal UI (true/false)",
             ),
             (
-                "EC2_CONNECT_UI_UPDATE_INTERVAL_MS",
+                "NIMBUS_UI_UPDATE_INTERVAL_MS",
                 "UI update interval (ms)",
             ),
             (
-                "EC2_CONNECT_NOTIFICATIONS",
+                "NIMBUS_NOTIFICATIONS",
                 "Enable desktop notifications (true/false)",
             ),
             (
-                "EC2_CONNECT_LOG_LEVEL",
+                "NIMBUS_LOG_LEVEL",
                 "Log level (trace/debug/info/warn/error)",
             ),
             (
-                "EC2_CONNECT_FILE_LOGGING",
+                "NIMBUS_FILE_LOGGING",
                 "Enable file logging (true/false)",
             ),
-            ("EC2_CONNECT_LOG_FILE", "Path to log file"),
+            ("NIMBUS_LOG_FILE", "Path to log file"),
             (
-                "EC2_CONNECT_JSON_LOGGING",
+                "NIMBUS_JSON_LOGGING",
                 "Enable JSON log format (true/false)",
             ),
-            ("EC2_CONNECT_VSCODE_PATH", "Path to VS Code executable"),
-            ("EC2_CONNECT_SSH_CONFIG_PATH", "Path to SSH config file"),
+            ("NIMBUS_VSCODE_PATH", "Path to VS Code executable"),
+            ("NIMBUS_SSH_CONFIG_PATH", "Path to SSH config file"),
             (
-                "EC2_CONNECT_VSCODE_AUTO_LAUNCH",
+                "NIMBUS_VSCODE_AUTO_LAUNCH",
                 "Enable VS Code auto launch (true/false)",
             ),
             (
-                "EC2_CONNECT_VSCODE_NOTIFICATIONS",
+                "NIMBUS_VSCODE_NOTIFICATIONS",
                 "Enable VS Code integration notifications (true/false)",
             ),
             (
-                "EC2_CONNECT_VSCODE_LAUNCH_DELAY",
+                "NIMBUS_VSCODE_LAUNCH_DELAY",
                 "Delay before launching VS Code (seconds)",
             ),
             (
-                "EC2_CONNECT_VSCODE_AUTO_UPDATE_SSH",
+                "NIMBUS_VSCODE_AUTO_UPDATE_SSH",
                 "Auto update SSH config (true/false)",
             ),
             (
-                "EC2_CONNECT_SSH_USER",
+                "NIMBUS_SSH_USER",
                 "SSH username for generated SSH config entry",
             ),
             (
-                "EC2_CONNECT_SSH_IDENTITY_FILE",
+                "NIMBUS_SSH_IDENTITY_FILE",
                 "SSH IdentityFile path for generated SSH config entry",
             ),
             (
-                "EC2_CONNECT_SSH_IDENTITIES_ONLY",
+                "NIMBUS_SSH_IDENTITIES_ONLY",
                 "Enable IdentitiesOnly for generated SSH config entry (true/false)",
             ),
         ]

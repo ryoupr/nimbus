@@ -114,7 +114,7 @@ impl<M: SessionManager + Send + Sync, Mon: SessionMonitor + Send + Sync> MultiSe
     fn render_header(&self, f: &mut Frame<'_>, area: Rect, _state: &MultiSessionState) {
         let tab_titles = vec!["Sessions", "Resources", "Warnings", "Details"];
         let tabs = Tabs::new(tab_titles)
-            .block(Block::default().borders(Borders::ALL).title("EC2 Connect - Multi-Session Manager"))
+            .block(Block::default().borders(Borders::ALL).title("Nimbus - Multi-Session Manager"))
             .select(self.ui_state.selected_tab)
             .style(Style::default().fg(Color::White))
             .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));

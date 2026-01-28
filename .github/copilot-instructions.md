@@ -24,7 +24,7 @@ EC2 SSM Connect (v3.0) is a high-performance Rust CLI tool for managing AWS EC2 
 ## Key Conventions & Patterns
 - **Feature Flags**: The codebase regularly uses `cfg(feature = "...")` (e.g., `multi-session`, `performance-monitoring`). Always check if your changes affect feature-gated code blocks.
 - **Error Handling**:
-  - Library Code: Use `thiserror` in `src/error.rs` to define `Ec2ConnectError`.
+  - Library Code: Use `thiserror` in `src/error.rs` to define `NimbusError`.
   - Application Code: Use `anyhow::Result` for flexibility in `main` and command handlers.
 - **Async Runtime**: Built on `tokio`. Avoid blocking I/O in async functions.
 - **Configuration**:

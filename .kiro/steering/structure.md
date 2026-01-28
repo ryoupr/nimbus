@@ -65,15 +65,15 @@ inclusion: always
 
 1. **診断モジュール追加**: `src/*_diagnostics.rs` として作成し、`diagnostic.rs` の `DiagnosticManager` に登録
 2. **設定項目追加**: `config.rs` の `Config` 構造体に追加し、`config.*.example` を更新
-3. **エラー型追加**: `error.rs` の `Ec2ConnectError` に variant を追加
+3. **エラー型追加**: `error.rs` の `NimbusError` に variant を追加
 
 ## 設定ファイルパス
 
 | 種別 | Windows | Unix |
 |------|---------|------|
-| 設定 | `%APPDATA%\ec2-connect\config.json` | `~/.config/ec2-connect/config.json` |
-| DB | `%APPDATA%\ec2-connect\sessions.db` | `~/.config/ec2-connect/sessions.db` |
-| ログ | `./logs/ec2-connect.YYYY-MM-DD` | `./logs/ec2-connect.YYYY-MM-DD` |
+| 設定 | `%APPDATA%\nimbus\config.json` | `~/.config/nimbus/config.json` |
+| DB | `%APPDATA%\nimbus\sessions.db` | `~/.config/nimbus/sessions.db` |
+| ログ | `./logs/nimbus.YYYY-MM-DD` | `./logs/nimbus.YYYY-MM-DD` |
 
 ## アーキテクチャ原則
 

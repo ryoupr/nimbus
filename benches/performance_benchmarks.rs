@@ -1,13 +1,13 @@
-// Criterion benchmarks for EC2 Connect v3.0
+// Criterion benchmarks for Nimbus v3.0
 // Task 17: Final Integration and Performance Testing
 // Requirements: 5.1, 5.2
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use ec2_connect::*;
-use ec2_connect::manager::{SessionManager, DefaultSessionManager};
-use ec2_connect::health::{HealthChecker, DefaultHealthChecker};
-use ec2_connect::persistence::{PersistenceManager, SqlitePersistenceManager, PersistentSession};
-use ec2_connect::session::{SessionStatus, SessionConfig};
+use nimbus::*;
+use nimbus::manager::{SessionManager, DefaultSessionManager};
+use nimbus::health::{HealthChecker, DefaultHealthChecker};
+use nimbus::persistence::{PersistenceManager, SqlitePersistenceManager, PersistentSession};
+use nimbus::session::{SessionStatus, SessionConfig};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 

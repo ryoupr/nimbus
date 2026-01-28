@@ -15,16 +15,16 @@ jobs:
         include:
           - target: x86_64-apple-darwin
             os: macos-latest
-            name: ec2-connect-darwin-x86_64
+            name: nimbus-darwin-x86_64
           - target: aarch64-apple-darwin
             os: macos-latest
-            name: ec2-connect-darwin-arm64
+            name: nimbus-darwin-arm64
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: ec2-connect-linux-x86_64
+            name: nimbus-linux-x86_64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            name: ec2-connect-windows-x86_64
+            name: nimbus-windows-x86_64
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -42,7 +42,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           cd target/${{ matrix.target }}/release
-          tar -czvf ../../../${{ matrix.name }}.tar.gz ec2-connect
+          tar -czvf ../../../${{ matrix.name }}.tar.gz nimbus
           cd ../../..
           shasum -a 256 ${{ matrix.name }}.tar.gz > ${{ matrix.name }}.tar.gz.sha256
 
@@ -50,7 +50,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           cd target/${{ matrix.target }}/release
-          7z a ../../../${{ matrix.name }}.zip ec2-connect.exe
+          7z a ../../../${{ matrix.name }}.zip nimbus.exe
           cd ../../..
           (Get-FileHash ${{ matrix.name }}.zip -Algorithm SHA256).Hash.ToLower() + "  ${{ matrix.name }}.zip" | Out-File -Encoding utf8 ${{ matrix.name }}.zip.sha256
 

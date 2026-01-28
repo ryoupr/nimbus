@@ -13,7 +13,7 @@ pub struct ResourceUsage {
     pub process_count: usize,
 }
 
-/// Resource limits configuration optimized for EC2 Connect requirements
+/// Resource limits configuration optimized for Nimbus requirements
 #[derive(Debug, Clone)]
 pub struct ResourceLimits {
     /// Maximum memory usage in MB (default: 10MB for Rust optimization)
@@ -87,17 +87,17 @@ impl ResourceMonitor {
             (0.0, 0.0)
         };
         
-        // Count EC2 Connect related processes more accurately
+        // Count Nimbus related processes more accurately
         let process_count = system
             .processes()
             .values()
             .filter(|p| {
                 let name = p.name().to_lowercase();
                 let cmd = p.cmd().join(" ").to_lowercase();
-                name.contains("ec2-connect") || 
-                name.contains("ec2_connect") ||
+                name.contains("nimbus") || 
+                name.contains("nimbus") ||
                 (name.contains("aws") && cmd.contains("ssm")) ||
-                cmd.contains("ec2-connect")
+                cmd.contains("nimbus")
             })
             .count();
         

@@ -1,16 +1,16 @@
-# EC2 Connect 設定ガイド
+# Nimbus 設定ガイド
 
 ## 設定ファイル
 
-EC2 Connect は JSON と TOML の両形式をサポートしています：
+Nimbus は JSON と TOML の両形式をサポートしています：
 
 - **JSON**: `config.json`（デフォルト）
 - **TOML**: `config.toml`
 
 ### デフォルトの設定ファイル場所
 
-- **Linux/macOS**: `~/.config/ec2-connect/config.json`
-- **Windows**: `%APPDATA%\ec2-connect\config.json`
+- **Linux/macOS**: `~/.config/nimbus/config.json`
+- **Windows**: `%APPDATA%\nimbus\config.json`
 
 ### サンプルファイル
 
@@ -18,10 +18,10 @@ EC2 Connect は JSON と TOML の両形式をサポートしています：
 
 ```bash
 # JSON形式
-cp config.json.example ~/.config/ec2-connect/config.json
+cp config.json.example ~/.config/nimbus/config.json
 
 # TOML形式
-cp config.toml.example ~/.config/ec2-connect/config.toml
+cp config.toml.example ~/.config/nimbus/config.toml
 ```
 
 ## 設定ファイルリファレンス
@@ -171,7 +171,7 @@ cp config.toml.example ~/.config/ec2-connect/config.toml
 
 ## ターゲットファイル（サーバー別設定）
 
-EC2 Connect は、サーバーごとの接続設定（インスタンスID、ポート、プロファイル/リージョン、SSHユーザー/鍵）を名前で管理する **ターゲットファイル** を読み込めます。
+Nimbus は、サーバーごとの接続設定（インスタンスID、ポート、プロファイル/リージョン、SSHユーザー/鍵）を名前で管理する **ターゲットファイル** を読み込めます。
 
 サポート形式：
 
@@ -180,15 +180,15 @@ EC2 Connect は、サーバーごとの接続設定（インスタンスID、ポ
 
 ### デフォルトのターゲットファイル場所
 
-- **Linux/macOS**: `~/.config/ec2-connect/targets.json`
-- **Windows**: `%APPDATA%\ec2-connect\targets.json`
+- **Linux/macOS**: `~/.config/nimbus/targets.json`
+- **Windows**: `%APPDATA%\nimbus\targets.json`
 
 ### 設定例
 
 リポジトリのサンプルから始めてください：
 
 ```bash
-cp targets.json.example ~/.config/ec2-connect/targets.json
+cp targets.json.example ~/.config/nimbus/targets.json
 ```
 
 最小限のJSON構造：
@@ -247,77 +247,77 @@ CLIで指定した値はターゲットファイルの値より優先されま�
 
 | 環境変数 | 説明 | 例 |
 |---------|------|-----|
-| `EC2_CONNECT_AWS_PROFILE` | 使用するAWSプロファイル | `production` |
-| `EC2_CONNECT_AWS_REGION` | AWSリージョン | `us-west-2` |
-| `EC2_CONNECT_CONNECTION_TIMEOUT` | 接続タイムアウト（秒） | `45` |
-| `EC2_CONNECT_REQUEST_TIMEOUT` | リクエストタイムアウト（秒） | `90` |
+| `NIMBUS_AWS_PROFILE` | 使用するAWSプロファイル | `production` |
+| `NIMBUS_AWS_REGION` | AWSリージョン | `us-west-2` |
+| `NIMBUS_CONNECTION_TIMEOUT` | 接続タイムアウト（秒） | `45` |
+| `NIMBUS_REQUEST_TIMEOUT` | リクエストタイムアウト（秒） | `90` |
 
 ### セッション管理
 
 | 環境変数 | 説明 | 例 |
 |---------|------|-----|
-| `EC2_CONNECT_MAX_SESSIONS` | インスタンスあたりの最大セッション数 | `5` |
-| `EC2_CONNECT_HEALTH_CHECK_INTERVAL` | ヘルスチェック間隔（秒） | `3` |
-| `EC2_CONNECT_INACTIVE_TIMEOUT` | 非アクティブタイムアウト（秒） | `60` |
+| `NIMBUS_MAX_SESSIONS` | インスタンスあたりの最大セッション数 | `5` |
+| `NIMBUS_HEALTH_CHECK_INTERVAL` | ヘルスチェック間隔（秒） | `3` |
+| `NIMBUS_INACTIVE_TIMEOUT` | 非アクティブタイムアウト（秒） | `60` |
 
 ### 再接続ポリシー
 
 | 環境変数 | 説明 | 例 |
 |---------|------|-----|
-| `EC2_CONNECT_RECONNECTION_ENABLED` | 自動再接続を有効化 | `true` |
-| `EC2_CONNECT_MAX_RECONNECTION_ATTEMPTS` | 最大再接続試行回数 | `10` |
-| `EC2_CONNECT_RECONNECTION_BASE_DELAY_MS` | 基本遅延（ミリ秒） | `2000` |
-| `EC2_CONNECT_RECONNECTION_MAX_DELAY_MS` | 最大遅延（ミリ秒） | `30000` |
-| `EC2_CONNECT_AGGRESSIVE_RECONNECTION` | アグレッシブモードを有効化 | `true` |
-| `EC2_CONNECT_AGGRESSIVE_ATTEMPTS` | アグレッシブ試行回数 | `15` |
-| `EC2_CONNECT_AGGRESSIVE_INTERVAL_MS` | アグレッシブ間隔（ミリ秒） | `250` |
+| `NIMBUS_RECONNECTION_ENABLED` | 自動再接続を有効化 | `true` |
+| `NIMBUS_MAX_RECONNECTION_ATTEMPTS` | 最大再接続試行回数 | `10` |
+| `NIMBUS_RECONNECTION_BASE_DELAY_MS` | 基本遅延（ミリ秒） | `2000` |
+| `NIMBUS_RECONNECTION_MAX_DELAY_MS` | 最大遅延（ミリ秒） | `30000` |
+| `NIMBUS_AGGRESSIVE_RECONNECTION` | アグレッシブモードを有効化 | `true` |
+| `NIMBUS_AGGRESSIVE_ATTEMPTS` | アグレッシブ試行回数 | `15` |
+| `NIMBUS_AGGRESSIVE_INTERVAL_MS` | アグレッシブ間隔（ミリ秒） | `250` |
 
 ### パフォーマンス監視
 
 | 環境変数 | 説明 | 例 |
 |---------|------|-----|
-| `EC2_CONNECT_PERFORMANCE_MONITORING` | 監視を有効化 | `true` |
-| `EC2_CONNECT_LATENCY_THRESHOLD_MS` | レイテンシ閾値（ミリ秒） | `150` |
-| `EC2_CONNECT_OPTIMIZATION_ENABLED` | 最適化を有効化 | `true` |
+| `NIMBUS_PERFORMANCE_MONITORING` | 監視を有効化 | `true` |
+| `NIMBUS_LATENCY_THRESHOLD_MS` | レイテンシ閾値（ミリ秒） | `150` |
+| `NIMBUS_OPTIMIZATION_ENABLED` | 最適化を有効化 | `true` |
 
 ### リソース制限
 
 | 環境変数 | 説明 | 例 |
 |---------|------|-----|
-| `EC2_CONNECT_MAX_MEMORY_MB` | 最大メモリ使用量（MB） | `8` |
-| `EC2_CONNECT_MAX_CPU_PERCENT` | 最大CPU使用率（%） | `0.3` |
-| `EC2_CONNECT_LOW_POWER_MODE` | 省電力モードを有効化 | `true` |
+| `NIMBUS_MAX_MEMORY_MB` | 最大メモリ使用量（MB） | `8` |
+| `NIMBUS_MAX_CPU_PERCENT` | 最大CPU使用率（%） | `0.3` |
+| `NIMBUS_LOW_POWER_MODE` | 省電力モードを有効化 | `true` |
 
 ### ユーザーインターフェース
 
 | 環境変数 | 説明 | 例 |
 |---------|------|-----|
-| `EC2_CONNECT_RICH_UI` | リッチターミナルUIを有効化 | `false` |
-| `EC2_CONNECT_UI_UPDATE_INTERVAL_MS` | UI更新間隔（ミリ秒） | `500` |
-| `EC2_CONNECT_NOTIFICATIONS` | 通知を有効化 | `false` |
+| `NIMBUS_RICH_UI` | リッチターミナルUIを有効化 | `false` |
+| `NIMBUS_UI_UPDATE_INTERVAL_MS` | UI更新間隔（ミリ秒） | `500` |
+| `NIMBUS_NOTIFICATIONS` | 通知を有効化 | `false` |
 
 ### ログ
 
 | 環境変数 | 説明 | 例 |
 |---------|------|-----|
-| `EC2_CONNECT_LOG_LEVEL` | ログレベル | `debug` |
-| `EC2_CONNECT_FILE_LOGGING` | ファイルログを有効化 | `true` |
-| `EC2_CONNECT_LOG_FILE` | ログファイルパス | `/var/log/ec2-connect.log` |
-| `EC2_CONNECT_JSON_LOGGING` | JSON形式を有効化 | `true` |
+| `NIMBUS_LOG_LEVEL` | ログレベル | `debug` |
+| `NIMBUS_FILE_LOGGING` | ファイルログを有効化 | `true` |
+| `NIMBUS_LOG_FILE` | ログファイルパス | `/var/log/nimbus.log` |
+| `NIMBUS_JSON_LOGGING` | JSON形式を有効化 | `true` |
 
 ### VS Code / SSH
 
 | 環境変数 | 説明 | 例 |
 |---------|------|-----|
-| `EC2_CONNECT_VSCODE_PATH` | VS Code実行ファイルのパス | `/opt/homebrew/bin/code` |
-| `EC2_CONNECT_SSH_CONFIG_PATH` | SSH設定ファイルのパス | `~/.ssh/config` |
-| `EC2_CONNECT_VSCODE_AUTO_LAUNCH` | VS Codeを自動起動（true/false） | `false` |
-| `EC2_CONNECT_VSCODE_NOTIFICATIONS` | 通知を有効化（true/false） | `false` |
-| `EC2_CONNECT_VSCODE_LAUNCH_DELAY` | 起動遅延（秒） | `2` |
-| `EC2_CONNECT_VSCODE_AUTO_UPDATE_SSH` | SSH設定を自動更新（true/false） | `true` |
-| `EC2_CONNECT_SSH_USER` | 生成エントリのSSHユーザー名 | `ubuntu` |
-| `EC2_CONNECT_SSH_IDENTITY_FILE` | 生成エントリのSSH IdentityFileパス | `~/.ssh/my-key.pem` |
-| `EC2_CONNECT_SSH_IDENTITIES_ONLY` | IdentitiesOnlyを有効化（true/false） | `true` |
+| `NIMBUS_VSCODE_PATH` | VS Code実行ファイルのパス | `/opt/homebrew/bin/code` |
+| `NIMBUS_SSH_CONFIG_PATH` | SSH設定ファイルのパス | `~/.ssh/config` |
+| `NIMBUS_VSCODE_AUTO_LAUNCH` | VS Codeを自動起動（true/false） | `false` |
+| `NIMBUS_VSCODE_NOTIFICATIONS` | 通知を有効化（true/false） | `false` |
+| `NIMBUS_VSCODE_LAUNCH_DELAY` | 起動遅延（秒） | `2` |
+| `NIMBUS_VSCODE_AUTO_UPDATE_SSH` | SSH設定を自動更新（true/false） | `true` |
+| `NIMBUS_SSH_USER` | 生成エントリのSSHユーザー名 | `ubuntu` |
+| `NIMBUS_SSH_IDENTITY_FILE` | 生成エントリのSSH IdentityFileパス | `~/.ssh/my-key.pem` |
+| `NIMBUS_SSH_IDENTITIES_ONLY` | IdentitiesOnlyを有効化（true/false） | `true` |
 
 メイン設定ファイルの `vscode` セクションでも設定できます：
 
@@ -336,42 +336,42 @@ CLIで指定した値はターゲットファイルの値より優先されま�
 ### 開発環境
 
 ```bash
-export EC2_CONNECT_LOG_LEVEL=debug
-export EC2_CONNECT_MAX_MEMORY_MB=50
-export EC2_CONNECT_PERFORMANCE_MONITORING=true
+export NIMBUS_LOG_LEVEL=debug
+export NIMBUS_MAX_MEMORY_MB=50
+export NIMBUS_PERFORMANCE_MONITORING=true
 ```
 
 ### 本番環境
 
 ```bash
-export EC2_CONNECT_LOG_LEVEL=warn
-export EC2_CONNECT_MAX_MEMORY_MB=10
-export EC2_CONNECT_MAX_CPU_PERCENT=0.5
-export EC2_CONNECT_LOW_POWER_MODE=true
-export EC2_CONNECT_JSON_LOGGING=true
+export NIMBUS_LOG_LEVEL=warn
+export NIMBUS_MAX_MEMORY_MB=10
+export NIMBUS_MAX_CPU_PERCENT=0.5
+export NIMBUS_LOW_POWER_MODE=true
+export NIMBUS_JSON_LOGGING=true
 ```
 
 ### CI/CD環境
 
 ```bash
-export EC2_CONNECT_RICH_UI=false
-export EC2_CONNECT_NOTIFICATIONS=false
-export EC2_CONNECT_FILE_LOGGING=false
-export EC2_CONNECT_RECONNECTION_ENABLED=false
+export NIMBUS_RICH_UI=false
+export NIMBUS_NOTIFICATIONS=false
+export NIMBUS_FILE_LOGGING=false
+export NIMBUS_RECONNECTION_ENABLED=false
 ```
 
 ### アグレッシブ再接続モード
 
 ```bash
-export EC2_CONNECT_AGGRESSIVE_RECONNECTION=true
-export EC2_CONNECT_AGGRESSIVE_ATTEMPTS=20
-export EC2_CONNECT_AGGRESSIVE_INTERVAL_MS=200
-export EC2_CONNECT_MAX_RECONNECTION_ATTEMPTS=50
+export NIMBUS_AGGRESSIVE_RECONNECTION=true
+export NIMBUS_AGGRESSIVE_ATTEMPTS=20
+export NIMBUS_AGGRESSIVE_INTERVAL_MS=200
+export NIMBUS_MAX_RECONNECTION_ATTEMPTS=50
 ```
 
 ## 設定の検証
 
-EC2 Connect は起動時にすべての設定値を検証し、無効な設定に対して詳細なエラーメッセージを表示します：
+Nimbus は起動時にすべての設定値を検証し、無効な設定に対して詳細なエラーメッセージを表示します：
 
 - **範囲検証**: 数値が許容範囲内であることを確認
 - **型検証**: ブール値が正しい形式であることを確認

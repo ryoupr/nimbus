@@ -9,7 +9,7 @@ use tracing::{debug, error, info};
 
 use crate::aws::load_aws_config;
 use crate::diagnostic::{DiagnosticResult, DiagnosticStatus};
-use crate::error::{AwsError, Ec2ConnectError, Result};
+use crate::error::{AwsError, NimbusError, Result};
 
 /// SSM Agent state information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -555,7 +555,7 @@ impl DefaultAutoFixManager {
 
         loop {
             if start_time.elapsed() > max_wait_time {
-                return Err(Ec2ConnectError::Aws(AwsError::Timeout {
+                return Err(NimbusError::Aws(AwsError::Timeout {
                     operation: "Instance startup monitoring".to_string(),
                 })
                 .into());
@@ -593,7 +593,7 @@ impl DefaultAutoFixManager {
                                 info!("Instance {} is now running", instance_id);
                                 return Ok(state);
                             } else if state.contains("stopped") || state.contains("stopping") {
-                                return Err(Ec2ConnectError::Aws(AwsError::Ec2ServiceError {
+                                return Err(NimbusError::Aws(AwsError::Ec2ServiceError {
                                     message: format!(
                                         "Instance startup failed, current state: {}",
                                         state
@@ -608,7 +608,7 @@ impl DefaultAutoFixManager {
                 }
                 Err(e) => {
                     error!("Failed to check instance state during monitoring: {}", e);
-                    return Err(Ec2ConnectError::Aws(AwsError::Ec2ServiceError {
+                    return Err(NimbusError::Aws(AwsError::Ec2ServiceError {
                         message: format!("Failed to check instance state: {}", e),
                     })
                     .into());
@@ -640,7 +640,7 @@ impl DefaultAutoFixManager {
 
         loop {
             if start_time.elapsed() > timeout {
-                return Err(Ec2ConnectError::Aws(AwsError::Timeout {
+                return Err(NimbusError::Aws(AwsError::Timeout {
                     operation: "SSM registration wait".to_string(),
                 })
                 .into());
@@ -790,7 +790,7 @@ impl DefaultAutoFixManager {
                     .value_set(instance_id)
                     .build()
                     .map_err(|e| {
-                        Ec2ConnectError::Aws(AwsError::SsmServiceError {
+                        NimbusError::Aws(AwsError::SsmServiceError {
                             message: format!("Failed to build instance filter: {}", e),
                         })
                     })?,
@@ -834,7 +834,7 @@ impl DefaultAutoFixManager {
                     "Failed to check SSM agent state for instance {}: {}",
                     instance_id, e
                 );
-                Err(Ec2ConnectError::Aws(AwsError::SsmServiceError {
+                Err(NimbusError::Aws(AwsError::SsmServiceError {
                     message: format!("Failed to check SSM agent state: {}", e),
                 })
                 .into())
@@ -871,7 +871,7 @@ impl DefaultAutoFixManager {
                     Ok(command_id.to_string())
                 } else {
                     error!("No command information returned");
-                    Err(Ec2ConnectError::Aws(AwsError::SsmServiceError {
+                    Err(NimbusError::Aws(AwsError::SsmServiceError {
                         message: "No command information returned".to_string(),
                     })
                     .into())
@@ -882,7 +882,7 @@ impl DefaultAutoFixManager {
                     "Failed to send SSM restart command to instance {}: {}",
                     instance_id, e
                 );
-                Err(Ec2ConnectError::Aws(AwsError::SsmServiceError {
+                Err(NimbusError::Aws(AwsError::SsmServiceError {
                     message: format!("Failed to send SSM restart command: {}", e),
                 })
                 .into())

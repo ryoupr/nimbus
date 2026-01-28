@@ -126,12 +126,12 @@ impl SqlitePersistenceManager {
     pub fn with_default_path() -> Result<Self> {
         let db_dir = dirs::data_dir()
             .or_else(|| dirs::home_dir().map(|h| h.join(".local/share")))
-            .ok_or_else(|| crate::error::Ec2ConnectError::Config(
+            .ok_or_else(|| crate::error::NimbusError::Config(
                 crate::error::ConfigError::Invalid { 
                     message: "Cannot determine data directory".to_string() 
                 }
             ))?
-            .join("ec2-connect");
+            .join("nimbus");
         
         std::fs::create_dir_all(&db_dir)?;
         let db_path = db_dir.join("sessions.db");
@@ -982,7 +982,7 @@ impl PersistenceManager for SqlitePersistenceManager {
         info!("Restoring database from backup: {:?}", backup_path);
         
         if !backup_path.exists() {
-            return Err(crate::error::Ec2ConnectError::Config(
+            return Err(crate::error::NimbusError::Config(
                 crate::error::ConfigError::Invalid {
                     message: format!("Backup file not found: {:?}", backup_path),
                 }

@@ -1,8 +1,8 @@
 use thiserror::Error;
 
-/// Main error type for EC2 Connect
+/// Main error type for Nimbus
 #[derive(Error, Debug, Clone)]
-pub enum Ec2ConnectError {
+pub enum NimbusError {
     #[error("Configuration error: {0}")]
     Config(ConfigError),
     
@@ -107,89 +107,89 @@ pub enum VsCodeError {
     ConfigurationError { message: String },
 }
 
-/// Result type alias for EC2 Connect operations
-pub type Result<T> = std::result::Result<T, Ec2ConnectError>;
+/// Result type alias for Nimbus operations
+pub type Result<T> = std::result::Result<T, NimbusError>;
 
 // From trait implementations for error conversion
-impl From<ConfigError> for Ec2ConnectError {
+impl From<ConfigError> for NimbusError {
     fn from(err: ConfigError) -> Self {
-        Ec2ConnectError::Config(err)
+        NimbusError::Config(err)
     }
 }
 
-impl From<AwsError> for Ec2ConnectError {
+impl From<AwsError> for NimbusError {
     fn from(err: AwsError) -> Self {
-        Ec2ConnectError::Aws(err)
+        NimbusError::Aws(err)
     }
 }
 
-impl From<SessionError> for Ec2ConnectError {
+impl From<SessionError> for NimbusError {
     fn from(err: SessionError) -> Self {
-        Ec2ConnectError::Session(err)
+        NimbusError::Session(err)
     }
 }
 
-impl From<ConnectionError> for Ec2ConnectError {
+impl From<ConnectionError> for NimbusError {
     fn from(err: ConnectionError) -> Self {
-        Ec2ConnectError::Connection(err)
+        NimbusError::Connection(err)
     }
 }
 
-impl From<ResourceError> for Ec2ConnectError {
+impl From<ResourceError> for NimbusError {
     fn from(err: ResourceError) -> Self {
-        Ec2ConnectError::Resource(err)
+        NimbusError::Resource(err)
     }
 }
 
-impl From<UiError> for Ec2ConnectError {
+impl From<UiError> for NimbusError {
     fn from(err: UiError) -> Self {
-        Ec2ConnectError::Ui(err)
+        NimbusError::Ui(err)
     }
 }
 
-impl From<VsCodeError> for Ec2ConnectError {
+impl From<VsCodeError> for NimbusError {
     fn from(err: VsCodeError) -> Self {
-        Ec2ConnectError::VsCode(err)
+        NimbusError::VsCode(err)
     }
 }
 
-impl From<std::io::Error> for Ec2ConnectError {
+impl From<std::io::Error> for NimbusError {
     fn from(err: std::io::Error) -> Self {
-        Ec2ConnectError::Io(err.to_string())
+        NimbusError::Io(err.to_string())
     }
 }
 
-impl From<serde_json::Error> for Ec2ConnectError {
+impl From<serde_json::Error> for NimbusError {
     fn from(err: serde_json::Error) -> Self {
-        Ec2ConnectError::Json(err.to_string())
+        NimbusError::Json(err.to_string())
     }
 }
 
-impl From<toml::de::Error> for Ec2ConnectError {
+impl From<toml::de::Error> for NimbusError {
     fn from(err: toml::de::Error) -> Self {
-        Ec2ConnectError::Toml(err.to_string())
+        NimbusError::Toml(err.to_string())
     }
 }
 
-impl From<rusqlite::Error> for Ec2ConnectError {
+impl From<rusqlite::Error> for NimbusError {
     fn from(err: rusqlite::Error) -> Self {
-        Ec2ConnectError::Database(err.to_string())
+        NimbusError::Database(err.to_string())
     }
 }
 
-impl From<anyhow::Error> for Ec2ConnectError {
+impl From<anyhow::Error> for NimbusError {
     fn from(err: anyhow::Error) -> Self {
-        Ec2ConnectError::Anyhow(err.to_string())
+        NimbusError::Anyhow(err.to_string())
     }
 }
 
-impl Ec2ConnectError {
+impl NimbusError {
     /// Check if error is recoverable
     pub fn is_recoverable(&self) -> bool {
         match self {
-            Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed { .. }) => true,
-            Ec2ConnectError::Session(SessionError::CreationFailed { .. }) => true,
-            Ec2ConnectError::Io(_) => true,
+            NimbusError::Connection(ConnectionError::PreventiveCheckFailed { .. }) => true,
+            NimbusError::Session(SessionError::CreationFailed { .. }) => true,
+            NimbusError::Io(_) => true,
             _ => false,
         }
     }
@@ -197,12 +197,12 @@ impl Ec2ConnectError {
     /// Get error severity level
     pub fn severity(&self) -> ErrorSeverity {
         match self {
-            Ec2ConnectError::Config(_) => ErrorSeverity::High,
-            Ec2ConnectError::Aws(AwsError::AuthenticationFailed { .. }) => ErrorSeverity::High,
-            Ec2ConnectError::Resource(_) => ErrorSeverity::High,
-            Ec2ConnectError::Connection(_) => ErrorSeverity::Medium,
-            Ec2ConnectError::Session(_) => ErrorSeverity::Medium,
-            Ec2ConnectError::Ui(_) => ErrorSeverity::Low,
+            NimbusError::Config(_) => ErrorSeverity::High,
+            NimbusError::Aws(AwsError::AuthenticationFailed { .. }) => ErrorSeverity::High,
+            NimbusError::Resource(_) => ErrorSeverity::High,
+            NimbusError::Connection(_) => ErrorSeverity::Medium,
+            NimbusError::Session(_) => ErrorSeverity::Medium,
+            NimbusError::Ui(_) => ErrorSeverity::Low,
             _ => ErrorSeverity::Medium,
         }
     }
@@ -210,16 +210,16 @@ impl Ec2ConnectError {
     /// Get user-friendly error message
     pub fn user_message(&self) -> String {
         match self {
-            Ec2ConnectError::Aws(AwsError::AuthenticationFailed { .. }) => {
+            NimbusError::Aws(AwsError::AuthenticationFailed { .. }) => {
                 "AWS認証に失敗しました。AWS認証情報を確認してください。".to_string()
             },
-            Ec2ConnectError::Session(SessionError::LimitExceeded { max_sessions }) => {
+            NimbusError::Session(SessionError::LimitExceeded { max_sessions }) => {
                 format!("セッション数の上限に達しました（最大{}セッション）。", max_sessions)
             },
-            Ec2ConnectError::VsCode(VsCodeError::NotFound { .. }) => {
+            NimbusError::VsCode(VsCodeError::NotFound { .. }) => {
                 "VS Codeが見つかりません。VS Codeをインストールするか、設定でパスを指定してください。".to_string()
             },
-            Ec2ConnectError::VsCode(VsCodeError::LaunchFailed { .. }) => {
+            NimbusError::VsCode(VsCodeError::LaunchFailed { .. }) => {
                 "VS Codeの起動に失敗しました。VS Codeが正しくインストールされているか確認してください。".to_string()
             },
             _ => self.to_string(),

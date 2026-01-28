@@ -270,7 +270,7 @@ impl TerminalUi {
             // Header with tabs
             let tabs = Tabs::new(vec!["Sessions", "Metrics", "Logs"])
                 .block(Block::default()
-                    .title("EC2 Connect Manager v3.0")
+                    .title("Nimbus Manager v3.0")
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(Color::Cyan)))
                 .style(Style::default().fg(Color::White))

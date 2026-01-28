@@ -1,8 +1,8 @@
-# EC2 Connect API Reference
+# Nimbus API Reference
 
 ## 概要
 
-EC2 Connect v3.0 の完全な API リファレンスです。このドキュメントでは、すべてのコマンド、オプション、設定項目、および内部 API について詳しく説明します。
+Nimbus v3.0 の完全な API リファレンスです。このドキュメントでは、すべてのコマンド、オプション、設定項目、および内部 API について詳しく説明します。
 
 ## 目次
 
@@ -22,7 +22,7 @@ EC2 Connect v3.0 の完全な API リファレンスです。このドキュメ�
 #### `connect` - EC2 インスタンスに接続
 
 ```bash
-ec2-connect connect [OPTIONS] (--instance-id <INSTANCE_ID> | --target <NAME>)
+nimbus connect [OPTIONS] (--instance-id <INSTANCE_ID> | --target <NAME>)
 ```
 
 **必須パラメータ（いずれか）:**
@@ -32,7 +32,7 @@ ec2-connect connect [OPTIONS] (--instance-id <INSTANCE_ID> | --target <NAME>)
 
 **オプションパラメータ:**
 
-- `--targets-file <PATH>` - targets ファイルのパス（省略時は `~/.config/ec2-connect/targets.json`）
+- `--targets-file <PATH>` - targets ファイルのパス（省略時は `~/.config/nimbus/targets.json`）
 - `--local-port, -l <PORT>` - ローカルポート番号 (デフォルト: 8080)
 - `--remote-port, -r <PORT>` - リモートポート番号 (デフォルト: 80)
 - `--profile, -p <PROFILE>` - AWS プロファイル名
@@ -47,19 +47,19 @@ ec2-connect connect [OPTIONS] (--instance-id <INSTANCE_ID> | --target <NAME>)
 
 ```bash
 # 基本的な接続
-ec2-connect connect -i i-1234567890abcdef0
+nimbus connect -i i-1234567890abcdef0
 
-# targets ファイルから接続（例: ~/.config/ec2-connect/targets.json）
-ec2-connect connect --target dev
+# targets ファイルから接続（例: ~/.config/nimbus/targets.json）
+nimbus connect --target dev
 
 # targets ファイルのパスを明示
-ec2-connect connect --targets-file ~/.config/ec2-connect/targets.json --target dev
+nimbus connect --targets-file ~/.config/nimbus/targets.json --target dev
 
 # カスタムポートとプロファイル
-ec2-connect connect -i i-1234567890abcdef0 -l 8080 -r 443 -p production
+nimbus connect -i i-1234567890abcdef0 -l 8080 -r 443 -p production
 
 # 高優先度セッション
-ec2-connect connect -i i-1234567890abcdef0 --priority high
+nimbus connect -i i-1234567890abcdef0 --priority high
 ```
 
 **戻り値:**
@@ -72,7 +72,7 @@ ec2-connect connect -i i-1234567890abcdef0 --priority high
 #### `list` - アクティブセッション一覧
 
 ```bash
-ec2-connect list
+nimbus list
 ```
 
 **出力形式:**
@@ -89,7 +89,7 @@ ec2-connect list
 #### `terminate` - セッション終了
 
 ```bash
-ec2-connect terminate <SESSION_ID>
+nimbus terminate <SESSION_ID>
 ```
 
 **パラメータ:**
@@ -99,7 +99,7 @@ ec2-connect terminate <SESSION_ID>
 #### `status` - セッション状態確認
 
 ```bash
-ec2-connect status [SESSION_ID]
+nimbus status [SESSION_ID]
 ```
 
 **パラメータ:**
@@ -111,7 +111,7 @@ ec2-connect status [SESSION_ID]
 #### `tui` - ターミナル UI 起動
 
 ```bash
-ec2-connect tui
+nimbus tui
 ```
 
 **機能:**
@@ -131,7 +131,7 @@ ec2-connect tui
 #### `multi-session` - マルチセッション管理 UI
 
 ```bash
-ec2-connect multi-session
+nimbus multi-session
 ```
 
 **機能:**
@@ -153,7 +153,7 @@ ec2-connect multi-session
 #### `metrics` - パフォーマンスメトリクス表示
 
 ```bash
-ec2-connect metrics
+nimbus metrics
 ```
 
 **出力項目:**
@@ -167,7 +167,7 @@ ec2-connect metrics
 #### `resources` - リソース管理
 
 ```bash
-ec2-connect resources
+nimbus resources
 ```
 
 **機能:**
@@ -180,7 +180,7 @@ ec2-connect resources
 #### `health` - ヘルスチェック
 
 ```bash
-ec2-connect health [OPTIONS] [SESSION_ID]
+nimbus health [OPTIONS] [SESSION_ID]
 ```
 
 **オプション:**
@@ -199,7 +199,7 @@ ec2-connect health [OPTIONS] [SESSION_ID]
 #### `diagnose` - 包括的診断
 
 ```bash
-ec2-connect diagnose <SUBCOMMAND>
+nimbus diagnose <SUBCOMMAND>
 ```
 
 **サブコマンド:**
@@ -207,7 +207,7 @@ ec2-connect diagnose <SUBCOMMAND>
 ##### `full` - 完全診断
 
 ```bash
-ec2-connect diagnose full [OPTIONS] --instance-id <INSTANCE_ID>
+nimbus diagnose full [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **オプション:**
@@ -223,7 +223,7 @@ ec2-connect diagnose full [OPTIONS] --instance-id <INSTANCE_ID>
 ##### `preventive` - 予防的チェック
 
 ```bash
-ec2-connect diagnose preventive [OPTIONS] --instance-id <INSTANCE_ID>
+nimbus diagnose preventive [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **機能:**
@@ -236,7 +236,7 @@ ec2-connect diagnose preventive [OPTIONS] --instance-id <INSTANCE_ID>
 ##### `aws-config` - AWS 設定検証
 
 ```bash
-ec2-connect diagnose aws-config [OPTIONS] --instance-id <INSTANCE_ID>
+nimbus diagnose aws-config [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **検証項目:**
@@ -250,7 +250,7 @@ ec2-connect diagnose aws-config [OPTIONS] --instance-id <INSTANCE_ID>
 ##### `interactive` - インタラクティブ診断
 
 ```bash
-ec2-connect diagnose interactive [OPTIONS] --instance-id <INSTANCE_ID>
+nimbus diagnose interactive [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **機能:**
@@ -263,7 +263,7 @@ ec2-connect diagnose interactive [OPTIONS] --instance-id <INSTANCE_ID>
 #### `precheck` - 接続前チェック
 
 ```bash
-ec2-connect precheck [OPTIONS] --instance-id <INSTANCE_ID>
+nimbus precheck [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **出力形式:**
@@ -275,7 +275,7 @@ ec2-connect precheck [OPTIONS] --instance-id <INSTANCE_ID>
 #### `fix` - 自動修復
 
 ```bash
-ec2-connect fix [OPTIONS] --instance-id <INSTANCE_ID>
+nimbus fix [OPTIONS] --instance-id <INSTANCE_ID>
 ```
 
 **オプション:**
@@ -289,7 +289,7 @@ ec2-connect fix [OPTIONS] --instance-id <INSTANCE_ID>
 #### `config` - 設定管理
 
 ```bash
-ec2-connect config <SUBCOMMAND>
+nimbus config <SUBCOMMAND>
 ```
 
 **サブコマンド:**
@@ -297,19 +297,19 @@ ec2-connect config <SUBCOMMAND>
 ##### `validate` - 設定検証
 
 ```bash
-ec2-connect config validate
+nimbus config validate
 ```
 
 ##### `show` - 設定表示
 
 ```bash
-ec2-connect config show
+nimbus config show
 ```
 
 ##### `generate` - 設定ファイル生成
 
 ```bash
-ec2-connect config generate [OPTIONS]
+nimbus config generate [OPTIONS]
 ```
 
 **オプション:**
@@ -320,13 +320,13 @@ ec2-connect config generate [OPTIONS]
 ##### `env-help` - 環境変数ヘルプ
 
 ```bash
-ec2-connect config env-help
+nimbus config env-help
 ```
 
 ##### `test` - 設定テスト
 
 ```bash
-ec2-connect config test
+nimbus config test
 ```
 
 ### VS Code 統合コマンド
@@ -334,7 +334,7 @@ ec2-connect config test
 #### `vscode` - VS Code 統合
 
 ```bash
-ec2-connect vscode <SUBCOMMAND>
+nimbus vscode <SUBCOMMAND>
 ```
 
 **サブコマンド:**
@@ -342,25 +342,25 @@ ec2-connect vscode <SUBCOMMAND>
 ##### `status` - 統合状態確認
 
 ```bash
-ec2-connect vscode status
+nimbus vscode status
 ```
 
 ##### `test` - 統合テスト
 
 ```bash
-ec2-connect vscode test [SESSION_ID]
+nimbus vscode test [SESSION_ID]
 ```
 
 ##### `setup` - 統合設定
 
 ```bash
-ec2-connect vscode setup
+nimbus vscode setup
 ```
 
 ##### `cleanup` - SSH 設定クリーンアップ
 
 ```bash
-ec2-connect vscode cleanup [SESSION_ID]
+nimbus vscode cleanup [SESSION_ID]
 ```
 
 ### データベース管理コマンド
@@ -368,7 +368,7 @@ ec2-connect vscode cleanup [SESSION_ID]
 #### `database` - データベース管理
 
 ```bash
-ec2-connect database <SUBCOMMAND>
+nimbus database <SUBCOMMAND>
 ```
 
 **サブコマンド:**
@@ -376,31 +376,31 @@ ec2-connect database <SUBCOMMAND>
 ##### `init` - データベース初期化
 
 ```bash
-ec2-connect database init
+nimbus database init
 ```
 
 ##### `info` - データベース情報
 
 ```bash
-ec2-connect database info
+nimbus database info
 ```
 
 ##### `sessions` - 保存済みセッション一覧
 
 ```bash
-ec2-connect database sessions
+nimbus database sessions
 ```
 
 ##### `stats` - パフォーマンス統計
 
 ```bash
-ec2-connect database stats [SESSION_ID]
+nimbus database stats [SESSION_ID]
 ```
 
 ##### `cleanup` - 古いデータ削除
 
 ```bash
-ec2-connect database cleanup [OPTIONS]
+nimbus database cleanup [OPTIONS]
 ```
 
 **オプション:**
@@ -410,7 +410,7 @@ ec2-connect database cleanup [OPTIONS]
 ##### `export` - データエクスポート
 
 ```bash
-ec2-connect database export [OPTIONS]
+nimbus database export [OPTIONS]
 ```
 
 **オプション:**
@@ -485,49 +485,49 @@ ec2-connect database export [OPTIONS]
 
 ```bash
 # AWS 設定
-export EC2_CONNECT_AWS_REGION=us-west-2
-export EC2_CONNECT_AWS_PROFILE=production
-export EC2_CONNECT_CONNECTION_TIMEOUT=45
-export EC2_CONNECT_REQUEST_TIMEOUT=90
+export NIMBUS_AWS_REGION=us-west-2
+export NIMBUS_AWS_PROFILE=production
+export NIMBUS_CONNECTION_TIMEOUT=45
+export NIMBUS_REQUEST_TIMEOUT=90
 
 # セッション管理
-export EC2_CONNECT_MAX_SESSIONS=5
-export EC2_CONNECT_HEALTH_CHECK_INTERVAL=3
-export EC2_CONNECT_INACTIVE_TIMEOUT=60
+export NIMBUS_MAX_SESSIONS=5
+export NIMBUS_HEALTH_CHECK_INTERVAL=3
+export NIMBUS_INACTIVE_TIMEOUT=60
 
 # 再接続ポリシー
-export EC2_CONNECT_RECONNECTION_ENABLED=true
-export EC2_CONNECT_MAX_RECONNECTION_ATTEMPTS=10
-export EC2_CONNECT_RECONNECTION_BASE_DELAY_MS=2000
-export EC2_CONNECT_RECONNECTION_MAX_DELAY_MS=30000
-export EC2_CONNECT_AGGRESSIVE_RECONNECTION=true
-export EC2_CONNECT_AGGRESSIVE_ATTEMPTS=15
-export EC2_CONNECT_AGGRESSIVE_INTERVAL_MS=250
+export NIMBUS_RECONNECTION_ENABLED=true
+export NIMBUS_MAX_RECONNECTION_ATTEMPTS=10
+export NIMBUS_RECONNECTION_BASE_DELAY_MS=2000
+export NIMBUS_RECONNECTION_MAX_DELAY_MS=30000
+export NIMBUS_AGGRESSIVE_RECONNECTION=true
+export NIMBUS_AGGRESSIVE_ATTEMPTS=15
+export NIMBUS_AGGRESSIVE_INTERVAL_MS=250
 
 # パフォーマンス監視
-export EC2_CONNECT_PERFORMANCE_MONITORING=true
-export EC2_CONNECT_LATENCY_THRESHOLD_MS=150
-export EC2_CONNECT_OPTIMIZATION_ENABLED=true
+export NIMBUS_PERFORMANCE_MONITORING=true
+export NIMBUS_LATENCY_THRESHOLD_MS=150
+export NIMBUS_OPTIMIZATION_ENABLED=true
 
 # リソース制限
-export EC2_CONNECT_MAX_MEMORY_MB=8
-export EC2_CONNECT_MAX_CPU_PERCENT=0.3
-export EC2_CONNECT_LOW_POWER_MODE=true
+export NIMBUS_MAX_MEMORY_MB=8
+export NIMBUS_MAX_CPU_PERCENT=0.3
+export NIMBUS_LOW_POWER_MODE=true
 
 # UI 設定
-export EC2_CONNECT_RICH_UI=false
-export EC2_CONNECT_UI_UPDATE_INTERVAL_MS=500
-export EC2_CONNECT_NOTIFICATIONS=false
+export NIMBUS_RICH_UI=false
+export NIMBUS_UI_UPDATE_INTERVAL_MS=500
+export NIMBUS_NOTIFICATIONS=false
 
 # ログ設定
-export EC2_CONNECT_LOG_LEVEL=debug
-export EC2_CONNECT_FILE_LOGGING=true
-export EC2_CONNECT_JSON_LOGGING=true
+export NIMBUS_LOG_LEVEL=debug
+export NIMBUS_FILE_LOGGING=true
+export NIMBUS_JSON_LOGGING=true
 
 # VS Code 統合
-export EC2_CONNECT_VSCODE_AUTO_LAUNCH=true
-export EC2_CONNECT_VSCODE_SSH_CONFIG_UPDATE=true
-export EC2_CONNECT_VSCODE_PATH=/usr/local/bin/code
+export NIMBUS_VSCODE_AUTO_LAUNCH=true
+export NIMBUS_VSCODE_SSH_CONFIG_UPDATE=true
+export NIMBUS_VSCODE_PATH=/usr/local/bin/code
 ```
 
 ## セッション管理 API
@@ -771,7 +771,7 @@ pub struct PerformanceStatistics {
 ### エラー型
 
 ```rust
-pub enum Ec2ConnectError {
+pub enum NimbusError {
     // AWS 関連エラー
     Aws(AwsError),
     
@@ -850,38 +850,38 @@ pub trait ErrorRecovery {
 
 ```bash
 # 1. 設定確認
-ec2-connect config validate
+nimbus config validate
 
 # 2. 予防的チェック
-ec2-connect diagnose preventive -i i-1234567890abcdef0
+nimbus diagnose preventive -i i-1234567890abcdef0
 
 # 3. 接続
-ec2-connect connect -i i-1234567890abcdef0 -l 8080 -r 80
+nimbus connect -i i-1234567890abcdef0 -l 8080 -r 80
 
 # 4. 状態監視
-ec2-connect tui
+nimbus tui
 
 # 5. セッション終了
-ec2-connect terminate session-abc123
+nimbus terminate session-abc123
 ```
 
 ### 高度な使用パターン
 
 ```bash
 # 包括的診断とレポート出力
-ec2-connect diagnose full -i i-1234567890abcdef0 --timeout 60 > diagnostic-report.txt
+nimbus diagnose full -i i-1234567890abcdef0 --timeout 60 > diagnostic-report.txt
 
 # 自動修復付き接続
-ec2-connect fix -i i-1234567890abcdef0 --auto-fix --safe-only
-ec2-connect connect -i i-1234567890abcdef0
+nimbus fix -i i-1234567890abcdef0 --auto-fix --safe-only
+nimbus connect -i i-1234567890abcdef0
 
 # パフォーマンス監視とデータエクスポート
-ec2-connect metrics
-ec2-connect database export -o performance-data.json -f json
+nimbus metrics
+nimbus database export -o performance-data.json -f json
 
 # VS Code 統合セットアップ
-ec2-connect vscode setup
-ec2-connect connect -i i-1234567890abcdef0 --priority high
+nimbus vscode setup
+nimbus connect -i i-1234567890abcdef0 --priority high
 ```
 
 ## 参考資料
