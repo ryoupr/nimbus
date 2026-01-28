@@ -1,4 +1,4 @@
-use crate::session::{Session, SessionEvent, SessionHealth as SessionHealthData};
+use crate::session::{Session, SessionEvent};
 use crate::error::{Result, SessionError};
 use std::collections::HashMap;
 use std::sync::Arc;

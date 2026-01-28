@@ -10,9 +10,8 @@ use crate::port_diagnostics::{PortDiagnostics, DefaultPortDiagnostics};
 use crate::ssm_agent_diagnostics::{SsmAgentDiagnostics, DefaultSsmAgentDiagnostics};
 use crate::iam_diagnostics::{IamDiagnostics, DefaultIamDiagnostics};
 use crate::network_diagnostics::{NetworkDiagnostics, DefaultNetworkDiagnostics};
-use crate::aws_config_validator::{AwsConfigValidator, DefaultAwsConfigValidator, AwsConfigValidationConfig, AwsConfigValidationResult};
+use crate::aws_config_validator::{DefaultAwsConfigValidator, AwsConfigValidationConfig, AwsConfigValidationResult};
 use crate::realtime_feedback::{RealtimeFeedbackManager, FeedbackConfig, FeedbackStatus, create_progress_callback};
-use crate::diagnostic_feedback::{DiagnosticFeedbackSystem, FeedbackDisplayConfig};
 
 /// Diagnostic configuration for SSM connection diagnostics
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,7 +201,6 @@ pub trait DiagnosticManager {
 pub struct DefaultDiagnosticManager {
     progress_callback: Option<std::sync::Arc<std::sync::Mutex<Box<dyn Fn(DiagnosticProgress) + Send + Sync>>>>,
     diagnostic_items: Vec<String>,
-    feedback_system: Option<DiagnosticFeedbackSystem>,
     realtime_feedback: Option<std::sync::Arc<RealtimeFeedbackManager>>,
 }
 
@@ -211,7 +209,6 @@ impl Clone for DefaultDiagnosticManager {
         Self {
             progress_callback: self.progress_callback.clone(),
             diagnostic_items: self.diagnostic_items.clone(),
-            feedback_system: None, // Don't clone feedback system
             realtime_feedback: self.realtime_feedback.clone(),
         }
     }
@@ -232,7 +229,6 @@ impl DefaultDiagnosticManager {
         Ok(Self {
             progress_callback: None,
             diagnostic_items,
-            feedback_system: None,
             realtime_feedback: None,
         })
     }
@@ -248,11 +244,6 @@ impl DefaultDiagnosticManager {
             if let Ok(callback_guard) = callback.lock() {
                 callback_guard(progress.clone());
             }
-        }
-        
-        // Also report to feedback system if available
-        if let Some(feedback_system) = &self.feedback_system {
-            let _ = feedback_system.update_progress(progress.clone());
         }
 
         // Also report to realtime feedback if available
@@ -326,84 +317,9 @@ impl DefaultDiagnosticManager {
         }
     }
 
-    /// Enable real-time feedback system
-    pub fn enable_feedback_system(&mut self) -> anyhow::Result<()> {
-        info!("Enabling real-time diagnostic feedback system");
-        let mut feedback_system = DiagnosticFeedbackSystem::new()?;
-        feedback_system.initialize_terminal()?;
-        self.feedback_system = Some(feedback_system);
-        Ok(())
-    }
-
-    /// Disable real-time feedback system
-    pub fn disable_feedback_system(&mut self) -> anyhow::Result<()> {
-        info!("Disabling real-time diagnostic feedback system");
-        if let Some(mut feedback_system) = self.feedback_system.take() {
-            feedback_system.stop()?;
-        }
-        Ok(())
-    }
-
-    /// Start feedback system with configuration
-    pub async fn start_feedback_system(&mut self, config: FeedbackDisplayConfig) -> anyhow::Result<()> {
-        if let Some(feedback_system) = &mut self.feedback_system {
-            info!("Starting real-time diagnostic feedback system");
-            
-            // Start the feedback system in a separate task
-            let mut feedback_clone = DiagnosticFeedbackSystem::new()?;
-            feedback_clone.initialize_terminal()?;
-            
-            tokio::spawn(async move {
-                if let Err(e) = feedback_clone.start(config).await {
-                    error!("Feedback system error: {}", e);
-                }
-            });
-        }
-        Ok(())
-    }
-
-    /// Check if feedback system is enabled
-    pub fn is_feedback_enabled(&self) -> bool {
-        self.feedback_system.is_some()
-    }
-
-    /// Get feedback system reference
-    pub fn get_feedback_system(&self) -> Option<&DiagnosticFeedbackSystem> {
-        self.feedback_system.as_ref()
-    }
-
-    /// Pause diagnostic execution (if feedback system is enabled)
-    pub fn pause_diagnostics(&self) -> anyhow::Result<()> {
-        if let Some(feedback_system) = &self.feedback_system {
-            feedback_system.pause()?;
-        }
-        Ok(())
-    }
-
-    /// Resume diagnostic execution (if feedback system is enabled)
-    pub fn resume_diagnostics(&self) -> anyhow::Result<()> {
-        if let Some(feedback_system) = &self.feedback_system {
-            feedback_system.resume()?;
-        }
-        Ok(())
-    }
-
     /// Add diagnostic result to feedback system
     fn report_result(&self, result: &DiagnosticResult) {
-        if let Some(feedback_system) = &self.feedback_system {
-            let _ = feedback_system.add_result(result.clone());
-            
-            // Handle critical issues
-            if result.severity == Severity::Critical {
-                let _ = feedback_system.request_confirmation(
-                    result.clone(),
-                    "重大な問題が検出されました。診断を続行しますか？".to_string(),
-                    vec!["続行".to_string(), "中止".to_string()],
-                );
-            }
-        }
-        
-        // Also report to realtime feedback
+        // Report to realtime feedback
         self.report_result_to_realtime(result.clone());
     }
 
@@ -445,7 +361,10 @@ impl DefaultDiagnosticManager {
         
         info!("Checking instance state for: {}", config.instance_id);
         
-        match DefaultInstanceDiagnostics::with_default_aws().await {
+        match DefaultInstanceDiagnostics::with_aws_config(
+            config.region.as_deref(),
+            config.profile.as_deref(),
+        ).await {
             Ok(instance_diagnostics) => {
                 match instance_diagnostics.check_instance_state(&config.instance_id).await {
                     Ok(result) => result,
@@ -478,7 +397,10 @@ impl DefaultDiagnosticManager {
         
         info!("Running enhanced SSM agent diagnostics for: {}", config.instance_id);
         
-        match DefaultSsmAgentDiagnostics::with_default_aws().await {
+        match DefaultSsmAgentDiagnostics::with_aws_config(
+            config.region.as_deref(),
+            config.profile.as_deref(),
+        ).await {
             Ok(ssm_diagnostics) => {
                 // Run comprehensive SSM agent diagnostics including enhanced features for Task 25.2
                 match ssm_diagnostics.run_ssm_agent_diagnostics(&config.instance_id).await {
@@ -583,7 +505,10 @@ impl DefaultDiagnosticManager {
         
         info!("Checking IAM permissions for: {}", config.instance_id);
         
-        match DefaultIamDiagnostics::with_default_aws().await {
+        match DefaultIamDiagnostics::with_aws_config(
+            config.region.as_deref(),
+            config.profile.as_deref(),
+        ).await {
             Ok(iam_diagnostics) => {
                 // Run comprehensive IAM diagnostics including enhanced Task 25.3 features
                 match iam_diagnostics.diagnose_iam_configuration(&config.instance_id).await {
@@ -688,7 +613,10 @@ impl DefaultDiagnosticManager {
         
         info!("Checking VPC endpoints for: {}", config.instance_id);
         
-        match DefaultNetworkDiagnostics::with_default_aws().await {
+        match DefaultNetworkDiagnostics::with_aws_config(
+            config.region.as_deref(),
+            config.profile.as_deref(),
+        ).await {
             Ok(network_diagnostics) => {
                 // Run comprehensive VPC endpoint analysis including enhanced Task 25.3 features
                 match network_diagnostics.detailed_vpc_endpoint_analysis(&config.instance_id).await {
@@ -805,7 +733,10 @@ impl DefaultDiagnosticManager {
         
         info!("Checking security groups for: {}", config.instance_id);
         
-        match DefaultNetworkDiagnostics::with_default_aws().await {
+        match DefaultNetworkDiagnostics::with_aws_config(
+            config.region.as_deref(),
+            config.profile.as_deref(),
+        ).await {
             Ok(network_diagnostics) => {
                 // Run comprehensive security group analysis including enhanced Task 25.3 features
                 match network_diagnostics.detailed_security_group_analysis(&config.instance_id).await {
@@ -910,7 +841,10 @@ impl DefaultDiagnosticManager {
         
         info!("Checking network connectivity for: {}", config.instance_id);
         
-        match DefaultNetworkDiagnostics::with_default_aws().await {
+        match DefaultNetworkDiagnostics::with_aws_config(
+            config.region.as_deref(),
+            config.profile.as_deref(),
+        ).await {
             Ok(network_diagnostics) => {
                 match network_diagnostics.test_network_connectivity(&config.instance_id).await {
                     Ok(result) => result,
@@ -984,7 +918,10 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                         "instance_state" => {
                             info!("Checking instance state for: {}", config_clone.instance_id);
                             
-                            match DefaultInstanceDiagnostics::with_default_aws().await {
+                            match DefaultInstanceDiagnostics::with_aws_config(
+                                config_clone.region.as_deref(),
+                                config_clone.profile.as_deref(),
+                            ).await {
                                 Ok(temp_instance_diagnostics) => {
                                     match temp_instance_diagnostics.check_instance_state(&config_clone.instance_id).await {
                                         Ok(result) => result,
@@ -1013,7 +950,10 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                         "ssm_agent_enhanced" => {
                             info!("Running enhanced SSM agent diagnostics for: {}", config_clone.instance_id);
                             
-                            match DefaultSsmAgentDiagnostics::with_default_aws().await {
+                            match DefaultSsmAgentDiagnostics::with_aws_config(
+                                config_clone.region.as_deref(),
+                                config_clone.profile.as_deref(),
+                            ).await {
                                 Ok(temp_ssm_diagnostics) => {
                                     match temp_ssm_diagnostics.run_ssm_agent_diagnostics(&config_clone.instance_id).await {
                                         Ok(results) => {
@@ -1113,7 +1053,10 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                         "iam_permissions" => {
                             info!("Checking IAM permissions for: {}", config_clone.instance_id);
                             
-                            match DefaultIamDiagnostics::with_default_aws().await {
+                            match DefaultIamDiagnostics::with_aws_config(
+                                config_clone.region.as_deref(),
+                                config_clone.profile.as_deref(),
+                            ).await {
                                 Ok(iam_diagnostics) => {
                                     match iam_diagnostics.diagnose_iam_configuration(&config_clone.instance_id).await {
                                         Ok(results) => {
@@ -1199,7 +1142,10 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                         "vpc_endpoints" => {
                             info!("Checking VPC endpoints for: {}", config_clone.instance_id);
                             
-                            match DefaultNetworkDiagnostics::with_default_aws().await {
+                            match DefaultNetworkDiagnostics::with_aws_config(
+                                config_clone.region.as_deref(),
+                                config_clone.profile.as_deref(),
+                            ).await {
                                 Ok(network_diagnostics) => {
                                     match network_diagnostics.check_vpc_endpoints(&config_clone.instance_id).await {
                                         Ok(result) => result,
@@ -1228,7 +1174,10 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                         "security_groups" => {
                             info!("Checking security groups for: {}", config_clone.instance_id);
                             
-                            match DefaultNetworkDiagnostics::with_default_aws().await {
+                            match DefaultNetworkDiagnostics::with_aws_config(
+                                config_clone.region.as_deref(),
+                                config_clone.profile.as_deref(),
+                            ).await {
                                 Ok(network_diagnostics) => {
                                     match network_diagnostics.check_security_group_rules(&config_clone.instance_id).await {
                                         Ok(result) => result,
@@ -1257,7 +1206,10 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                         "network_connectivity" => {
                             info!("Checking network connectivity for: {}", config_clone.instance_id);
                             
-                            match DefaultNetworkDiagnostics::with_default_aws().await {
+                            match DefaultNetworkDiagnostics::with_aws_config(
+                                config_clone.region.as_deref(),
+                                config_clone.profile.as_deref(),
+                            ).await {
                                 Ok(network_diagnostics) => {
                                     match network_diagnostics.test_network_connectivity(&config_clone.instance_id).await {
                                         Ok(result) => result,

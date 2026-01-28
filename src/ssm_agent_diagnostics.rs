@@ -237,6 +237,15 @@ impl DefaultSsmAgentDiagnostics {
         Ok(Self::new(aws_manager))
     }
     
+    /// Create SSM Agent diagnostics with specific AWS configuration
+    pub async fn with_aws_config(region: Option<&str>, profile: Option<&str>) -> Result<Self> {
+        let aws_manager = AwsManager::new(
+            region.map(|s| s.to_string()),
+            profile.map(|s| s.to_string()),
+        ).await.context("Failed to create AWS manager")?;
+        Ok(Self::new(aws_manager))
+    }
+    
     /// Create SSM Agent diagnostics with specific AWS profile
     pub async fn with_profile(profile: &str) -> Result<Self> {
         let aws_manager = AwsManager::with_profile(profile).await
@@ -249,12 +258,6 @@ impl DefaultSsmAgentDiagnostics {
         let aws_manager = AwsManager::with_region(region).await
             .context("Failed to create AWS manager with region")?;
         Ok(Self::new(aws_manager))
-    }
-    
-    /// Create SSM Agent diagnostics with synchronous AWS manager (for testing)
-    pub fn with_sync_aws() -> Self {
-        let aws_manager = AwsManager::default_sync();
-        Self::new(aws_manager)
     }
     
     /// Get SSM client from AWS manager
@@ -335,7 +338,7 @@ impl DefaultSsmAgentDiagnostics {
         // Parse version to check against known vulnerabilities
         let parts: Vec<&str> = version.split('.').collect();
         if parts.len() >= 3 {
-            if let (Ok(major), Ok(minor), Ok(patch)) = (
+            if let (Ok(major), Ok(minor), Ok(_patch)) = (
                 parts[0].parse::<u32>(),
                 parts[1].parse::<u32>(),
                 parts[2].parse::<u32>(),

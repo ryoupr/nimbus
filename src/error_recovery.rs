@@ -2,64 +2,6 @@ use crate::error::{Ec2ConnectError, ErrorSeverity, Result};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use tracing::{error, warn, info, debug};
-use std::future::Future;
-
-/// Exponential backoff utility for retry operations
-#[derive(Debug, Clone)]
-pub struct ExponentialBackoff {
-    base_delay: Duration,
-    max_delay: Duration,
-    max_attempts: u32,
-}
-
-impl ExponentialBackoff {
-    pub fn new(base_delay: Duration, max_delay: Duration, max_attempts: u32) -> Self {
-        Self {
-            base_delay,
-            max_delay,
-            max_attempts,
-        }
-    }
-
-    /// Retry an async operation with exponential backoff
-    pub async fn retry<F, Fut, T>(&self, mut operation: F) -> std::result::Result<T, Box<dyn std::error::Error>>
-    where
-        F: FnMut() -> Fut,
-        Fut: Future<Output = std::result::Result<T, Box<dyn std::error::Error>>>,
-    {
-        let mut delay = self.base_delay;
-        
-        for attempt in 1..=self.max_attempts {
-            debug!("Retry attempt {} of {}", attempt, self.max_attempts);
-            
-            match operation().await {
-                Ok(result) => {
-                    if attempt > 1 {
-                        info!("Operation succeeded after {} attempts", attempt);
-                    }
-                    return Ok(result);
-                }
-                Err(err) => {
-                    if attempt == self.max_attempts {
-                        error!("Operation failed after {} attempts: {}", attempt, err);
-                        return Err(err);
-                    }
-                    
-                    warn!("Attempt {} failed: {}, retrying in {:?}", attempt, err, delay);
-                    sleep(delay).await;
-                    
-                    // Exponential backoff
-                    delay = std::cmp::min(
-                        Duration::from_millis((delay.as_millis() as f64 * 2.0) as u64),
-                        self.max_delay
-                    );
-                }
-            }
-        }
-        
-        unreachable!("Loop should have returned")
-    }
-}
 
 /// Error recovery strategy configuration
 #[derive(Debug, Clone)]
@@ -194,25 +136,6 @@ impl ErrorRecoveryManager {
 
                 // Return the original error for better context
                 Err(error.clone())
-            },
-            
-            // AWS region errors - try with default region
-            Ec2ConnectError::Aws(crate::error::AwsError::RegionNotFound { .. }) => {
-                info!("Attempting fallback with default region");
-                
-                // Brief delay before retry
-                sleep(Duration::from_millis(200)).await;
-                
-                match operation() {
-                    Ok(result) => {
-                        info!("Fallback recovery successful with default region");
-                        Ok(result)
-                    },
-                    Err(_) => {
-                        warn!("Fallback recovery with default region failed");
-                        Err(error.clone())
-                    }
-                }
             },
             
             // For other errors, try a simple retry after a short delay
@@ -393,38 +316,6 @@ impl ErrorRecoveryManager {
     }
 }
 
-/// Automatic error recovery wrapper
-pub struct AutoRecovery<T> {
-    operation: Box<dyn Fn() -> Result<T> + Send + Sync>,
-    recovery_manager: ErrorRecoveryManager,
-}
-
-impl<T> AutoRecovery<T>
-where
-    T: Send + 'static,
-{
-    pub fn new<F>(operation: F, recovery_manager: ErrorRecoveryManager) -> Self
-    where
-        F: Fn() -> Result<T> + Send + Sync + 'static,
-    {
-        Self {
-            operation: Box::new(operation),
-            recovery_manager,
-        }
-    }
-
-    /// Execute operation with automatic recovery
-    pub async fn execute(&self) -> Result<T> {
-        match (self.operation)() {
-            Ok(result) => Ok(result),
-            Err(error) => {
-                warn!("Operation failed, attempting recovery: {}", error);
-                self.recovery_manager.recover(&self.operation, &error).await
-            }
-        }
-    }
-}
-
 /// Error context for better debugging
 #[derive(Debug, Clone)]
 pub struct ErrorContext {
@@ -531,8 +422,9 @@ mod tests {
         let manager = ErrorRecoveryManager::new(RecoveryConfig::default());
         
         // Recoverable errors should use retry strategy
-        let connection_error = Ec2ConnectError::Connection(ConnectionError::Timeout {
-            target: "test".to_string()
+        let connection_error = Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed {
+            reason: "test".to_string(),
+            issues: vec!["issue1".to_string()],
         });
         matches!(manager.get_strategy(&connection_error), RecoveryStrategy::Retry(_));
         
@@ -547,14 +439,15 @@ mod tests {
     async fn test_fallback_recovery() {
         let manager = ErrorRecoveryManager::new(RecoveryConfig::default());
         
-        // Test configuration error fallback
-        let config_error = Ec2ConnectError::Config(ConfigError::FileNotFound {
-            path: "test.json".to_string()
+        // Test connection error fallback
+        let connection_error = Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed {
+            reason: "test".to_string(),
+            issues: vec!["issue1".to_string()],
         });
         
         let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let call_count_clone = call_count.clone();
-        let error_clone = config_error.clone();
+        let error_clone = connection_error.clone();
         
         let operation = move || -> crate::error::Result<String> {
             let count = call_count_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -565,7 +458,7 @@ mod tests {
             }
         };
         
-        let result = manager.recover(operation, &config_error).await;
+        let result = manager.recover(operation, &connection_error).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "success");
     }
@@ -574,15 +467,14 @@ mod tests {
     async fn test_graceful_degradation() {
         let manager = ErrorRecoveryManager::new(RecoveryConfig::default());
         
-        // Test resource error degradation
-        let resource_error = Ec2ConnectError::Resource(ResourceError::MemoryLimitExceeded {
-            current_mb: 15,
-            limit_mb: 10
+        // Test session error degradation
+        let session_error = Ec2ConnectError::Session(SessionError::CreationFailed {
+            reason: "test".to_string()
         });
         
         let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let call_count_clone = call_count.clone();
-        let error_clone = resource_error.clone();
+        let error_clone = session_error.clone();
         
         let operation = move || -> crate::error::Result<String> {
             let count = call_count_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -593,7 +485,7 @@ mod tests {
             }
         };
         
-        let result = manager.recover(operation, &resource_error).await;
+        let result = manager.recover(operation, &session_error).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "degraded_success");
     }
@@ -609,8 +501,9 @@ mod tests {
         };
         let manager = ErrorRecoveryManager::new(config);
         
-        let connection_error = Ec2ConnectError::Connection(ConnectionError::Timeout {
-            target: "test".to_string()
+        let connection_error = Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed {
+            reason: "test".to_string(),
+            issues: vec!["issue1".to_string()],
         });
         
         let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
@@ -638,8 +531,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_contextual_error() {
-        let error = Ec2ConnectError::Connection(ConnectionError::Failed {
-            target: "test".to_string()
+        let error = Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed {
+            reason: "test".to_string(),
+            issues: vec!["issue1".to_string()],
         });
         let context = ErrorContext::new("connect", "session_manager")
             .with_session_id("test-session")

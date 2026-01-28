@@ -1,13 +1,13 @@
-use crate::session::{Session, SessionConfig, SessionPriority, SessionStatus};
+use crate::session::{Session, SessionConfig, SessionPriority};
 use crate::manager::{SessionManager, ResourceUsage, SessionStatistics};
-use crate::monitor::{SessionMonitor, SessionHealth};
+use crate::monitor::SessionMonitor;
 use crate::error::{Result, SessionError};
 use std::collections::{HashMap, BTreeMap};
 use std::sync::Arc;
 use tokio::sync::{RwLock, Mutex};
 use tracing::{info, warn, error, debug};
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, SystemTime, Instant};
+use std::time::SystemTime;
 
 /// Resource warning levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

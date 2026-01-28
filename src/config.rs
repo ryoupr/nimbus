@@ -1,4 +1,3 @@
-use crate::session::ReconnectionPolicy;
 use crate::vscode::VsCodeConfig;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -989,35 +988,5 @@ impl Config {
                 "Enable IdentitiesOnly for generated SSH config entry (true/false)",
             ),
         ]
-    }
-}
-
-// Add dirs dependency to Cargo.toml for config directory detection
-
-impl ReconnectionConfig {
-    /// Convert to ReconnectionPolicy
-    pub fn to_policy(&self) -> ReconnectionPolicy {
-        ReconnectionPolicy {
-            enabled: self.enabled,
-            max_attempts: self.max_attempts,
-            base_delay: Duration::from_millis(self.base_delay_ms),
-            max_delay: Duration::from_millis(self.max_delay_ms),
-            aggressive_mode: self.aggressive_mode,
-            aggressive_attempts: self.aggressive_attempts,
-            aggressive_interval: Duration::from_millis(self.aggressive_interval_ms),
-        }
-    }
-
-    /// Create from ReconnectionPolicy
-    pub fn from_policy(policy: &ReconnectionPolicy) -> Self {
-        Self {
-            enabled: policy.enabled,
-            max_attempts: policy.max_attempts,
-            base_delay_ms: policy.base_delay.as_millis() as u64,
-            max_delay_ms: policy.max_delay.as_millis() as u64,
-            aggressive_mode: policy.aggressive_mode,
-            aggressive_attempts: policy.aggressive_attempts,
-            aggressive_interval_ms: policy.aggressive_interval.as_millis() as u64,
-        }
     }
 }

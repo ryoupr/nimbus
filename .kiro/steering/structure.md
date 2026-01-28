@@ -1,154 +1,83 @@
+---
+inclusion: always
+---
+
 # プロジェクト構造
 
-## ディレクトリ構成
+## レイヤーアーキテクチャ
 
 ```
-ec2-connect/
-├── src/                          # ソースコード
-│   ├── main.rs                   # CLI エントリーポイント
-│   ├── lib.rs                    # ライブラリエクスポート
-│   ├── aws.rs                    # AWS SDK 統合（SSM, EC2, IAM, STS）
-│   ├── config.rs                 # 設定管理
-│   ├── session.rs                # セッション定義
-│   ├── manager.rs                # セッションマネージャー
-│   ├── monitor.rs                # セッション監視
-│   ├── reconnect.rs              # 自動再接続
-│   ├── performance.rs            # パフォーマンス監視
-│   ├── health.rs                 # ヘルスチェック
-│   ├── resource.rs               # リソース監視
-│   ├── persistence.rs            # データベース永続化
-│   ├── ui.rs                     # ターミナル UI
-│   ├── multi_session.rs          # マルチセッション管理
-│   ├── multi_session_ui.rs       # マルチセッション UI
-│   ├── vscode.rs                 # VS Code 統合
-│   ├── diagnostic.rs             # 診断マネージャー
-│   ├── instance_diagnostics.rs  # インスタンス診断
-│   ├── port_diagnostics.rs      # ポート診断
-│   ├── ssm_agent_diagnostics.rs # SSM エージェント診断
-│   ├── iam_diagnostics.rs       # IAM 権限診断
-│   ├── network_diagnostics.rs   # ネットワーク診断
-│   ├── auto_fix.rs              # 自動修復
-│   ├── suggestion_generator.rs  # 修復提案生成
-│   ├── preventive_check.rs      # 予防的チェック
-│   ├── report_manager.rs        # レポート管理
-│   ├── aws_config_validator.rs  # AWS 設定検証
-│   ├── diagnostic_feedback.rs   # 診断フィードバック
-│   ├── realtime_feedback.rs     # リアルタイムフィードバック
-│   ├── error.rs                 # エラー型定義
-│   ├── error_recovery.rs        # エラー回復
-│   ├── logging.rs               # ログ管理
-│   └── user_messages.rs         # ユーザーメッセージ
-├── benches/                      # ベンチマーク
-│   └── performance_benchmarks.rs
-├── docs/                         # ドキュメント
-│   ├── INDEX.md                  # ドキュメント索引
-│   ├── API_REFERENCE.md          # API リファレンス
-│   ├── TUTORIALS.md              # チュートリアル
-│   ├── TROUBLESHOOTING.md        # トラブルシューティング
-│   ├── PERFORMANCE_OPTIMIZATION.md # パフォーマンス最適化
-│   ├── CONFIGURATION.md          # 設定ガイド
-│   └── DATA_MODELS.md            # データモデル仕様
-├── logs/                         # ログファイル（実行時生成）
-├── performance_results/          # パフォーマンステスト結果
-├── .cargo/                       # Cargo 設定
-│   └── config.toml               # リンカ最適化設定
-├── Cargo.toml                    # プロジェクト定義
-├── Cargo.lock                    # 依存関係ロック
-├── config.json.example           # 設定ファイル例（JSON）
-├── config.toml.example           # 設定ファイル例（TOML）
-├── run.sh                        # Unix 実行スクリプト
-├── run.ps1                       # Windows 実行スクリプト
-├── run_performance_tests.sh      # パフォーマンステスト（Unix）
-├── run_performance_tests.ps1     # パフォーマンステスト（Windows）
-└── README.md                     # プロジェクト概要
+┌─────────────────────────────────────────────────────────┐
+│  CLI Layer (main.rs)                                    │
+│  - コマンド解析（clap）                                  │
+│  - ルーティング                                          │
+├─────────────────────────────────────────────────────────┤
+│  Business Logic Layer                                   │
+│  - manager.rs: セッションライフサイクル                   │
+│  - monitor.rs: 健全性監視                                │
+│  - reconnect.rs: 自動再接続                              │
+│  - diagnostic.rs: 診断オーケストレーション                │
+├─────────────────────────────────────────────────────────┤
+│  Integration Layer                                      │
+│  - aws.rs: AWS SDK 統合（SSM, EC2, IAM, STS）            │
+│  - vscode.rs: VS Code 連携                              │
+├─────────────────────────────────────────────────────────┤
+│  Data Layer                                             │
+│  - persistence.rs: SQLite 永続化                         │
+│  - config.rs: 設定管理                                   │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## モジュール構成
+## モジュール責務
 
-### コアモジュール
+### コア（変更時は影響範囲に注意）
 
-- `aws`: AWS サービスとの統合レイヤー
-- `config`: 設定ファイル・環境変数の管理
-- `session`: セッション定義と状態管理
-- `manager`: セッションライフサイクル管理
+| モジュール | 責務 | 依存先 |
+|-----------|------|--------|
+| `session` | セッション状態定義 | なし |
+| `manager` | セッション作成・終了 | `aws`, `session`, `config` |
+| `aws` | AWS API 呼び出し | AWS SDK |
+| `config` | 設定読み込み・検証 | `serde` |
 
-### 監視・最適化モジュール
+### 診断系（`*_diagnostics.rs`）
 
-- `monitor`: セッション健全性監視
-- `reconnect`: 自動再接続ロジック
-- `performance`: パフォーマンスメトリクス収集
-- `health`: システム・セッションヘルスチェック
-- `resource`: リソース使用量監視
+すべて `diagnostic.rs` から呼び出される。新規診断追加時は `DiagnosticManager` に登録。
 
-### 診断・修復モジュール
+- `instance_diagnostics`: EC2 状態確認
+- `port_diagnostics`: ポート到達性
+- `ssm_agent_diagnostics`: SSM Agent 状態
+- `iam_diagnostics`: 権限検証
+- `network_diagnostics`: VPC/SG 設定
 
-- `diagnostic`: 診断フレームワーク
-- `instance_diagnostics`: EC2 インスタンス診断
-- `port_diagnostics`: ポート可用性診断
-- `ssm_agent_diagnostics`: SSM エージェント診断
-- `iam_diagnostics`: IAM 権限診断
-- `network_diagnostics`: ネットワーク接続診断
-- `auto_fix`: 自動修復実行
-- `suggestion_generator`: 修復提案生成
-- `preventive_check`: 接続前予防チェック
-- `aws_config_validator`: AWS 設定検証
+### 修復系
 
-### UI・フィードバックモジュール
+- `auto_fix`: 自動修復実行（`suggestion_generator` の提案を実行）
+- `suggestion_generator`: 診断結果から修復手順を生成
+- `preventive_check`: 接続前の事前チェック
 
-- `ui`: ターミナル UI（ratatui）
-- `multi_session_ui`: マルチセッション UI
-- `diagnostic_feedback`: 診断フィードバックシステム
-- `realtime_feedback`: リアルタイムフィードバック
+### UI 系
 
-### ユーティリティモジュール
+- `ui`: ratatui ベースの TUI
+- `multi_session_ui`: 複数セッション表示
+- `realtime_feedback`: 進捗表示
 
-- `persistence`: SQLite データベース管理
-- `vscode`: VS Code 統合
-- `error`: エラー型定義
-- `error_recovery`: エラー回復戦略
-- `logging`: 構造化ログ
-- `user_messages`: ユーザー向けメッセージ生成
-- `report_manager`: 診断レポート生成
+## 新規ファイル追加時のルール
 
-## 設定ファイル配置
+1. **診断モジュール追加**: `src/*_diagnostics.rs` として作成し、`diagnostic.rs` の `DiagnosticManager` に登録
+2. **設定項目追加**: `config.rs` の `Config` 構造体に追加し、`config.*.example` を更新
+3. **エラー型追加**: `error.rs` の `Ec2ConnectError` に variant を追加
 
-### ユーザー設定
+## 設定ファイルパス
 
-- **Windows**: `%APPDATA%\ec2-connect\config.json`
-- **Linux/macOS**: `~/.config/ec2-connect/config.json`
+| 種別 | Windows | Unix |
+|------|---------|------|
+| 設定 | `%APPDATA%\ec2-connect\config.json` | `~/.config/ec2-connect/config.json` |
+| DB | `%APPDATA%\ec2-connect\sessions.db` | `~/.config/ec2-connect/sessions.db` |
+| ログ | `./logs/ec2-connect.YYYY-MM-DD` | `./logs/ec2-connect.YYYY-MM-DD` |
 
-### ログファイル
+## アーキテクチャ原則
 
-- プロジェクトルート: `logs/ec2-connect.YYYY-MM-DD`
-
-### データベース
-
-- ユーザー設定ディレクトリ: `sessions.db`
-
-## アーキテクチャパターン
-
-### レイヤー構造
-
-1. **CLI レイヤー** (`main.rs`): コマンド解析とルーティング
-2. **ビジネスロジックレイヤー** (`manager`, `monitor`, `reconnect`): コア機能
-3. **統合レイヤー** (`aws`, `vscode`): 外部サービス統合
-4. **データレイヤー** (`persistence`, `config`): データ管理
-
-### 非同期処理
-
-- Tokio ランタイムを使用した非同期処理
-- `async/await` による非同期 API
-- `async-trait` による trait の非同期化
-
-### エラーハンドリング
-
-- カスタムエラー型 (`Ec2ConnectError`)
-- `anyhow::Result` による伝播
-- コンテキスト付きエラー (`ContextualError`)
-- エラー回復戦略 (`ErrorRecoveryManager`)
-
-### 設定管理
-
-- 階層的設定（デフォルト → ファイル → 環境変数）
-- 複数フォーマット対応（JSON, TOML, YAML）
-- 実行時検証とバリデーション
+- **非同期優先**: すべての I/O は `async/await`（Tokio ランタイム）
+- **エラー伝播**: `anyhow::Result` + `.context()` でコンテキスト付与
+- **設定階層**: デフォルト → ファイル → 環境変数（後勝ち）
+- **Feature フラグ**: `advanced` feature で追加機能を有効化

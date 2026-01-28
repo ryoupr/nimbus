@@ -7,7 +7,7 @@ use aws_sdk_iam::Client as IamClient;
 use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_sts::Client as StsClient;
 use crate::diagnostic::{DiagnosticResult, Severity};
-use crate::aws::AwsManager;
+use crate::aws::{AwsManager, load_aws_config};
 
 /// IAM診断に必要な情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,23 +96,26 @@ pub struct DefaultIamDiagnostics {
 impl DefaultIamDiagnostics {
     /// デフォルトのAWS設定でIAM診断を作成
     pub async fn with_default_aws() -> anyhow::Result<Self> {
-        let aws_manager = AwsManager::default().await?;
-        
-        // STS クライアントを作成（認証情報検証用）
-        let config = aws_config::defaults(aws_config::BehaviorVersion::latest()).load().await;
+        Self::with_aws_config(None, None).await
+    }
+    
+    /// 指定されたAWS設定でIAM診断を作成
+    pub async fn with_aws_config(region: Option<&str>, profile: Option<&str>) -> anyhow::Result<Self> {
+        let config = load_aws_config(region, profile).await;
         let sts_client = StsClient::new(&config);
         let iam_client = IamClient::new(&config);
+        let ec2_client = Ec2Client::new(&config);
         
         Ok(Self {
             iam_client,
-            ec2_client: aws_manager.ec2_client,
+            ec2_client,
             sts_client,
         })
     }
     
     /// 指定されたAWSマネージャーでIAM診断を作成
     pub async fn with_aws_manager(aws_manager: &AwsManager) -> anyhow::Result<Self> {
-        let config = aws_config::defaults(aws_config::BehaviorVersion::latest()).load().await;
+        let config = load_aws_config(None, None).await;
         let sts_client = StsClient::new(&config);
         let iam_client = IamClient::new(&config);
         

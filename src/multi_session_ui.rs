@@ -1,22 +1,18 @@
-use crate::multi_session::{MultiSessionManager, MultiSessionState, ResourceWarning, ResourceWarningLevel};
-use crate::session::{Session, SessionPriority, SessionStatus};
+use crate::multi_session::{MultiSessionManager, MultiSessionState, ResourceWarningLevel};
+use crate::session::{SessionPriority, SessionStatus};
 use crate::manager::SessionManager;
 use crate::monitor::SessionMonitor;
 use crate::error::Result;
 use ratatui::{
-    backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    symbols,
     text::{Line, Span, Text},
     widgets::{
-        Block, Borders, Cell, Clear, Gauge, List, ListItem, Paragraph, Row, Table, Tabs, Wrap,
+        Block, Borders, Cell, Gauge, List, ListItem, Paragraph, Row, Table, Tabs, Wrap,
     },
     Frame,
 };
-use std::collections::HashMap;
 use std::time::SystemTime;
-use tracing::{debug, info};
 
 /// Multi-session UI state
 #[derive(Debug, Clone)]
@@ -409,7 +405,7 @@ impl<M: SessionManager + Send + Sync, Mon: SessionMonitor + Send + Sync> MultiSe
     }
     
     /// Render warnings and alerts
-    async fn render_warnings_alerts(&self, f: &mut Frame<'_>, area: Rect, state: &MultiSessionState) -> Result<()> {
+    async fn render_warnings_alerts(&self, f: &mut Frame<'_>, area: Rect, _state: &MultiSessionState) -> Result<()> {
         let warnings = self.manager.get_warning_history().await;
         
         let warning_items: Vec<ListItem> = warnings

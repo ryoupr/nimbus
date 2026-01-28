@@ -1179,7 +1179,7 @@ impl AwsConfigValidator for DefaultAwsConfigValidator {
         self.clear_integration_cache().await
     }
 
-    async fn validate_credentials(&self, config: &AwsConfigValidationConfig) -> Result<ValidationCheckResult, Box<dyn std::error::Error>> {
+    async fn validate_credentials(&self, _config: &AwsConfigValidationConfig) -> Result<ValidationCheckResult, Box<dyn std::error::Error>> {
         info!("Validating AWS credentials");
         let start_time = Instant::now();
 

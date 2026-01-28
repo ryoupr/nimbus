@@ -13,10 +13,6 @@ categories = ["command-line-utilities", "network-programming"]
 name = "ec2-connect"
 path = "src/main.rs"
 
-[lib]
-name = "ec2_connect"
-path = "src/lib.rs"
-
 [dependencies]
 # AWS SDK
 aws-config = "1.1"
@@ -24,6 +20,7 @@ aws-sdk-ssm = "1.12"
 aws-sdk-ec2 = "1.15"
 aws-sdk-iam = "1.12"
 aws-sdk-sts = "1.12"
+aws-credential-types = "1.1"
 
 # Async runtime
 tokio = { version = "1.35", features = ["full"] }

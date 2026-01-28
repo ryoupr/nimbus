@@ -2,11 +2,10 @@ use anyhow::{Context, Result};
 use aws_config::{BehaviorVersion, Region};
 use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_ssm::Client as SsmClient;
+use aws_credential_types::Credentials;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::process::Command;
 use tracing::{debug, info, warn};
-use crate::session::{Session, SessionConfig, SessionStatus};
-use std::time::SystemTime;
 
 /// AWS 認証とプロファイル管理
 #[derive(Debug, Clone)]
@@ -18,25 +17,6 @@ pub struct AwsManager {
 
 /// AWS クライアントのエイリアス（Auto Reconnector で使用）
 pub type AwsClient = AwsManager;
-
-/// AWS プロファイル設定
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AwsProfile {
-    pub name: String,
-    pub region: String,
-    pub access_key_id: Option<String>,
-    pub secret_access_key: Option<String>,
-    pub session_token: Option<String>,
-}
-
-/// SSM セッション設定
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SsmSessionConfig {
-    pub target: String,
-    pub document_name: Option<String>,
-    pub parameters: HashMap<String, Vec<String>>,
-    pub reason: Option<String>,
-}
 
 /// SSM セッション情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,23 +39,85 @@ pub enum SsmSessionStatus {
     Terminating,
 }
 
+/// AWS CLI export-credentials の出力形式
+#[derive(Debug, Deserialize)]
+struct ExportedCredentials {
+    #[serde(rename = "AccessKeyId")]
+    access_key_id: String,
+    #[serde(rename = "SecretAccessKey")]
+    secret_access_key: String,
+    #[serde(rename = "SessionToken")]
+    session_token: Option<String>,
+}
+
+/// AWS CLIからMFA認証済み認証情報を取得してSdkConfigを構築
+pub async fn load_aws_config(region: Option<&str>, profile: Option<&str>) -> aws_config::SdkConfig {
+    let mut config_loader = aws_config::defaults(BehaviorVersion::latest());
+    
+    if let Some(region_name) = region {
+        config_loader = config_loader.region(Region::new(region_name.to_string()));
+    }
+    
+    if let Some(profile_name) = profile {
+        if let Ok(creds) = get_credentials_from_cli(profile_name) {
+            let credentials = Credentials::new(
+                creds.access_key_id,
+                creds.secret_access_key,
+                creds.session_token,
+                None,
+                "aws-cli-export",
+            );
+            config_loader = config_loader.credentials_provider(credentials);
+            info!("Using credentials from AWS CLI (MFA supported)");
+        } else {
+            warn!("Failed to get credentials from AWS CLI, falling back to SDK");
+            config_loader = config_loader.profile_name(profile_name);
+        }
+    }
+    
+    config_loader.load().await
+}
+
+fn get_credentials_from_cli(profile: &str) -> Result<ExportedCredentials> {
+    debug!("Getting credentials from AWS CLI for profile: {}", profile);
+    
+    // aws コマンドのパスを探す（非対話シェルでも動作するように）
+    let aws_cmd = find_aws_command().unwrap_or_else(|| "aws".to_string());
+    
+    let output = Command::new(&aws_cmd)
+        .args(["configure", "export-credentials", "--profile", profile])
+        .output()
+        .context("Failed to execute aws configure export-credentials")?;
+    
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("AWS CLI failed: {}", stderr);
+    }
+    
+    serde_json::from_slice(&output.stdout)
+        .context("Failed to parse credentials from AWS CLI")
+}
+
+fn find_aws_command() -> Option<String> {
+    let paths = [
+        "/opt/homebrew/bin/aws",
+        "/usr/local/bin/aws",
+        "/usr/bin/aws",
+    ];
+    for path in paths {
+        if std::path::Path::new(path).exists() {
+            return Some(path.to_string());
+        }
+    }
+    None
+}
+
 impl AwsManager {
     /// 新しい AWS マネージャーを作成
     pub async fn new(region: Option<String>, profile: Option<String>) -> Result<Self> {
         info!("Initializing AWS manager with region: {:?}, profile: {:?}", region, profile);
         
-        // AWS 設定を構築
-        let mut config_loader = aws_config::defaults(BehaviorVersion::latest());
-        
-        if let Some(ref region_name) = region {
-            config_loader = config_loader.region(Region::new(region_name.clone()));
-        }
-        
-        if let Some(ref profile_name) = profile {
-            config_loader = config_loader.profile_name(profile_name);
-        }
-        
-        let config = config_loader.load().await;
+        let config = load_aws_config(region.as_deref(), profile.as_deref()).await;
         
         // クライアントを作成
         let ssm_client = SsmClient::new(&config);
@@ -99,25 +141,6 @@ impl AwsManager {
         Self::new(None, None).await
     }
     
-    /// 同期版のデフォルト AWS マネージャーを作成（テスト用）
-    /// 注意: このメソッドは実際のAWS認証情報を持たないため、テスト専用です
-    pub fn default_sync() -> Self {
-        // ダミーの設定でクライアントを作成
-        let config = aws_config::SdkConfig::builder()
-            .behavior_version(BehaviorVersion::latest())
-            .region(Region::new("us-east-1"))
-            .build();
-        
-        let ssm_client = SsmClient::new(&config);
-        let ec2_client = Ec2Client::new(&config);
-        
-        Self {
-            ssm_client,
-            ec2_client,
-            region: "us-east-1".to_string(),
-        }
-    }
-    
     /// 指定されたプロファイルで AWS マネージャーを作成
     pub async fn with_profile(profile: &str) -> Result<Self> {
         Self::new(None, Some(profile.to_string())).await
@@ -126,51 +149,6 @@ impl AwsManager {
     /// 指定されたリージョンで AWS マネージャーを作成
     pub async fn with_region(region: &str) -> Result<Self> {
         Self::new(Some(region.to_string()), None).await
-    }
-    
-    /// SSM セッションを開始
-    pub async fn start_ssm_session(&self, config: SsmSessionConfig) -> Result<SsmSession> {
-        info!("Starting SSM session for target: {}", config.target);
-        
-        // EC2 インスタンスの存在確認
-        self.verify_instance_exists(&config.target).await
-            .context("Failed to verify EC2 instance")?;
-        
-        // SSM セッションを開始
-        let document_name = config.document_name
-            .unwrap_or_else(|| "AWS-StartSSHSession".to_string());
-        
-        let mut request = self.ssm_client
-            .start_session()
-            .target(&config.target)
-            .document_name(&document_name);
-        
-        // パラメータを設定
-        if !config.parameters.is_empty() {
-            request = request.set_parameters(Some(config.parameters.clone()));
-        }
-        
-        // 理由を設定
-        if let Some(ref reason) = config.reason {
-            request = request.reason(reason);
-        }
-        
-        let response = request.send().await
-            .context("Failed to start SSM session")?;
-        
-        let session_id = response.session_id()
-            .context("SSM session ID not returned")?
-            .to_string();
-        
-        info!("SSM session started successfully: {}", session_id);
-        
-        Ok(SsmSession {
-            session_id,
-            target: config.target,
-            status: SsmSessionStatus::Connected,
-            created_at: chrono::Utc::now(),
-            region: self.region.clone(),
-        })
     }
     
     /// SSM セッションを終了
@@ -271,36 +249,6 @@ impl AwsManager {
         Ok(sessions)
     }
     
-    /// EC2 インスタンスの存在確認
-    async fn verify_instance_exists(&self, instance_id: &str) -> Result<bool> {
-        debug!("Verifying EC2 instance exists: {}", instance_id);
-        
-        let response = self.ec2_client
-            .describe_instances()
-            .instance_ids(instance_id)
-            .send()
-            .await
-            .context("Failed to describe EC2 instance")?;
-        
-        let exists = response.reservations()
-            .iter()
-            .any(|reservation| {
-                reservation.instances()
-                    .iter()
-                    .any(|instance| {
-                        instance.instance_id.as_deref() == Some(instance_id)
-                    })
-            });
-        
-        if exists {
-            debug!("EC2 instance verified: {}", instance_id);
-        } else {
-            warn!("EC2 instance not found: {}", instance_id);
-        }
-        
-        Ok(exists)
-    }
-    
     /// EC2 インスタンス情報を取得
     #[allow(dead_code)]
     pub async fn get_instance_info(&self, instance_id: &str) -> Result<Option<InstanceInfo>> {
@@ -356,44 +304,6 @@ impl AwsManager {
     /// 現在のリージョンを取得
     pub fn region(&self) -> &str {
         &self.region
-    }
-    
-    /// セッション設定からセッションを作成（Auto Reconnector 用）
-    pub async fn create_session(&self, config: SessionConfig) -> Result<Session> {
-        info!("Creating session for instance: {}", config.instance_id);
-        
-        // SSM セッション設定を構築
-        let mut parameters = HashMap::new();
-        parameters.insert("portNumber".to_string(), vec![config.remote_port.to_string()]);
-        parameters.insert("localPortNumber".to_string(), vec![config.local_port.to_string()]);
-        
-        let ssm_config = SsmSessionConfig {
-            target: config.instance_id.clone(),
-            document_name: Some("AWS-StartPortForwardingSession".to_string()),
-            parameters,
-            reason: Some("EC2 Connect Auto Reconnection".to_string()),
-        };
-        
-        // SSM セッションを開始
-        let ssm_session = self.start_ssm_session(ssm_config).await?;
-        
-        // Session オブジェクトを作成
-        let mut session = Session::new(
-            config.instance_id,
-            config.local_port,
-            config.remote_port,
-            config.aws_profile,
-            config.region,
-        );
-        
-        // SSM セッション ID を設定
-        session.id = ssm_session.session_id;
-        session.status = SessionStatus::Active;
-        session.created_at = SystemTime::now();
-        session.last_activity = SystemTime::now();
-        
-        info!("Session created successfully: {}", session.id);
-        Ok(session)
     }
 }
 

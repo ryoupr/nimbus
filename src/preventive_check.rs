@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::Instant;
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, error};
 use async_trait::async_trait;
 
 use crate::diagnostic::{DiagnosticConfig, DiagnosticResult, DiagnosticStatus, Severity};

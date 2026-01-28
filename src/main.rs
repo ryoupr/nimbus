@@ -2,11 +2,16 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use tracing::{error, info, warn};
 
+mod auto_fix;
 mod aws;
+mod aws_config_validator;
 mod config;
+mod diagnostic;
 mod error;
 mod error_recovery;
 mod health;
+mod iam_diagnostics;
+mod instance_diagnostics;
 mod logging;
 mod manager;
 #[cfg(feature = "performance-monitoring")]
@@ -15,24 +20,29 @@ mod monitor;
 mod multi_session;
 #[cfg(feature = "multi-session")]
 mod multi_session_ui;
+mod network_diagnostics;
 #[cfg(feature = "performance-monitoring")]
 mod performance;
 #[cfg(feature = "persistence")]
 mod persistence;
+mod port_diagnostics;
+mod preventive_check;
+mod realtime_feedback;
 #[cfg(feature = "auto-reconnect")]
 mod reconnect;
 mod resource;
 mod session;
+mod ssm_agent_diagnostics;
 mod targets;
 mod ui;
 mod user_messages;
 mod vscode;
 
 use aws::AwsManager;
+use aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator};
 use config::Config;
-use ec2_connect::aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator};
-use ec2_connect::diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager};
-use ec2_connect::preventive_check::{
+use diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager};
+use preventive_check::{
     DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig,
 };
 use error::Ec2ConnectError;
@@ -780,13 +790,14 @@ async fn main() -> Result<()> {
             session_id,
             comprehensive,
         } => handle_health(session_id, comprehensive, &config).await,
-        Commands::Database { action: _ } => {
+        Commands::Database { action } => {
             #[cfg(feature = "persistence")]
             {
                 handle_database(action, &config).await
             }
             #[cfg(not(feature = "persistence"))]
             {
+                let _ = action; // Suppress unused warning
                 eprintln!("❌ Database functionality is not available. Enable the 'persistence' feature to use this command.");
                 Err(anyhow::anyhow!("Database functionality not available"))
             }
@@ -1309,7 +1320,7 @@ async fn handle_connect(
                         .any(|issue| issue.item_name == "managed_instance_registration");
 
                     if has_managed_instance_registration_issue {
-                        use ec2_connect::auto_fix::{
+                        use auto_fix::{
                             AutoFixManager, DefaultAutoFixManager, FixAction, FixActionType,
                         };
 
@@ -1423,7 +1434,7 @@ async fn handle_connect(
 
             if matches!(
                 result.overall_status,
-                ec2_connect::preventive_check::PreventiveCheckStatus::Ready
+                preventive_check::PreventiveCheckStatus::Ready
             ) {
                 println!("✅ Preventive checks passed - proceeding with connection");
             } else {
@@ -3285,27 +3296,27 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
 
                     for result in &results {
                         let status_icon = match result.status {
-                            ec2_connect::diagnostic::DiagnosticStatus::Success => {
+                            diagnostic::DiagnosticStatus::Success => {
                                 success_count += 1;
                                 "✅"
                             }
-                            ec2_connect::diagnostic::DiagnosticStatus::Warning => {
+                            diagnostic::DiagnosticStatus::Warning => {
                                 warning_count += 1;
                                 "⚠️"
                             }
-                            ec2_connect::diagnostic::DiagnosticStatus::Error => {
+                            diagnostic::DiagnosticStatus::Error => {
                                 error_count += 1;
                                 "❌"
                             }
-                            ec2_connect::diagnostic::DiagnosticStatus::Skipped => "⏭️",
+                            diagnostic::DiagnosticStatus::Skipped => "⏭️",
                         };
 
                         let severity_text = match result.severity {
-                            ec2_connect::diagnostic::Severity::Critical => "CRITICAL",
-                            ec2_connect::diagnostic::Severity::High => "HIGH",
-                            ec2_connect::diagnostic::Severity::Medium => "MEDIUM",
-                            ec2_connect::diagnostic::Severity::Low => "LOW",
-                            ec2_connect::diagnostic::Severity::Info => "INFO",
+                            diagnostic::Severity::Critical => "CRITICAL",
+                            diagnostic::Severity::High => "HIGH",
+                            diagnostic::Severity::Medium => "MEDIUM",
+                            diagnostic::Severity::Low => "LOW",
+                            diagnostic::Severity::Info => "INFO",
                         };
 
                         println!(
@@ -3414,19 +3425,19 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
 
                     for result in &results {
                         let status_icon = match result.status {
-                            ec2_connect::diagnostic::DiagnosticStatus::Success => "✅",
-                            ec2_connect::diagnostic::DiagnosticStatus::Warning => "⚠️",
-                            ec2_connect::diagnostic::DiagnosticStatus::Error => {
+                            diagnostic::DiagnosticStatus::Success => "✅",
+                            diagnostic::DiagnosticStatus::Warning => "⚠️",
+                            diagnostic::DiagnosticStatus::Error => {
                                 if matches!(
                                     result.severity,
-                                    ec2_connect::diagnostic::Severity::Critical
-                                        | ec2_connect::diagnostic::Severity::High
+                                    diagnostic::Severity::Critical
+                                        | diagnostic::Severity::High
                                 ) {
                                     can_proceed = false;
                                 }
                                 "❌"
                             }
-                            ec2_connect::diagnostic::DiagnosticStatus::Skipped => "⏭️",
+                            diagnostic::DiagnosticStatus::Skipped => "⏭️",
                         };
 
                         println!("{} {} - {}", status_icon, result.item_name, result.message);
@@ -3528,10 +3539,10 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
 
                     // Display overall status
                     let status_icon = match result.overall_status {
-                        ec2_connect::preventive_check::PreventiveCheckStatus::Ready => "✅",
-                        ec2_connect::preventive_check::PreventiveCheckStatus::Warning => "⚠️",
-                        ec2_connect::preventive_check::PreventiveCheckStatus::Critical => "❌",
-                        ec2_connect::preventive_check::PreventiveCheckStatus::Aborted => "🛑",
+                        preventive_check::PreventiveCheckStatus::Ready => "✅",
+                        preventive_check::PreventiveCheckStatus::Warning => "⚠️",
+                        preventive_check::PreventiveCheckStatus::Critical => "❌",
+                        preventive_check::PreventiveCheckStatus::Aborted => "🛑",
                     };
 
                     println!(
@@ -3580,14 +3591,14 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                         println!("   Run 'ec2-connect diagnose full --instance-id {}' for detailed analysis.", instance_id);
                     } else {
                         match result.overall_status {
-                            ec2_connect::preventive_check::PreventiveCheckStatus::Ready => {
+                            preventive_check::PreventiveCheckStatus::Ready => {
                                 println!("🚀 All checks passed! You can proceed with connection.");
                                 println!(
                                     "   Run: ec2-connect connect --instance-id {}",
                                     instance_id
                                 );
                             }
-                            ec2_connect::preventive_check::PreventiveCheckStatus::Warning => {
+                            preventive_check::PreventiveCheckStatus::Warning => {
                                 println!("⚠️  Connection can proceed but with warnings.");
                                 println!(
                                     "   Consider addressing warnings for optimal performance."
@@ -3652,18 +3663,18 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                     println!("===============================");
 
                     let status_icon = match result.status {
-                        ec2_connect::diagnostic::DiagnosticStatus::Success => "✅",
-                        ec2_connect::diagnostic::DiagnosticStatus::Warning => "⚠️",
-                        ec2_connect::diagnostic::DiagnosticStatus::Error => "❌",
-                        ec2_connect::diagnostic::DiagnosticStatus::Skipped => "⏭️",
+                        diagnostic::DiagnosticStatus::Success => "✅",
+                        diagnostic::DiagnosticStatus::Warning => "⚠️",
+                        diagnostic::DiagnosticStatus::Error => "❌",
+                        diagnostic::DiagnosticStatus::Skipped => "⏭️",
                     };
 
                     let severity_text = match result.severity {
-                        ec2_connect::diagnostic::Severity::Critical => "CRITICAL",
-                        ec2_connect::diagnostic::Severity::High => "HIGH",
-                        ec2_connect::diagnostic::Severity::Medium => "MEDIUM",
-                        ec2_connect::diagnostic::Severity::Low => "LOW",
-                        ec2_connect::diagnostic::Severity::Info => "INFO",
+                        diagnostic::Severity::Critical => "CRITICAL",
+                        diagnostic::Severity::High => "HIGH",
+                        diagnostic::Severity::Medium => "MEDIUM",
+                        diagnostic::Severity::Low => "LOW",
+                        diagnostic::Severity::Info => "INFO",
                     };
 
                     println!(
@@ -3820,10 +3831,10 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                     println!("🔍 Individual Check Results:");
                     for check in &validation_result.check_results {
                         let status_icon = match check.status {
-                            ec2_connect::diagnostic::DiagnosticStatus::Success => "✅",
-                            ec2_connect::diagnostic::DiagnosticStatus::Warning => "⚠️",
-                            ec2_connect::diagnostic::DiagnosticStatus::Error => "❌",
-                            ec2_connect::diagnostic::DiagnosticStatus::Skipped => "⏭️",
+                            diagnostic::DiagnosticStatus::Success => "✅",
+                            diagnostic::DiagnosticStatus::Warning => "⚠️",
+                            diagnostic::DiagnosticStatus::Error => "❌",
+                            diagnostic::DiagnosticStatus::Skipped => "⏭️",
                         };
 
                         println!(
@@ -3851,23 +3862,23 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                             validation_result.improvement_suggestions.iter().enumerate()
                         {
                             let priority_icon = match suggestion.priority {
-                                ec2_connect::aws_config_validator::SuggestionPriority::Critical => {
+                                aws_config_validator::SuggestionPriority::Critical => {
                                     "🚨"
                                 }
-                                ec2_connect::aws_config_validator::SuggestionPriority::High => "🔴",
-                                ec2_connect::aws_config_validator::SuggestionPriority::Medium => {
+                                aws_config_validator::SuggestionPriority::High => "🔴",
+                                aws_config_validator::SuggestionPriority::Medium => {
                                     "🟡"
                                 }
-                                ec2_connect::aws_config_validator::SuggestionPriority::Low => "🟢",
+                                aws_config_validator::SuggestionPriority::Low => "🟢",
                             };
 
                             let category_text = match suggestion.category {
-                                ec2_connect::aws_config_validator::SuggestionCategory::Credentials => "Credentials",
-                                ec2_connect::aws_config_validator::SuggestionCategory::IamPermissions => "IAM Permissions",
-                                ec2_connect::aws_config_validator::SuggestionCategory::VpcConfiguration => "VPC Configuration",
-                                ec2_connect::aws_config_validator::SuggestionCategory::SecurityGroups => "Security Groups",
-                                ec2_connect::aws_config_validator::SuggestionCategory::NetworkConnectivity => "Network Connectivity",
-                                ec2_connect::aws_config_validator::SuggestionCategory::General => "General",
+                                aws_config_validator::SuggestionCategory::Credentials => "Credentials",
+                                aws_config_validator::SuggestionCategory::IamPermissions => "IAM Permissions",
+                                aws_config_validator::SuggestionCategory::VpcConfiguration => "VPC Configuration",
+                                aws_config_validator::SuggestionCategory::SecurityGroups => "Security Groups",
+                                aws_config_validator::SuggestionCategory::NetworkConnectivity => "Network Connectivity",
+                                aws_config_validator::SuggestionCategory::General => "General",
                             };
 
                             println!(
@@ -4072,10 +4083,10 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                     println!("🔍 Individual Check Results (with Cross-Validation):");
                     for check in &validation_result.check_results {
                         let status_icon = match check.status {
-                            ec2_connect::diagnostic::DiagnosticStatus::Success => "✅",
-                            ec2_connect::diagnostic::DiagnosticStatus::Warning => "⚠️",
-                            ec2_connect::diagnostic::DiagnosticStatus::Error => "❌",
-                            ec2_connect::diagnostic::DiagnosticStatus::Skipped => "⏭️",
+                            diagnostic::DiagnosticStatus::Success => "✅",
+                            diagnostic::DiagnosticStatus::Warning => "⚠️",
+                            diagnostic::DiagnosticStatus::Error => "❌",
+                            diagnostic::DiagnosticStatus::Skipped => "⏭️",
                         };
 
                         println!(
@@ -4127,23 +4138,23 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                             validation_result.improvement_suggestions.iter().enumerate()
                         {
                             let priority_icon = match suggestion.priority {
-                                ec2_connect::aws_config_validator::SuggestionPriority::Critical => {
+                                aws_config_validator::SuggestionPriority::Critical => {
                                     "🚨"
                                 }
-                                ec2_connect::aws_config_validator::SuggestionPriority::High => "🔴",
-                                ec2_connect::aws_config_validator::SuggestionPriority::Medium => {
+                                aws_config_validator::SuggestionPriority::High => "🔴",
+                                aws_config_validator::SuggestionPriority::Medium => {
                                     "🟡"
                                 }
-                                ec2_connect::aws_config_validator::SuggestionPriority::Low => "🟢",
+                                aws_config_validator::SuggestionPriority::Low => "🟢",
                             };
 
                             let category_text = match suggestion.category {
-                                ec2_connect::aws_config_validator::SuggestionCategory::Credentials => "Credentials",
-                                ec2_connect::aws_config_validator::SuggestionCategory::IamPermissions => "IAM Permissions",
-                                ec2_connect::aws_config_validator::SuggestionCategory::VpcConfiguration => "VPC Configuration",
-                                ec2_connect::aws_config_validator::SuggestionCategory::SecurityGroups => "Security Groups",
-                                ec2_connect::aws_config_validator::SuggestionCategory::NetworkConnectivity => "Network Connectivity",
-                                ec2_connect::aws_config_validator::SuggestionCategory::General => "General",
+                                aws_config_validator::SuggestionCategory::Credentials => "Credentials",
+                                aws_config_validator::SuggestionCategory::IamPermissions => "IAM Permissions",
+                                aws_config_validator::SuggestionCategory::VpcConfiguration => "VPC Configuration",
+                                aws_config_validator::SuggestionCategory::SecurityGroups => "Security Groups",
+                                aws_config_validator::SuggestionCategory::NetworkConnectivity => "Network Connectivity",
+                                aws_config_validator::SuggestionCategory::General => "General",
                             };
 
                             println!(
@@ -4277,7 +4288,7 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
             config = config.with_aws_config(region, profile);
 
             // Create feedback configuration
-            let feedback_config = ec2_connect::realtime_feedback::FeedbackConfig {
+            let feedback_config = realtime_feedback::FeedbackConfig {
                 show_progress_bar: true,
                 show_detailed_status: true,
                 enable_colors: !no_color,
@@ -4326,22 +4337,22 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
 
                     for result in &results {
                         match result.status {
-                            ec2_connect::diagnostic::DiagnosticStatus::Success => {
+                            diagnostic::DiagnosticStatus::Success => {
                                 success_count += 1
                             }
-                            ec2_connect::diagnostic::DiagnosticStatus::Warning => {
+                            diagnostic::DiagnosticStatus::Warning => {
                                 warning_count += 1
                             }
-                            ec2_connect::diagnostic::DiagnosticStatus::Error => {
+                            diagnostic::DiagnosticStatus::Error => {
                                 error_count += 1;
                                 if matches!(
                                     result.severity,
-                                    ec2_connect::diagnostic::Severity::Critical
+                                    diagnostic::Severity::Critical
                                 ) {
                                     critical_count += 1;
                                 }
                             }
-                            ec2_connect::diagnostic::DiagnosticStatus::Skipped => {}
+                            diagnostic::DiagnosticStatus::Skipped => {}
                         }
                     }
 
@@ -4369,7 +4380,7 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                     // Final status
                     let feedback_status = diagnostic_manager.get_feedback_status();
                     match feedback_status {
-                        Some(ec2_connect::realtime_feedback::FeedbackStatus::Completed) => {
+                        Some(realtime_feedback::FeedbackStatus::Completed) => {
                             if critical_count == 0 {
                                 println!();
                                 println!("🎉 All diagnostics completed successfully!");
@@ -4384,12 +4395,12 @@ async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Result
                                 println!("   Please resolve critical issues before connecting.");
                             }
                         }
-                        Some(ec2_connect::realtime_feedback::FeedbackStatus::Interrupted) => {
+                        Some(realtime_feedback::FeedbackStatus::Interrupted) => {
                             println!();
                             println!("⏸️  Diagnostics were interrupted by user.");
                             println!("   Run the command again to resume or use 'ec2-connect diagnose full' for non-interactive mode.");
                         }
-                        Some(ec2_connect::realtime_feedback::FeedbackStatus::Failed) => {
+                        Some(realtime_feedback::FeedbackStatus::Failed) => {
                             println!();
                             println!("❌ Diagnostics failed due to critical issues.");
                             println!("   User chose to abort due to critical problems.");
@@ -4525,19 +4536,19 @@ async fn handle_precheck(
 
                     for result in &results {
                         let status_icon = match result.status {
-                            ec2_connect::diagnostic::DiagnosticStatus::Success => "✅",
-                            ec2_connect::diagnostic::DiagnosticStatus::Warning => "⚠️",
-                            ec2_connect::diagnostic::DiagnosticStatus::Error => {
+                            diagnostic::DiagnosticStatus::Success => "✅",
+                            diagnostic::DiagnosticStatus::Warning => "⚠️",
+                            diagnostic::DiagnosticStatus::Error => {
                                 if matches!(
                                     result.severity,
-                                    ec2_connect::diagnostic::Severity::Critical
-                                        | ec2_connect::diagnostic::Severity::High
+                                    diagnostic::Severity::Critical
+                                        | diagnostic::Severity::High
                                 ) {
                                     can_proceed = false;
                                 }
                                 "❌"
                             }
-                            ec2_connect::diagnostic::DiagnosticStatus::Skipped => "⏭️",
+                            diagnostic::DiagnosticStatus::Skipped => "⏭️",
                         };
 
                         println!("{} {} - {}", status_icon, result.item_name, result.message);
@@ -4603,7 +4614,7 @@ async fn handle_fix(
     output: Option<String>,
     _config: &Config,
 ) -> Result<()> {
-    use ec2_connect::auto_fix::{AutoFixManager, DefaultAutoFixManager};
+    use auto_fix::{AutoFixManager, DefaultAutoFixManager};
     use std::time::Duration;
 
     info!("Running auto-fix for instance: {}", instance_id);
@@ -4668,8 +4679,8 @@ async fn handle_fix(
             result.auto_fixable
                 && matches!(
                     result.status,
-                    ec2_connect::diagnostic::DiagnosticStatus::Error
-                        | ec2_connect::diagnostic::DiagnosticStatus::Warning
+                    diagnostic::DiagnosticStatus::Error
+                        | diagnostic::DiagnosticStatus::Warning
                 )
         })
         .collect();
@@ -4683,11 +4694,11 @@ async fn handle_fix(
     println!("🔧 Found {} fixable issues:", fixable_issues.len());
     for (index, issue) in fixable_issues.iter().enumerate() {
         let severity_icon = match issue.severity {
-            ec2_connect::diagnostic::Severity::Critical => "🚨",
-            ec2_connect::diagnostic::Severity::High => "🔴",
-            ec2_connect::diagnostic::Severity::Medium => "🟡",
-            ec2_connect::diagnostic::Severity::Low => "🟢",
-            ec2_connect::diagnostic::Severity::Info => "ℹ️",
+            diagnostic::Severity::Critical => "🚨",
+            diagnostic::Severity::High => "🔴",
+            diagnostic::Severity::Medium => "🟡",
+            diagnostic::Severity::Low => "🟢",
+            diagnostic::Severity::Info => "ℹ️",
         };
         println!(
             "   {}. {} {} - {}",
@@ -4745,11 +4756,11 @@ async fn handle_fix(
     println!("🔧 Available fixes ({}):", actions_to_execute.len());
     for (index, action) in actions_to_execute.iter().enumerate() {
         let risk_icon = match action.risk_level {
-            ec2_connect::auto_fix::RiskLevel::Safe => "🟢",
-            ec2_connect::auto_fix::RiskLevel::Low => "🟡",
-            ec2_connect::auto_fix::RiskLevel::Medium => "🟠",
-            ec2_connect::auto_fix::RiskLevel::High => "🔴",
-            ec2_connect::auto_fix::RiskLevel::Critical => "🚨",
+            auto_fix::RiskLevel::Safe => "🟢",
+            auto_fix::RiskLevel::Low => "🟡",
+            auto_fix::RiskLevel::Medium => "🟠",
+            auto_fix::RiskLevel::High => "🔴",
+            auto_fix::RiskLevel::Critical => "🚨",
         };
         println!(
             "   {}. {} {} - {}",

@@ -7,16 +7,13 @@ use crossterm::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout, Rect, Alignment},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::{Span, Line},
-    widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph, Tabs, Table, Row, Cell, LineGauge},
-    Frame, Terminal,
+    widgets::{Block, Borders, Paragraph, Tabs}, Terminal,
 };
 use std::{io, time::Instant};
 use tokio::sync::mpsc;
 use tracing::info;
-use chrono::{DateTime, Local};
 
 /// UI events
 #[derive(Debug, Clone)]
@@ -206,7 +203,6 @@ impl TerminalUi {
         });
         
         // Main UI loop with 1-second update interval for real-time display
-        #[allow(unused_assignments)]
         let mut last_draw = Instant::now();
         loop {
             // Draw UI at least once per second for real-time updates
@@ -221,7 +217,8 @@ impl TerminalUi {
                     UiEvent::Refresh => {
                         // Force immediate redraw
                         self.draw()?;
-                        last_draw = Instant::now();
+                        #[allow(unused_assignments)]
+                        { last_draw = Instant::now(); }
                     },
                     UiEvent::CreateSession => {
                         // TODO: Show create session dialog

@@ -53,51 +53,15 @@ impl UserMessageSystem {
         }
     }
 
-    fn handle_config_error(&self, error: &ConfigError) -> UserErrorMessage {
-        match error {
-            ConfigError::FileNotFound { path } => UserErrorMessage {
-                title: "設定ファイルが見つかりません".to_string(),
-                message: format!("設定ファイル '{}' が見つかりません。", path),
-                severity: "medium".to_string(),
-                solutions: vec![
-                    "設定ファイルのサンプルをコピーして編集してください".to_string(),
-                    format!("cp {}.example {}", path, path),
-                    "設定ファイルのパスが正しいか確認してください".to_string(),
-                ],
-                help_command: Some("ec2-connect config --help".to_string()),
-            },
-            ConfigError::Invalid { message } => UserErrorMessage {
-                title: "設定ファイルの内容が無効です".to_string(),
-                message: format!("設定エラー: {}", message),
-                severity: "high".to_string(),
-                solutions: vec![
-                    "設定ファイルの構文を確認してください".to_string(),
-                    "JSON/TOML形式が正しいか確認してください".to_string(),
-                    "設定ファイルのサンプルと比較してください".to_string(),
-                ],
-                help_command: Some("ec2-connect config validate".to_string()),
-            },
-            ConfigError::ValidationFailed { field } => UserErrorMessage {
-                title: "設定の検証に失敗しました".to_string(),
-                message: format!("フィールド '{}' の値が無効です。", field),
-                severity: "medium".to_string(),
-                solutions: vec![
-                    format!("フィールド '{}' の値を確認してください", field),
-                    "許可される値については、ドキュメントを参照してください".to_string(),
-                ],
-                help_command: Some("ec2-connect config --help".to_string()),
-            },
-            ConfigError::PermissionDenied { path } => UserErrorMessage {
-                title: "設定ファイルへのアクセスが拒否されました".to_string(),
-                message: format!("ファイル '{}' への読み取り権限がありません。", path),
-                severity: "high".to_string(),
-                solutions: vec![
-                    "ファイルの権限を確認してください".to_string(),
-                    format!("chmod 644 {}", path),
-                    "管理者権限で実行してみてください".to_string(),
-                ],
-                help_command: None,
-            },
+    fn handle_config_error(&self, _error: &ConfigError) -> UserErrorMessage {
+        UserErrorMessage {
+            title: "設定エラー".to_string(),
+            message: "設定に問題があります".to_string(),
+            severity: "medium".to_string(),
+            solutions: vec![
+                "設定ファイルを確認してください".to_string(),
+            ],
+            help_command: Some("ec2-connect config --help".to_string()),
         }
     }
 
@@ -115,40 +79,6 @@ impl UserMessageSystem {
                 ],
                 help_command: Some("aws configure --help".to_string()),
             },
-            AwsError::InvalidCredentials => UserErrorMessage {
-                title: "AWS認証情報が無効です".to_string(),
-                message: "提供された認証情報が無効または期限切れです。".to_string(),
-                severity: "high".to_string(),
-                solutions: vec![
-                    "AWS認証情報を更新してください".to_string(),
-                    "aws configure で新しい認証情報を設定".to_string(),
-                    "一時的な認証情報の場合、セッショントークンを確認".to_string(),
-                ],
-                help_command: Some("aws sts get-caller-identity".to_string()),
-            },
-            AwsError::RegionNotFound { region } => UserErrorMessage {
-                title: "AWSリージョンが見つかりません".to_string(),
-                message: format!("リージョン '{}' が見つからないか、利用できません。", region),
-                severity: "medium".to_string(),
-                solutions: vec![
-                    "リージョン名のスペルを確認してください".to_string(),
-                    "利用可能なリージョンのリストを確認".to_string(),
-                    "aws ec2 describe-regions でリージョンを確認".to_string(),
-                ],
-                help_command: Some("aws ec2 describe-regions".to_string()),
-            },
-            AwsError::InstanceNotFound { instance_id } => UserErrorMessage {
-                title: "EC2インスタンスが見つかりません".to_string(),
-                message: format!("インスタンス '{}' が見つからないか、アクセスできません。", instance_id),
-                severity: "medium".to_string(),
-                solutions: vec![
-                    "インスタンスIDが正しいか確認してください".to_string(),
-                    "インスタンスが実行中か確認".to_string(),
-                    "適切なリージョンを選択しているか確認".to_string(),
-                    "IAM権限でインスタンスにアクセスできるか確認".to_string(),
-                ],
-                help_command: Some("aws ec2 describe-instances".to_string()),
-            },
             AwsError::SsmServiceError { message } => UserErrorMessage {
                 title: "SSMサービスエラー".to_string(),
                 message: format!("SSMサービスエラー: {}", message),
@@ -159,18 +89,6 @@ impl UserMessageSystem {
                     "VPCエンドポイントまたはインターネットアクセスが利用可能か確認".to_string(),
                 ],
                 help_command: Some("aws ssm describe-instance-information".to_string()),
-            },
-            AwsError::NetworkError { message } => UserErrorMessage {
-                title: "ネットワークエラー".to_string(),
-                message: format!("ネットワーク接続エラー: {}", message),
-                severity: "medium".to_string(),
-                solutions: vec![
-                    "インターネット接続を確認してください".to_string(),
-                    "ファイアウォール設定を確認".to_string(),
-                    "プロキシ設定が必要な場合は設定を確認".to_string(),
-                    "しばらく待ってから再試行".to_string(),
-                ],
-                help_command: None,
             },
             AwsError::Timeout { operation } => UserErrorMessage {
                 title: "操作がタイムアウトしました".to_string(),
@@ -228,116 +146,38 @@ impl UserMessageSystem {
                 ],
                 help_command: Some("ec2-connect list-sessions".to_string()),
             },
-            SessionError::Unhealthy { session_id } => UserErrorMessage {
-                title: "セッションが不健全な状態です".to_string(),
-                message: format!("セッション '{}' が不健全な状態です。", session_id),
-                severity: "medium".to_string(),
-                solutions: vec![
-                    "セッションを再起動してください".to_string(),
-                    "ネットワーク接続を確認".to_string(),
-                    "インスタンスの状態を確認".to_string(),
-                ],
-                help_command: Some("ec2-connect restart-session".to_string()),
-            },
-            _ => UserErrorMessage {
-                title: "セッションエラー".to_string(),
-                message: error.to_string(),
-                severity: "medium".to_string(),
-                solutions: vec!["セッションを再作成してください".to_string()],
-                help_command: Some("ec2-connect --help".to_string()),
-            },
         }
     }
 
     fn handle_connection_error(&self, error: &ConnectionError) -> UserErrorMessage {
         match error {
-            ConnectionError::PortInUse { port } => UserErrorMessage {
-                title: "ポートが既に使用されています".to_string(),
-                message: format!("ポート {} は既に使用されています。", port),
-                severity: "medium".to_string(),
-                solutions: vec![
-                    "別のポート番号を指定してください".to_string(),
-                    format!("lsof -i :{} でポートの使用状況を確認", port),
-                    "使用中のプロセスを終了するか、別のポートを使用".to_string(),
-                ],
-                help_command: Some("ec2-connect --port <PORT>".to_string()),
-            },
-            ConnectionError::Timeout { target } => UserErrorMessage {
-                title: "接続がタイムアウトしました".to_string(),
-                message: format!("'{}' への接続がタイムアウトしました。", target),
-                severity: "medium".to_string(),
-                solutions: vec![
-                    "ネットワーク接続を確認してください".to_string(),
-                    "ターゲットが応答可能か確認".to_string(),
-                    "ファイアウォール設定を確認".to_string(),
-                    "しばらく待ってから再試行".to_string(),
-                ],
-                help_command: None,
-            },
-            _ => UserErrorMessage {
-                title: "接続エラー".to_string(),
-                message: error.to_string(),
-                severity: "medium".to_string(),
-                solutions: vec!["ネットワーク設定を確認してください".to_string()],
-                help_command: None,
-            },
-        }
-    }
-
-    fn handle_resource_error(&self, error: &ResourceError) -> UserErrorMessage {
-        match error {
-            ResourceError::MemoryLimitExceeded { current_mb, limit_mb } => UserErrorMessage {
-                title: "メモリ使用量が上限を超えました".to_string(),
-                message: format!("メモリ使用量: {}MB（上限: {}MB）", current_mb, limit_mb),
+            ConnectionError::PreventiveCheckFailed { reason, issues } => UserErrorMessage {
+                title: "事前チェックに失敗しました".to_string(),
+                message: format!("理由: {}", reason),
                 severity: "high".to_string(),
-                solutions: vec![
-                    "不要なセッションを終了してください".to_string(),
-                    "他のアプリケーションを終了してメモリを解放".to_string(),
-                    "システムのメモリ使用量を確認".to_string(),
-                ],
-                help_command: Some("ec2-connect list-sessions".to_string()),
-            },
-            ResourceError::CpuLimitExceeded { current_percent, limit_percent } => UserErrorMessage {
-                title: "CPU使用率が上限を超えました".to_string(),
-                message: format!("CPU使用率: {:.1}%（上限: {:.1}%）", current_percent, limit_percent),
-                severity: "medium".to_string(),
-                solutions: vec![
-                    "システムの負荷を確認してください".to_string(),
-                    "不要なプロセスを終了".to_string(),
-                    "しばらく待ってから再試行".to_string(),
-                ],
-                help_command: None,
-            },
-            _ => UserErrorMessage {
-                title: "リソースエラー".to_string(),
-                message: error.to_string(),
-                severity: "medium".to_string(),
-                solutions: vec!["システムリソースを確認してください".to_string()],
-                help_command: None,
+                solutions: issues.clone(),
+                help_command: Some("ec2-connect diagnose".to_string()),
             },
         }
     }
 
-    fn handle_ui_error(&self, error: &UiError) -> UserErrorMessage {
-        match error {
-            UiError::TerminalInitFailed => UserErrorMessage {
-                title: "ターミナルの初期化に失敗しました".to_string(),
-                message: "ターミナルUIの初期化に失敗しました。".to_string(),
-                severity: "medium".to_string(),
-                solutions: vec![
-                    "ターミナルが対応しているか確認してください".to_string(),
-                    "環境変数TERMを確認".to_string(),
-                    "--no-ui オプションでCLIモードを使用".to_string(),
-                ],
-                help_command: Some("ec2-connect --no-ui".to_string()),
-            },
-            _ => UserErrorMessage {
-                title: "UIエラー".to_string(),
-                message: error.to_string(),
-                severity: "low".to_string(),
-                solutions: vec!["UIを再初期化してください".to_string()],
-                help_command: Some("ec2-connect --help".to_string()),
-            },
+    fn handle_resource_error(&self, _error: &ResourceError) -> UserErrorMessage {
+        UserErrorMessage {
+            title: "リソースエラー".to_string(),
+            message: "リソースに問題があります".to_string(),
+            severity: "medium".to_string(),
+            solutions: vec!["システムリソースを確認してください".to_string()],
+            help_command: None,
+        }
+    }
+
+    fn handle_ui_error(&self, _error: &UiError) -> UserErrorMessage {
+        UserErrorMessage {
+            title: "UIエラー".to_string(),
+            message: "UI処理中にエラーが発生しました".to_string(),
+            severity: "low".to_string(),
+            solutions: vec!["アプリケーションを再起動してください".to_string()],
+            help_command: None,
         }
     }
 
@@ -406,14 +246,6 @@ impl UserMessageSystem {
             },
         );
     }
-
-    pub fn get_help_message(&self, topic: &str) -> Option<&HelpMessage> {
-        self.help_messages.get(topic)
-    }
-
-    pub fn list_help_topics(&self) -> Vec<String> {
-        self.help_messages.keys().cloned().collect()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -477,14 +309,15 @@ mod tests {
     fn test_user_message_system() {
         let system = UserMessageSystem::new();
         
-        let error = Ec2ConnectError::Config(ConfigError::FileNotFound {
-            path: "config.toml".to_string()
+        let error = Ec2ConnectError::Connection(ConnectionError::PreventiveCheckFailed {
+            reason: "test".to_string(),
+            issues: vec!["issue1".to_string()],
         });
         
         let message = system.get_error_message(&error);
         
-        assert_eq!(message.title, "設定ファイルが見つかりません");
-        assert!(message.message.contains("config.toml"));
+        assert_eq!(message.title, "事前チェックに失敗しました");
+        assert!(message.message.contains("test"));
         assert!(!message.solutions.is_empty());
     }
 

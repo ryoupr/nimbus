@@ -1,52 +1,197 @@
-# EC2 Connect Configuration Guide
+# EC2 Connect 設定ガイド
 
-## Configuration Files
+## 設定ファイル
 
-EC2 Connect supports both JSON and TOML configuration formats:
+EC2 Connect は JSON と TOML の両形式をサポートしています：
 
-- **JSON**: `config.json` (default)
+- **JSON**: `config.json`（デフォルト）
 - **TOML**: `config.toml`
 
-### Default Configuration Locations
+### デフォルトの設定ファイル場所
 
 - **Linux/macOS**: `~/.config/ec2-connect/config.json`
 - **Windows**: `%APPDATA%\ec2-connect\config.json`
 
-### Example Files
+### サンプルファイル
 
-Copy and customize the example configuration files:
+サンプル設定ファイルをコピーしてカスタマイズしてください：
 
 ```bash
-# JSON format
+# JSON形式
 cp config.json.example ~/.config/ec2-connect/config.json
 
-# TOML format  
+# TOML形式
 cp config.toml.example ~/.config/ec2-connect/config.toml
 ```
 
-## Targets File (Per-Server Settings)
+## 設定ファイルリファレンス
 
-EC2 Connect can optionally load a separate **targets file** to manage per-server connection settings (instance ID, ports, profile/region, SSH user/key) by name.
+### aws - AWS接続設定
 
-The targets file supports:
+| フィールド | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `default_profile` | string/null | `null` | デフォルトで使用するAWSプロファイル名 |
+| `default_region` | string | `"us-east-1"` | デフォルトのAWSリージョン |
+| `connection_timeout` | number | `30` | AWS接続タイムアウト（秒） |
+| `request_timeout` | number | `60` | AWSリクエストタイムアウト（秒） |
 
-- **JSON** (default): `targets.json`
+### session - セッション管理設定
+
+| フィールド | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `max_sessions_per_instance` | number | `3` | インスタンスあたりの最大同時セッション数 |
+| `health_check_interval` | number | `5` | ヘルスチェック間隔（秒） |
+| `timeout_prediction_threshold` | number | `300` | タイムアウト予測の閾値（秒） |
+| `inactive_timeout` | number | `30` | 非アクティブセッションのタイムアウト（秒） |
+
+### session.reconnection - 再接続ポリシー
+
+| フィールド | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `enabled` | boolean | `true` | 自動再接続を有効化 |
+| `max_attempts` | number | `5` | 最大再接続試行回数 |
+| `base_delay_ms` | number | `1000` | 再接続の基本遅延（ミリ秒） |
+| `max_delay_ms` | number | `16000` | 再接続の最大遅延（ミリ秒） |
+| `aggressive_mode` | boolean | `false` | アグレッシブ再接続モード |
+| `aggressive_attempts` | number | `10` | アグレッシブモードでの試行回数 |
+| `aggressive_interval_ms` | number | `500` | アグレッシブモードでの試行間隔（ミリ秒） |
+
+### performance - パフォーマンス監視設定
+
+| フィールド | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `monitoring_enabled` | boolean | `true` | パフォーマンス監視を有効化 |
+| `metrics_interval` | number | `10` | メトリクス収集間隔（秒） |
+| `latency_threshold_ms` | number | `200` | レイテンシ警告の閾値（ミリ秒） |
+| `optimization_enabled` | boolean | `true` | 自動最適化を有効化 |
+
+### resources - リソース制限設定
+
+| フィールド | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `max_memory_mb` | number | `10` | 最大メモリ使用量（MB） |
+| `max_cpu_percent` | number | `0.5` | 最大CPU使用率（%） |
+| `low_power_mode` | boolean | `true` | 省電力モードを有効化 |
+| `monitoring_interval` | number | `5` | リソース監視間隔（秒） |
+
+### ui - ユーザーインターフェース設定
+
+| フィールド | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `rich_ui` | boolean | `true` | リッチターミナルUIを有効化 |
+| `update_interval_ms` | number | `1000` | UI更新間隔（ミリ秒） |
+| `show_progress` | boolean | `true` | 進捗表示を有効化 |
+| `notifications` | boolean | `true` | 通知を有効化 |
+
+### logging - ログ設定
+
+| フィールド | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `level` | string | `"info"` | ログレベル（trace/debug/info/warn/error） |
+| `file_logging` | boolean | `true` | ファイルへのログ出力を有効化 |
+| `log_file` | string/null | `null` | ログファイルパス（nullの場合はデフォルトパス） |
+| `json_format` | boolean | `false` | JSON形式でログを出力 |
+
+### vscode - VS Code統合設定
+
+| フィールド | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `vscode_path` | string/null | `null` | VS Code実行ファイルのパス |
+| `ssh_config_path` | string/null | `null` | SSH設定ファイルのパス |
+| `auto_launch_enabled` | boolean | `true` | 接続時にVS Codeを自動起動 |
+| `notifications_enabled` | boolean | `true` | VS Code関連の通知を有効化 |
+| `launch_delay_seconds` | number | `2` | VS Code起動までの遅延（秒） |
+| `auto_update_ssh_config` | boolean | `true` | SSH設定を自動更新 |
+| `ssh_user` | string/null | `null` | SSH接続のデフォルトユーザー名 |
+| `ssh_identity_file` | string/null | `null` | SSH秘密鍵のパス |
+| `ssh_identities_only` | boolean | `false` | 指定した鍵のみを使用 |
+
+### 設定ファイル例
+
+```json
+{
+  "aws": {
+    "default_profile": null,
+    "default_region": "ap-northeast-1",
+    "connection_timeout": 30,
+    "request_timeout": 60
+  },
+  "session": {
+    "max_sessions_per_instance": 3,
+    "health_check_interval": 5,
+    "timeout_prediction_threshold": 300,
+    "inactive_timeout": 30,
+    "reconnection": {
+      "enabled": true,
+      "max_attempts": 5,
+      "base_delay_ms": 1000,
+      "max_delay_ms": 16000,
+      "aggressive_mode": false,
+      "aggressive_attempts": 10,
+      "aggressive_interval_ms": 500
+    }
+  },
+  "performance": {
+    "monitoring_enabled": true,
+    "metrics_interval": 10,
+    "latency_threshold_ms": 200,
+    "optimization_enabled": true
+  },
+  "resources": {
+    "max_memory_mb": 10,
+    "max_cpu_percent": 0.5,
+    "low_power_mode": true,
+    "monitoring_interval": 5
+  },
+  "ui": {
+    "rich_ui": true,
+    "update_interval_ms": 1000,
+    "show_progress": true,
+    "notifications": true
+  },
+  "logging": {
+    "level": "info",
+    "file_logging": true,
+    "log_file": null,
+    "json_format": false
+  },
+  "vscode": {
+    "vscode_path": null,
+    "ssh_config_path": null,
+    "auto_launch_enabled": true,
+    "notifications_enabled": true,
+    "launch_delay_seconds": 2,
+    "auto_update_ssh_config": true,
+    "ssh_user": null,
+    "ssh_identity_file": null,
+    "ssh_identities_only": false
+  }
+}
+```
+
+## ターゲットファイル（サーバー別設定）
+
+EC2 Connect は、サーバーごとの接続設定（インスタンスID、ポート、プロファイル/リージョン、SSHユーザー/鍵）を名前で管理する **ターゲットファイル** を読み込めます。
+
+サポート形式：
+
+- **JSON**（デフォルト）: `targets.json`
 - **TOML**: `targets.toml`
 
-### Default Targets File Location
+### デフォルトのターゲットファイル場所
 
 - **Linux/macOS**: `~/.config/ec2-connect/targets.json`
 - **Windows**: `%APPDATA%\ec2-connect\targets.json`
 
-### Example
+### 設定例
 
-Start from the repository example:
+リポジトリのサンプルから始めてください：
 
 ```bash
 cp targets.json.example ~/.config/ec2-connect/targets.json
 ```
 
-Minimal JSON structure:
+最小限のJSON構造：
 
 ```json
 {
@@ -60,106 +205,121 @@ Minimal JSON structure:
    "ssh_user": "ubuntu",
    "ssh_identity_file": "~/.ssh/dev.pem",
    "ssh_identities_only": true
+  },
+  "internal-alb": {
+   "instance_id": "i-bastion123456789",
+   "local_port": 10443,
+   "remote_port": 443,
+   "remote_host": "internal-alb-xxx.ap-northeast-1.elb.amazonaws.com",
+   "profile": "production",
+   "region": "ap-northeast-1"
   }
  }
 }
 ```
 
-Supported fields per target:
+ターゲットごとのサポートフィールド：
 
-- `instance_id` (required)
-- `local_port`, `remote_port` (optional)
-- `profile`, `region` (optional)
-- `ssh_user`, `ssh_identity_file`, `ssh_identities_only` (optional)
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `instance_id` | string | ✅ | EC2インスタンスID |
+| `local_port` | number | - | ローカルポート番号 |
+| `remote_port` | number | - | リモートポート番号 |
+| `remote_host` | string | - | リモートホスト（踏み台経由で内部ALB等に接続する場合） |
+| `profile` | string | - | AWSプロファイル名 |
+| `region` | string | - | AWSリージョン |
+| `ssh_user` | string | - | SSH接続のユーザー名 |
+| `ssh_identity_file` | string | - | SSH秘密鍵のパス |
+| `ssh_identities_only` | boolean | - | 指定した鍵のみを使用 |
 
-CLI values take precedence over targets file values.
+CLIで指定した値はターゲットファイルの値より優先されます。
 
-## Environment Variable Overrides
+## 環境変数によるオーバーライド
 
-All configuration values can be overridden using environment variables. This is useful for:
+すべての設定値は環境変数で上書きできます。以下の用途に便利です：
 
-- CI/CD environments
-- Docker containers
-- Different deployment environments
-- Temporary configuration changes
+- CI/CD環境
+- Dockerコンテナ
+- 異なるデプロイ環境
+- 一時的な設定変更
 
-### AWS Configuration
+### AWS設定
 
-| Environment Variable | Description | Example |
-|---------------------|-------------|---------|
-| `EC2_CONNECT_AWS_PROFILE` | AWS profile to use | `production` |
-| `EC2_CONNECT_AWS_REGION` | AWS region | `us-west-2` |
-| `EC2_CONNECT_CONNECTION_TIMEOUT` | Connection timeout (seconds) | `45` |
-| `EC2_CONNECT_REQUEST_TIMEOUT` | Request timeout (seconds) | `90` |
+| 環境変数 | 説明 | 例 |
+|---------|------|-----|
+| `EC2_CONNECT_AWS_PROFILE` | 使用するAWSプロファイル | `production` |
+| `EC2_CONNECT_AWS_REGION` | AWSリージョン | `us-west-2` |
+| `EC2_CONNECT_CONNECTION_TIMEOUT` | 接続タイムアウト（秒） | `45` |
+| `EC2_CONNECT_REQUEST_TIMEOUT` | リクエストタイムアウト（秒） | `90` |
 
-### Session Management
+### セッション管理
 
-| Environment Variable | Description | Example |
-|---------------------|-------------|---------|
-| `EC2_CONNECT_MAX_SESSIONS` | Max sessions per instance | `5` |
-| `EC2_CONNECT_HEALTH_CHECK_INTERVAL` | Health check interval (seconds) | `3` |
-| `EC2_CONNECT_INACTIVE_TIMEOUT` | Inactive timeout (seconds) | `60` |
+| 環境変数 | 説明 | 例 |
+|---------|------|-----|
+| `EC2_CONNECT_MAX_SESSIONS` | インスタンスあたりの最大セッション数 | `5` |
+| `EC2_CONNECT_HEALTH_CHECK_INTERVAL` | ヘルスチェック間隔（秒） | `3` |
+| `EC2_CONNECT_INACTIVE_TIMEOUT` | 非アクティブタイムアウト（秒） | `60` |
 
-### Reconnection Policy
+### 再接続ポリシー
 
-| Environment Variable | Description | Example |
-|---------------------|-------------|---------|
-| `EC2_CONNECT_RECONNECTION_ENABLED` | Enable auto-reconnection | `true` |
-| `EC2_CONNECT_MAX_RECONNECTION_ATTEMPTS` | Max reconnection attempts | `10` |
-| `EC2_CONNECT_RECONNECTION_BASE_DELAY_MS` | Base delay (milliseconds) | `2000` |
-| `EC2_CONNECT_RECONNECTION_MAX_DELAY_MS` | Max delay (milliseconds) | `30000` |
-| `EC2_CONNECT_AGGRESSIVE_RECONNECTION` | Enable aggressive mode | `true` |
-| `EC2_CONNECT_AGGRESSIVE_ATTEMPTS` | Aggressive attempts count | `15` |
-| `EC2_CONNECT_AGGRESSIVE_INTERVAL_MS` | Aggressive interval (ms) | `250` |
+| 環境変数 | 説明 | 例 |
+|---------|------|-----|
+| `EC2_CONNECT_RECONNECTION_ENABLED` | 自動再接続を有効化 | `true` |
+| `EC2_CONNECT_MAX_RECONNECTION_ATTEMPTS` | 最大再接続試行回数 | `10` |
+| `EC2_CONNECT_RECONNECTION_BASE_DELAY_MS` | 基本遅延（ミリ秒） | `2000` |
+| `EC2_CONNECT_RECONNECTION_MAX_DELAY_MS` | 最大遅延（ミリ秒） | `30000` |
+| `EC2_CONNECT_AGGRESSIVE_RECONNECTION` | アグレッシブモードを有効化 | `true` |
+| `EC2_CONNECT_AGGRESSIVE_ATTEMPTS` | アグレッシブ試行回数 | `15` |
+| `EC2_CONNECT_AGGRESSIVE_INTERVAL_MS` | アグレッシブ間隔（ミリ秒） | `250` |
 
-### Performance Monitoring
+### パフォーマンス監視
 
-| Environment Variable | Description | Example |
-|---------------------|-------------|---------|
-| `EC2_CONNECT_PERFORMANCE_MONITORING` | Enable monitoring | `true` |
-| `EC2_CONNECT_LATENCY_THRESHOLD_MS` | Latency threshold (ms) | `150` |
-| `EC2_CONNECT_OPTIMIZATION_ENABLED` | Enable optimization | `true` |
+| 環境変数 | 説明 | 例 |
+|---------|------|-----|
+| `EC2_CONNECT_PERFORMANCE_MONITORING` | 監視を有効化 | `true` |
+| `EC2_CONNECT_LATENCY_THRESHOLD_MS` | レイテンシ閾値（ミリ秒） | `150` |
+| `EC2_CONNECT_OPTIMIZATION_ENABLED` | 最適化を有効化 | `true` |
 
-### Resource Limits
+### リソース制限
 
-| Environment Variable | Description | Example |
-|---------------------|-------------|---------|
-| `EC2_CONNECT_MAX_MEMORY_MB` | Max memory usage (MB) | `8` |
-| `EC2_CONNECT_MAX_CPU_PERCENT` | Max CPU usage (%) | `0.3` |
-| `EC2_CONNECT_LOW_POWER_MODE` | Enable low power mode | `true` |
+| 環境変数 | 説明 | 例 |
+|---------|------|-----|
+| `EC2_CONNECT_MAX_MEMORY_MB` | 最大メモリ使用量（MB） | `8` |
+| `EC2_CONNECT_MAX_CPU_PERCENT` | 最大CPU使用率（%） | `0.3` |
+| `EC2_CONNECT_LOW_POWER_MODE` | 省電力モードを有効化 | `true` |
 
-### User Interface
+### ユーザーインターフェース
 
-| Environment Variable | Description | Example |
-|---------------------|-------------|---------|
-| `EC2_CONNECT_RICH_UI` | Enable rich terminal UI | `false` |
-| `EC2_CONNECT_UI_UPDATE_INTERVAL_MS` | UI update interval (ms) | `500` |
-| `EC2_CONNECT_NOTIFICATIONS` | Enable notifications | `false` |
+| 環境変数 | 説明 | 例 |
+|---------|------|-----|
+| `EC2_CONNECT_RICH_UI` | リッチターミナルUIを有効化 | `false` |
+| `EC2_CONNECT_UI_UPDATE_INTERVAL_MS` | UI更新間隔（ミリ秒） | `500` |
+| `EC2_CONNECT_NOTIFICATIONS` | 通知を有効化 | `false` |
 
-### Logging
+### ログ
 
-| Environment Variable | Description | Example |
-|---------------------|-------------|---------|
-| `EC2_CONNECT_LOG_LEVEL` | Log level | `debug` |
-| `EC2_CONNECT_FILE_LOGGING` | Enable file logging | `true` |
-| `EC2_CONNECT_LOG_FILE` | Log file path | `/var/log/ec2-connect.log` |
-| `EC2_CONNECT_JSON_LOGGING` | Enable JSON format | `true` |
+| 環境変数 | 説明 | 例 |
+|---------|------|-----|
+| `EC2_CONNECT_LOG_LEVEL` | ログレベル | `debug` |
+| `EC2_CONNECT_FILE_LOGGING` | ファイルログを有効化 | `true` |
+| `EC2_CONNECT_LOG_FILE` | ログファイルパス | `/var/log/ec2-connect.log` |
+| `EC2_CONNECT_JSON_LOGGING` | JSON形式を有効化 | `true` |
 
 ### VS Code / SSH
 
-| Environment Variable | Description | Example |
-|---------------------|-------------|---------|
-| `EC2_CONNECT_VSCODE_PATH` | Path to VS Code executable | `/opt/homebrew/bin/code` |
-| `EC2_CONNECT_SSH_CONFIG_PATH` | Path to SSH config file | `~/.ssh/config` |
-| `EC2_CONNECT_VSCODE_AUTO_LAUNCH` | Auto-launch VS Code (true/false) | `false` |
-| `EC2_CONNECT_VSCODE_NOTIFICATIONS` | Enable notifications (true/false) | `false` |
-| `EC2_CONNECT_VSCODE_LAUNCH_DELAY` | Launch delay seconds | `2` |
-| `EC2_CONNECT_VSCODE_AUTO_UPDATE_SSH` | Auto update SSH config (true/false) | `true` |
-| `EC2_CONNECT_SSH_USER` | SSH username for generated entry | `ubuntu` |
-| `EC2_CONNECT_SSH_IDENTITY_FILE` | SSH IdentityFile path for generated entry | `~/.ssh/my-key.pem` |
-| `EC2_CONNECT_SSH_IDENTITIES_ONLY` | Enable IdentitiesOnly (true/false) | `true` |
+| 環境変数 | 説明 | 例 |
+|---------|------|-----|
+| `EC2_CONNECT_VSCODE_PATH` | VS Code実行ファイルのパス | `/opt/homebrew/bin/code` |
+| `EC2_CONNECT_SSH_CONFIG_PATH` | SSH設定ファイルのパス | `~/.ssh/config` |
+| `EC2_CONNECT_VSCODE_AUTO_LAUNCH` | VS Codeを自動起動（true/false） | `false` |
+| `EC2_CONNECT_VSCODE_NOTIFICATIONS` | 通知を有効化（true/false） | `false` |
+| `EC2_CONNECT_VSCODE_LAUNCH_DELAY` | 起動遅延（秒） | `2` |
+| `EC2_CONNECT_VSCODE_AUTO_UPDATE_SSH` | SSH設定を自動更新（true/false） | `true` |
+| `EC2_CONNECT_SSH_USER` | 生成エントリのSSHユーザー名 | `ubuntu` |
+| `EC2_CONNECT_SSH_IDENTITY_FILE` | 生成エントリのSSH IdentityFileパス | `~/.ssh/my-key.pem` |
+| `EC2_CONNECT_SSH_IDENTITIES_ONLY` | IdentitiesOnlyを有効化（true/false） | `true` |
 
-You can also set these values in the main configuration file under `vscode`:
+メイン設定ファイルの `vscode` セクションでも設定できます：
 
 ```json
 {
@@ -171,9 +331,9 @@ You can also set these values in the main configuration file under `vscode`:
 }
 ```
 
-## Configuration Examples
+## 設定例
 
-### Development Environment
+### 開発環境
 
 ```bash
 export EC2_CONNECT_LOG_LEVEL=debug
@@ -181,7 +341,7 @@ export EC2_CONNECT_MAX_MEMORY_MB=50
 export EC2_CONNECT_PERFORMANCE_MONITORING=true
 ```
 
-### Production Environment
+### 本番環境
 
 ```bash
 export EC2_CONNECT_LOG_LEVEL=warn
@@ -191,7 +351,7 @@ export EC2_CONNECT_LOW_POWER_MODE=true
 export EC2_CONNECT_JSON_LOGGING=true
 ```
 
-### CI/CD Environment
+### CI/CD環境
 
 ```bash
 export EC2_CONNECT_RICH_UI=false
@@ -200,7 +360,7 @@ export EC2_CONNECT_FILE_LOGGING=false
 export EC2_CONNECT_RECONNECTION_ENABLED=false
 ```
 
-### Aggressive Reconnection Mode
+### アグレッシブ再接続モード
 
 ```bash
 export EC2_CONNECT_AGGRESSIVE_RECONNECTION=true
@@ -209,44 +369,44 @@ export EC2_CONNECT_AGGRESSIVE_INTERVAL_MS=200
 export EC2_CONNECT_MAX_RECONNECTION_ATTEMPTS=50
 ```
 
-## Configuration Validation
+## 設定の検証
 
-EC2 Connect validates all configuration values on startup and provides detailed error messages for invalid settings:
+EC2 Connect は起動時にすべての設定値を検証し、無効な設定に対して詳細なエラーメッセージを表示します：
 
-- **Range validation**: Ensures numeric values are within acceptable ranges
-- **Type validation**: Ensures boolean values are properly formatted
-- **Dependency validation**: Ensures related settings are consistent
-- **Performance warnings**: Warns about settings that may impact performance
+- **範囲検証**: 数値が許容範囲内であることを確認
+- **型検証**: ブール値が正しい形式であることを確認
+- **依存関係検証**: 関連する設定が一貫していることを確認
+- **パフォーマンス警告**: パフォーマンスに影響する可能性のある設定を警告
 
-### Common Validation Errors
+### よくある検証エラー
 
-1. **Invalid boolean values**: Use `true` or `false` (case-sensitive)
-2. **Out of range values**: Check minimum/maximum allowed values
-3. **Inconsistent delays**: Ensure `max_delay_ms >= base_delay_ms`
-4. **Zero values**: Most timeout and interval values must be > 0
+1. **無効なブール値**: `true` または `false` を使用（大文字小文字を区別）
+2. **範囲外の値**: 許容される最小/最大値を確認
+3. **不整合な遅延**: `max_delay_ms >= base_delay_ms` であることを確認
+4. **ゼロ値**: ほとんどのタイムアウトと間隔の値は 0 より大きい必要があります
 
-## Best Practices
+## ベストプラクティス
 
-### Performance Optimization
+### パフォーマンス最適化
 
-- Keep `max_memory_mb` ≤ 10 for optimal performance
-- Set `max_cpu_percent` ≤ 0.5 to avoid impacting other processes
-- Use `low_power_mode = true` for battery-powered devices
+- 最適なパフォーマンスのために `max_memory_mb` は 10 以下に設定
+- 他のプロセスへの影響を避けるため `max_cpu_percent` は 0.5 以下に設定
+- バッテリー駆動デバイスでは `low_power_mode = true` を使用
 
-### Reliability
+### 信頼性
 
-- Enable `reconnection.enabled = true` for production use
-- Set reasonable `max_attempts` (5-10) to avoid excessive retries
-- Use `aggressive_mode = false` in production to reduce load
+- 本番環境では `reconnection.enabled = true` を有効化
+- 過度なリトライを避けるため `max_attempts` は適切な値（5-10）に設定
+- 負荷軽減のため本番環境では `aggressive_mode = false` を使用
 
-### Monitoring
+### 監視
 
-- Enable `performance.monitoring_enabled = true` for troubleshooting
-- Set appropriate `latency_threshold_ms` based on your network
-- Use `json_format = true` for structured log analysis
+- トラブルシューティングのため `performance.monitoring_enabled = true` を有効化
+- ネットワークに応じて適切な `latency_threshold_ms` を設定
+- 構造化ログ分析のため `json_format = true` を使用
 
-### Security
+### セキュリティ
 
-- Avoid storing sensitive values in configuration files
-- Use environment variables for credentials and sensitive settings
-- Regularly rotate AWS credentials and profiles
+- 設定ファイルに機密情報を保存しない
+- 認証情報や機密設定には環境変数を使用
+- AWS認証情報とプロファイルを定期的にローテーション

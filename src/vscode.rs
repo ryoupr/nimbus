@@ -30,19 +30,6 @@ pub struct VsCodeIntegration {
     ssh_identities_only: bool,
 }
 
-/// SSH設定エントリ
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SshConfigEntry {
-    pub host: String,
-    pub hostname: String,
-    pub port: u16,
-    pub user: String,
-    pub proxy_command: Option<String>,
-    pub identity_file: Option<String>,
-    pub strict_host_key_checking: bool,
-    pub user_known_hosts_file: Option<String>,
-}
-
 /// VS Code統合設定
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VsCodeConfig {

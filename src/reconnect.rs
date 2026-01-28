@@ -1,3 +1,5 @@
+#![allow(async_fn_in_trait)]
+
 use crate::config::ReconnectionConfig;
 use crate::error::{Result, SessionError};
 use crate::session::{Session, SessionStatus, SessionConfig};

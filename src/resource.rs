@@ -1,8 +1,7 @@
 use crate::error::Result;
 use sysinfo::{System, Pid};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 use tracing::{info, warn, error, debug};
-use tokio::time::interval;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -12,7 +11,6 @@ pub struct ResourceUsage {
     pub memory_mb: f64,
     pub cpu_percent: f64,
     pub process_count: usize,
-    pub timestamp: std::time::SystemTime,
 }
 
 /// Resource limits configuration optimized for EC2 Connect requirements
@@ -73,79 +71,6 @@ impl ResourceMonitor {
         }
     }
     
-    /// Start continuous resource monitoring
-    pub async fn start_monitoring(&mut self) -> Result<()> {
-        if self.monitoring_active {
-            return Ok(());
-        }
-        
-        info!("Starting resource monitoring with limits: memory={}MB, cpu={}%", 
-              self.limits.max_memory_mb, self.limits.max_cpu_percent);
-        
-        self.monitoring_active = true;
-        let system = Arc::clone(&self.system);
-        let limits = self.limits.clone();
-        let mut interval = interval(self.monitoring_interval);
-        
-        tokio::spawn(async move {
-            loop {
-                interval.tick().await;
-                
-                if let Err(e) = Self::monitor_cycle(&system, &limits).await {
-                    error!("Resource monitoring cycle failed: {}", e);
-                }
-            }
-        });
-        
-        Ok(())
-    }
-    
-    /// Stop resource monitoring
-    pub fn stop_monitoring(&mut self) {
-        if self.monitoring_active {
-            info!("Stopping resource monitoring");
-            self.monitoring_active = false;
-        }
-    }
-    
-    /// Internal monitoring cycle
-    async fn monitor_cycle(system: &Arc<RwLock<System>>, limits: &ResourceLimits) -> Result<()> {
-        let mut sys = system.write().await;
-        sys.refresh_all();
-        
-        // Get current process usage
-        let current_pid = std::process::id();
-        if let Some(process) = sys.process(Pid::from(current_pid as usize)) {
-            let memory_mb = process.memory() as f64 / 1024.0 / 1024.0;
-            let cpu_percent = process.cpu_usage() as f64;
-            
-            // Check for violations
-            if memory_mb > limits.max_memory_mb as f64 {
-                warn!("Memory limit exceeded: {:.2}MB > {}MB", memory_mb, limits.max_memory_mb);
-            }
-            
-            if cpu_percent > limits.max_cpu_percent {
-                warn!("CPU limit exceeded: {:.2}% > {}%", cpu_percent, limits.max_cpu_percent);
-            }
-            
-            // Check warning thresholds
-            let memory_warning = limits.max_memory_mb as f64 * limits.warning_threshold;
-            let cpu_warning = limits.max_cpu_percent * limits.warning_threshold;
-            
-            if memory_mb > memory_warning {
-                debug!("Memory usage approaching limit: {:.2}MB (warning at {:.2}MB)", 
-                       memory_mb, memory_warning);
-            }
-            
-            if cpu_percent > cpu_warning {
-                debug!("CPU usage approaching limit: {:.2}% (warning at {:.2}%)", 
-                       cpu_percent, cpu_warning);
-            }
-        }
-        
-        Ok(())
-    }
-    
     /// Get current resource usage with enhanced accuracy
     pub async fn get_current_usage(&self) -> Result<ResourceUsage> {
         let mut system = self.system.write().await;
@@ -180,7 +105,6 @@ impl ResourceMonitor {
             memory_mb,
             cpu_percent,
             process_count,
-            timestamp: SystemTime::now(),
         };
         
         debug!("Current resource usage: memory={:.2}MB, cpu={:.2}%, processes={}", 
@@ -247,24 +171,6 @@ impl ResourceMonitor {
         self.optimize_for_low_power().await?;
         
         info!("Low power mode enabled: monitoring interval increased to {}s", 
-              self.monitoring_interval.as_secs());
-        
-        Ok(())
-    }
-    
-    /// Disable low power mode and restore normal operation
-    pub async fn disable_low_power_mode(&mut self) -> Result<()> {
-        if !self.low_power_mode {
-            return Ok(());
-        }
-        
-        info!("Disabling low power mode, restoring normal operation");
-        self.low_power_mode = false;
-        
-        // Restore normal monitoring frequency
-        self.monitoring_interval = Duration::from_secs(5);
-        
-        info!("Low power mode disabled: monitoring interval restored to {}s", 
               self.monitoring_interval.as_secs());
         
         Ok(())
@@ -404,30 +310,11 @@ impl ResourceMonitor {
         // Calculate uptime
         let uptime_seconds = self.start_time.elapsed().as_secs();
         
-        // Calculate average usage if we have samples
-        let avg_memory_usage = if !self.memory_samples.is_empty() {
-            self.memory_samples.iter().sum::<f64>() / self.memory_samples.len() as f64
-        } else {
-            usage.memory_mb
-        };
-        
-        let avg_cpu_usage = if !self.cpu_samples.is_empty() {
-            self.cpu_samples.iter().sum::<f64>() / self.cpu_samples.len() as f64
-        } else {
-            usage.cpu_percent
-        };
-        
         let metrics = EfficiencyMetrics {
             memory_efficiency_percent: memory_efficiency,
             cpu_efficiency_percent: cpu_efficiency,
             low_power_mode_active: self.low_power_mode,
             uptime_seconds,
-            current_memory_mb: usage.memory_mb,
-            current_cpu_percent: usage.cpu_percent,
-            avg_memory_mb: avg_memory_usage,
-            avg_cpu_percent: avg_cpu_usage,
-            memory_limit_mb: self.limits.max_memory_mb as f64,
-            cpu_limit_percent: self.limits.max_cpu_percent,
         };
         
         debug!("Efficiency metrics: memory={:.1}%, cpu={:.1}%, uptime={}s", 
@@ -443,15 +330,8 @@ impl ResourceMonitor {
             low_power_mode: self.low_power_mode,
             monitoring_interval: self.monitoring_interval,
             uptime: self.start_time.elapsed(),
-            last_cleanup: self.last_cleanup.elapsed(),
             sample_count: self.cpu_samples.len(),
         }
-    }
-    
-    /// Force immediate resource check and optimization
-    pub async fn force_optimization(&mut self) -> Result<OptimizationResult> {
-        info!("Forcing immediate resource optimization");
-        self.optimize_resources().await
     }
     
     /// Check if system is operating within optimal parameters
@@ -490,12 +370,6 @@ pub struct EfficiencyMetrics {
     pub cpu_efficiency_percent: f64,
     pub low_power_mode_active: bool,
     pub uptime_seconds: u64,
-    pub current_memory_mb: f64,
-    pub current_cpu_percent: f64,
-    pub avg_memory_mb: f64,
-    pub avg_cpu_percent: f64,
-    pub memory_limit_mb: f64,
-    pub cpu_limit_percent: f64,
 }
 
 /// Resource optimization result
@@ -516,49 +390,5 @@ pub struct MonitoringStatus {
     pub low_power_mode: bool,
     pub monitoring_interval: Duration,
     pub uptime: Duration,
-    pub last_cleanup: Duration,
     pub sample_count: usize,
-}
-
-/// Resource monitor trait for dependency injection and testing
-#[async_trait::async_trait]
-pub trait ResourceMonitorTrait {
-    async fn get_current_usage(&self) -> Result<ResourceUsage>;
-    async fn check_limits(&self) -> Result<Vec<ResourceViolation>>;
-    async fn optimize_resources(&mut self) -> Result<OptimizationResult>;
-    async fn enable_low_power_mode(&mut self) -> Result<()>;
-    async fn disable_low_power_mode(&mut self) -> Result<()>;
-    async fn get_efficiency_metrics(&self) -> Result<EfficiencyMetrics>;
-    async fn is_operating_optimally(&self) -> Result<bool>;
-}
-
-#[async_trait::async_trait]
-impl ResourceMonitorTrait for ResourceMonitor {
-    async fn get_current_usage(&self) -> Result<ResourceUsage> {
-        self.get_current_usage().await
-    }
-    
-    async fn check_limits(&self) -> Result<Vec<ResourceViolation>> {
-        self.check_limits().await
-    }
-    
-    async fn optimize_resources(&mut self) -> Result<OptimizationResult> {
-        self.optimize_resources().await
-    }
-    
-    async fn enable_low_power_mode(&mut self) -> Result<()> {
-        self.enable_low_power_mode().await
-    }
-    
-    async fn disable_low_power_mode(&mut self) -> Result<()> {
-        self.disable_low_power_mode().await
-    }
-    
-    async fn get_efficiency_metrics(&self) -> Result<EfficiencyMetrics> {
-        self.get_efficiency_metrics().await
-    }
-    
-    async fn is_operating_optimally(&self) -> Result<bool> {
-        self.is_operating_optimally().await
-    }
 }

@@ -212,6 +212,15 @@ impl DefaultInstanceDiagnostics {
         Ok(Self::new(aws_manager))
     }
     
+    /// Create instance diagnostics with specific AWS configuration
+    pub async fn with_aws_config(region: Option<&str>, profile: Option<&str>) -> Result<Self> {
+        let aws_manager = AwsManager::new(
+            region.map(|s| s.to_string()),
+            profile.map(|s| s.to_string()),
+        ).await.context("Failed to create AWS manager")?;
+        Ok(Self::new(aws_manager))
+    }
+    
     /// Create instance diagnostics with specific AWS profile
     pub async fn with_profile(profile: &str) -> Result<Self> {
         let aws_manager = AwsManager::with_profile(profile).await
@@ -224,12 +233,6 @@ impl DefaultInstanceDiagnostics {
         let aws_manager = AwsManager::with_region(region).await
             .context("Failed to create AWS manager with region")?;
         Ok(Self::new(aws_manager))
-    }
-    
-    /// Create instance diagnostics with synchronous AWS manager (for testing)
-    pub fn with_sync_aws() -> Self {
-        let aws_manager = AwsManager::default_sync();
-        Self::new(aws_manager)
     }
     
     /// Check if instance type is compatible with SSM
