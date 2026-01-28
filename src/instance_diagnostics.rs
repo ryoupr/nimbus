@@ -358,7 +358,7 @@ impl InstanceDiagnostics for DefaultInstanceDiagnostics {
     }
     
     async fn check_instance_state(&self, instance_id: &str) -> Result<DiagnosticResult> {
-        let start_time = Instant::now();
+        let _start_time = Instant::now();
         info!("Checking instance state: {}", instance_id);
         
         // Use the enhanced detailed state check
@@ -441,7 +441,7 @@ impl InstanceDiagnostics for DefaultInstanceDiagnostics {
                         launch_time: instance.launch_time.map(|t| {
                             // Convert AWS SDK DateTime to chrono DateTime
                             let timestamp = t.as_secs_f64();
-                            chrono::DateTime::from_timestamp(timestamp as i64, ((timestamp.fract() * 1_000_000_000.0) as u32))
+                            chrono::DateTime::from_timestamp(timestamp as i64, (timestamp.fract() * 1_000_000_000.0) as u32)
                                 .unwrap_or_else(|| chrono::Utc::now())
                         }),
                         architecture: instance.architecture.as_ref().map(|a| a.as_str().to_string()),
