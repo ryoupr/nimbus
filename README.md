@@ -29,7 +29,7 @@ brew install --cask session-manager-plugin
 
 ```bash
 brew tap ryoupr/tap
-brew install nimbus
+brew install ryoupr/tap/nimbus --formula
 ```
 
 ### Mac / Linux
