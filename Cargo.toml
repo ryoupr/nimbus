@@ -5,7 +5,7 @@ edition = "2021"
 description = "High-performance EC2 SSM connection manager with automatic session management"
 authors = ["Nimbus Team"]
 license = "MIT"
-repository = "https://github.com/your-org/nimbus"
+repository = "https://github.com/ryoupr/nimbus"
 keywords = ["aws", "ec2", "ssm", "connection", "automation"]
 categories = ["command-line-utilities", "network-programming"]
 
