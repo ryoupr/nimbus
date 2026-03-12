@@ -4,14 +4,13 @@ use tracing::{error, info, warn};
 use crate::{
     auto_fix, aws::AwsManager, aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator},
     config::Config, diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager},
-    error::NimbusError, error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager, RecoveryConfig},
+    error::NimbusError, error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager},
     health::{DefaultHealthChecker, HealthChecker}, logging::StructuredLogger,
     manager::{DefaultSessionManager, SessionManager},
     preventive_check::{DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig},
-    resource::ResourceMonitor, session::{SessionConfig, SessionPriority},
-    targets::TargetsConfig, user_messages::UserMessageSystem, vscode::VsCodeIntegration,
+    resource::ResourceMonitor, session::{SessionConfig, SessionPriority}, user_messages::UserMessageSystem, vscode::VsCodeIntegration,
 };
-use super::{ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands, VsCodeCommands};
+use super::{ConfigCommands, DiagnosticCommands, DiagnosticSettingsCommands, VsCodeCommands};
 use crate::{aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui};
 #[allow(unused_imports)]
 use crate::aws_config_validator::{SuggestionCategory, SuggestionPriority};

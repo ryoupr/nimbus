@@ -401,7 +401,7 @@ macro_rules! contextual_error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::{ConnectionError, SessionError, ConfigError, ResourceError};
+    use crate::error::{ConnectionError, SessionError};
 
     #[tokio::test]
     async fn test_recovery_strategy_selection() {

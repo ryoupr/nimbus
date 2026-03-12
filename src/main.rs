@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use tracing::{error, info, warn};
+use tracing::info;
 
 mod auto_fix;
 mod aws;
@@ -39,18 +39,10 @@ mod user_messages;
 mod commands;
 mod vscode;
 
-use aws::AwsManager;
-use aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator};
 use config::Config;
-use diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager};
-use preventive_check::{
-    DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig,
-};
 use error::NimbusError;
 use error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager, RecoveryConfig};
-use health::{DefaultHealthChecker, HealthChecker};
 use logging::{LoggingConfig, StructuredLogger};
-use manager::{DefaultSessionManager, SessionManager};
 #[cfg(feature = "performance-monitoring")]
 use monitor::DefaultSessionMonitor;
 #[cfg(feature = "multi-session")]
@@ -59,12 +51,9 @@ use multi_session::{MultiSessionManager, ResourceThresholds};
 use multi_session_ui::MultiSessionUi;
 #[cfg(feature = "persistence")]
 use persistence::{PersistenceManager, SqlitePersistenceManager};
-use resource::ResourceMonitor;
-use session::{SessionConfig, SessionPriority};
 use targets::TargetsConfig;
 use user_messages::UserMessageSystem;
 use commands::*;
-use vscode::VsCodeIntegration;
 
 #[derive(Parser)]
 #[command(name = "nimbus")]
