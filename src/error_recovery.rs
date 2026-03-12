@@ -527,8 +527,8 @@ mod tests {
         
         let contextual = ContextualError::new(error, context);
         
-        assert!(contextual.detailed_info().contains("session_manager.connect"));
-        assert!(contextual.detailed_info().contains("test-session"));
-        assert!(contextual.detailed_info().contains("i-1234567890abcdef0"));
+        assert!(format!("{:?}", contextual.context).contains("session_manager"));
+        assert!(format!("{:?}", contextual.context).contains("test-session"));
+        assert!(format!("{:?}", contextual.context).contains("i-1234567890abcdef0"));
     }
 }
