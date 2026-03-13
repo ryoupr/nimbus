@@ -2,6 +2,7 @@
 name = "nimbus"
 version = "3.0.0"
 edition = "2021"
+rust-version = "1.70.0"
 description = "High-performance EC2 SSM connection manager with automatic session management"
 authors = ["Nimbus Team"]
 license = "MIT"
