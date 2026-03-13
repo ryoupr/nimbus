@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::SystemTime;
-use tracing_appender::{non_blocking, rolling};
+use tracing_appender::{non_blocking, non_blocking::WorkerGuard, rolling};
 use tracing_subscriber::{
     fmt::{self, format::FmtSpan},
     layer::SubscriberExt,
@@ -54,11 +54,12 @@ impl Default for LoggingConfig {
 }
 
 /// Initialize logging system
-pub fn init_logging(config: &LoggingConfig) -> Result<(), Box<dyn std::error::Error>> {
+pub fn init_logging(config: &LoggingConfig) -> Result<Option<WorkerGuard>, Box<dyn std::error::Error>> {
     let env_filter = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new(&config.level))?;
 
     let mut layers = Vec::new();
+    let mut guard = None;
 
     // Console layer
     if config.console_enabled {
@@ -86,7 +87,8 @@ pub fn init_logging(config: &LoggingConfig) -> Result<(), Box<dyn std::error::Er
             _ => rolling::never(&config.log_dir, format!("{}.log", config.file_prefix)),
         };
         
-        let (non_blocking, _guard) = non_blocking(file_appender);
+        let (non_blocking, worker_guard) = non_blocking(file_appender);
+        guard = Some(worker_guard);
         
         let file_layer = if config.json_format {
             fmt::layer()
@@ -118,7 +120,7 @@ pub fn init_logging(config: &LoggingConfig) -> Result<(), Box<dyn std::error::Er
         .with(layers)
         .init();
 
-    Ok(())
+    Ok(guard)
 }
 
 /// Structured log entry for errors
