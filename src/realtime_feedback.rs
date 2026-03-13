@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::io::{self, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use crossterm::{
     cursor,
@@ -11,7 +11,7 @@ use crossterm::{
     terminal::{self, ClearType},
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, error, info, warn};
 
 use crate::diagnostic::{DiagnosticProgress, DiagnosticResult, DiagnosticStatus, Severity};
@@ -131,7 +131,7 @@ impl RealtimeFeedbackManager {
 
                 // Check if completed
                 let current_status = {
-                    let status_guard = status.lock().unwrap();
+                    let status_guard = status.lock().await;
                     status_guard.clone()
                 };
 
@@ -181,22 +181,22 @@ impl RealtimeFeedbackManager {
         Self::display_header(stdout, config)?;
 
         // Display current progress
-        if let Some(progress) = current_progress.lock().unwrap().as_ref() {
+        if let Some(progress) = current_progress.lock().await.as_ref() {
             Self::display_progress(stdout, progress, config)?;
         }
 
         // Display completed results
-        let results = completed_results.lock().unwrap().clone();
+        let results = completed_results.lock().await.clone();
         Self::display_results(stdout, &results, config)?;
 
         // Display critical issues if any
-        let issues = critical_issues.lock().unwrap().clone();
+        let issues = critical_issues.lock().await.clone();
         if !issues.is_empty() {
             Self::display_critical_issues(stdout, &issues, config)?;
         }
 
         // Display status and controls
-        let current_status = status.lock().unwrap().clone();
+        let current_status = status.lock().await.clone();
         Self::display_status_and_controls(stdout, &current_status, config)?;
 
         stdout.flush()?;
@@ -434,7 +434,7 @@ impl RealtimeFeedbackManager {
                 modifiers: KeyModifiers::CONTROL,
                 ..
             } => {
-                let mut status_guard = status.lock().unwrap();
+                let mut status_guard = status.lock().await;
                 *status_guard = FeedbackStatus::Interrupted;
                 info!("Diagnostic interrupted by user");
                 return Ok(false); // Don't exit, allow resume
@@ -446,7 +446,7 @@ impl RealtimeFeedbackManager {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => {
-                let mut status_guard = status.lock().unwrap();
+                let mut status_guard = status.lock().await;
                 if *status_guard == FeedbackStatus::Running {
                     *status_guard = FeedbackStatus::Paused;
                     info!("Diagnostic paused by user");
@@ -459,7 +459,7 @@ impl RealtimeFeedbackManager {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => {
-                let mut status_guard = status.lock().unwrap();
+                let mut status_guard = status.lock().await;
                 if matches!(*status_guard, FeedbackStatus::Paused | FeedbackStatus::Interrupted) {
                     *status_guard = FeedbackStatus::Running;
                     info!("Diagnostic resumed by user");
@@ -482,12 +482,12 @@ impl RealtimeFeedbackManager {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => {
-                let issues = critical_issues.lock().unwrap();
+                let issues = critical_issues.lock().await;
                 if !issues.is_empty() {
                     info!("User confirmed to continue despite critical issues");
                     // Clear critical issues to continue
                     drop(issues);
-                    critical_issues.lock().unwrap().clear();
+                    critical_issues.lock().await.clear();
                 }
             }
 
@@ -497,10 +497,10 @@ impl RealtimeFeedbackManager {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => {
-                let issues = critical_issues.lock().unwrap();
+                let issues = critical_issues.lock().await;
                 if !issues.is_empty() {
                     info!("User chose to abort due to critical issues");
-                    let mut status_guard = status.lock().unwrap();
+                    let mut status_guard = status.lock().await;
                     *status_guard = FeedbackStatus::Failed;
                     return Ok(true); // Exit
                 }
@@ -514,7 +514,7 @@ impl RealtimeFeedbackManager {
 
     /// Update progress information
     pub fn update_progress(&self, progress: DiagnosticProgress) {
-        let mut progress_guard = self.current_progress.lock().unwrap();
+        let mut progress_guard = self.current_progress.blocking_lock();
         *progress_guard = Some(progress);
     }
 
@@ -523,32 +523,32 @@ impl RealtimeFeedbackManager {
         // Check for critical issues
         if matches!(result.severity, Severity::Critical | Severity::High) && 
            matches!(result.status, DiagnosticStatus::Error) {
-            self.critical_issues.lock().unwrap().push(result.clone());
+            self.critical_issues.blocking_lock().push(result.clone());
             warn!("Critical issue detected: {} - {}", result.item_name, result.message);
         }
 
-        self.completed_results.lock().unwrap().push(result);
+        self.completed_results.blocking_lock().push(result);
     }
 
     /// Set the feedback status
     pub fn set_status(&self, new_status: FeedbackStatus) {
-        let mut status_guard = self.status.lock().unwrap();
+        let mut status_guard = self.status.blocking_lock();
         *status_guard = new_status;
     }
 
     /// Get the current feedback status
     pub fn get_status(&self) -> FeedbackStatus {
-        self.status.lock().unwrap().clone()
+        self.status.blocking_lock().clone()
     }
 
     /// Check if there are unresolved critical issues
     pub fn has_critical_issues(&self) -> bool {
-        !self.critical_issues.lock().unwrap().is_empty()
+        !self.critical_issues.blocking_lock().is_empty()
     }
 
     /// Get critical issues
     pub fn get_critical_issues(&self) -> Vec<DiagnosticResult> {
-        self.critical_issues.lock().unwrap().clone()
+        self.critical_issues.blocking_lock().clone()
     }
 
     /// Stop the feedback display
