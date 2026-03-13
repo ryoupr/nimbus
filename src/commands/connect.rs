@@ -41,6 +41,78 @@ use crate::multi_session_ui::MultiSessionUi;
 #[cfg(feature = "persistence")]
 use crate::persistence::{PersistenceManager, SqlitePersistenceManager};
 
+/// Generic recovery wrapper that eliminates duplicated error-handling logic.
+///
+/// Executes `operation`, and on failure:
+/// 1. Converts the error to `NimbusError` and logs it
+/// 2. If recoverable, runs the recovery manager then retries `operation` once
+/// 3. Displays user-friendly error messages on final failure
+async fn with_recovery<F, Fut>(
+    operation: F,
+    context: ErrorContext,
+    recovery_manager: &ErrorRecoveryManager,
+    message_system: &UserMessageSystem,
+) -> Result<()>
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<()>>,
+{
+    match operation().await {
+        Ok(()) => return Ok(()),
+        Err(e) => {
+            let ec2_error = match e.downcast::<NimbusError>() {
+                Ok(ec2_err) => ec2_err,
+                Err(other_err) => NimbusError::System(other_err.to_string()),
+            };
+
+            let contextual_error = ContextualError::new(ec2_error, context);
+            StructuredLogger::log_error(&contextual_error);
+
+            if contextual_error.error.is_recoverable() {
+                warn!(
+                    "{} failed, attempting recovery: {}",
+                    contextual_error.context.operation, contextual_error.error
+                );
+
+                let recovery_operation = || -> crate::error::Result<()> {
+                    Err(contextual_error.error.clone())
+                };
+
+                match recovery_manager
+                    .recover(recovery_operation, &contextual_error.error)
+                    .await
+                {
+                    Ok(_) => match operation().await {
+                        Ok(()) => {
+                            info!("Operation recovered successfully after retry");
+                            return Ok(());
+                        }
+                        Err(retry_error) => {
+                            let retry_ec2_error = match retry_error.downcast::<NimbusError>() {
+                                Ok(ec2_err) => ec2_err,
+                                Err(other_err) => NimbusError::System(other_err.to_string()),
+                            };
+                            let user_message =
+                                message_system.get_error_message(&retry_ec2_error);
+                            eprintln!("{}", user_message.format_for_display());
+                            return Err(retry_ec2_error.into());
+                        }
+                    },
+                    Err(recovery_error) => {
+                        let user_message = message_system.get_error_message(&recovery_error);
+                        eprintln!("{}", user_message.format_for_display());
+                        return Err(recovery_error.into());
+                    }
+                }
+            } else {
+                let user_message = message_system.get_error_message(&contextual_error.error);
+                eprintln!("{}", user_message.format_for_display());
+                return Err(contextual_error.error.into());
+            }
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_connect_with_recovery(
     instance_id: String,
@@ -60,103 +132,30 @@ pub async fn handle_connect_with_recovery(
         .with_info("local_port", &local_port.to_string())
         .with_info("remote_port", &remote_port.to_string());
 
-    // First attempt
-    match handle_connect(
-        instance_id.clone(),
-        local_port,
-        remote_port,
-        remote_host.clone(),
-        profile.clone(),
-        region.clone(),
-        priority.clone(),
-        precheck,
-        config,
+    let config = config.clone();
+    with_recovery(
+        || {
+            let (instance_id, remote_host, profile, region, priority, config) = (
+                instance_id.clone(),
+                remote_host.clone(),
+                profile.clone(),
+                region.clone(),
+                priority.clone(),
+                config.clone(),
+            );
+            async move {
+                handle_connect(
+                    instance_id, local_port, remote_port, remote_host, profile, region, priority,
+                    precheck, &config,
+                )
+                .await
+            }
+        },
+        context,
+        recovery_manager,
+        message_system,
     )
     .await
-    {
-        Ok(_) => Ok(()),
-        Err(e) => {
-            let ec2_error = match e.downcast::<NimbusError>() {
-                Ok(ec2_err) => ec2_err,
-                Err(other_err) => NimbusError::System(other_err.to_string()),
-            };
-
-            let contextual_error = ContextualError::new(ec2_error, context);
-            StructuredLogger::log_error(&contextual_error);
-
-            if contextual_error.error.is_recoverable() {
-                warn!(
-                    "Connection failed, attempting recovery: {}",
-                    contextual_error.error
-                );
-
-                // Create a proper recovery operation that actually retries the connection
-                let instance_id_clone = instance_id.clone();
-                let remote_host_clone = remote_host.clone();
-                let profile_clone = profile.clone();
-                let region_clone = region.clone();
-                let priority_clone = priority.clone();
-                let config_clone = config.clone();
-
-                let recovery_operation = || -> crate::error::Result<()> {
-                    // For async recovery, we need to use a different approach
-                    // Return an error that indicates we need to retry the entire operation
-                    Err(contextual_error.error.clone())
-                };
-
-                match recovery_manager
-                    .recover(recovery_operation, &contextual_error.error)
-                    .await
-                {
-                    Ok(_) => {
-                        // If recovery suggests we should retry, do the actual retry here
-                        info!("Recovery suggests retry, attempting connection again");
-                        match handle_connect(
-                            instance_id_clone,
-                            local_port,
-                            remote_port,
-                            remote_host_clone,
-                            profile_clone,
-                            region_clone,
-                            priority_clone,
-                            precheck,
-                            &config_clone,
-                        )
-                        .await
-                        {
-                            Ok(_) => {
-                                info!("Connection recovered successfully after retry");
-                                println!("✅ Connection recovered successfully after retry");
-                                Ok(())
-                            }
-                            Err(retry_error) => {
-                                let retry_ec2_error =
-                                    match retry_error.downcast::<NimbusError>() {
-                                        Ok(ec2_err) => ec2_err,
-                                        Err(other_err) => {
-                                            NimbusError::System(other_err.to_string())
-                                        }
-                                    };
-                                let user_message =
-                                    message_system.get_error_message(&retry_ec2_error);
-                                eprintln!("{}", user_message.format_for_display());
-                                Err(retry_ec2_error.into())
-                            }
-                        }
-                    }
-                    Err(recovery_error) => {
-                        let user_message = message_system.get_error_message(&recovery_error);
-                        eprintln!("{}", user_message.format_for_display());
-                        Err(recovery_error.into())
-                    }
-                }
-            } else {
-                let user_message = message_system.get_error_message(&contextual_error.error);
-                eprintln!("{}", user_message.format_for_display());
-                Err(contextual_error.error.into())
-            }
-        }
-    }
 }
 
 pub async fn handle_list_with_recovery(
@@ -165,66 +164,17 @@ pub async fn handle_list_with_recovery(
     message_system: &UserMessageSystem,
 ) -> Result<()> {
     let context = ErrorContext::new("list_sessions", "aws_manager");
-
-    match handle_list(config).await {
-        Ok(_) => Ok(()),
-        Err(e) => {
-            let ec2_error = match e.downcast::<NimbusError>() {
-                Ok(ec2_err) => ec2_err,
-                Err(other_err) => NimbusError::System(other_err.to_string()),
-            };
-
-            let contextual_error = ContextualError::new(ec2_error, context);
-            StructuredLogger::log_error(&contextual_error);
-
-            if contextual_error.error.is_recoverable() {
-                warn!(
-                    "List operation failed, attempting recovery: {}",
-                    contextual_error.error
-                );
-
-                let config_clone = config.clone();
-                let recovery_operation = || -> crate::error::Result<()> {
-                    // For async recovery, return error to indicate retry needed
-                    Err(contextual_error.error.clone())
-                };
-
-                match recovery_manager
-                    .recover(recovery_operation, &contextual_error.error)
-                    .await
-                {
-                    Ok(_) => {
-                        // Retry the actual operation
-                        match handle_list(&config_clone).await {
-                            Ok(_) => Ok(()),
-                            Err(retry_error) => {
-                                let retry_ec2_error =
-                                    match retry_error.downcast::<NimbusError>() {
-                                        Ok(ec2_err) => ec2_err,
-                                        Err(other_err) => {
-                                            NimbusError::System(other_err.to_string())
-                                        }
-                                    };
-                                let user_message =
-                                    message_system.get_error_message(&retry_ec2_error);
-                                eprintln!("{}", user_message.format_for_display());
-                                Err(retry_ec2_error.into())
-                            }
-                        }
-                    }
-                    Err(recovery_error) => {
-                        let user_message = message_system.get_error_message(&recovery_error);
-                        eprintln!("{}", user_message.format_for_display());
-                        Err(recovery_error.into())
-                    }
-                }
-            } else {
-                let user_message = message_system.get_error_message(&contextual_error.error);
-                eprintln!("{}", user_message.format_for_display());
-                Err(contextual_error.error.into())
-            }
-        }
-    }
+    let config = config.clone();
+    with_recovery(
+        || {
+            let config = config.clone();
+            async move { handle_list(&config).await }
+        },
+        context,
+        recovery_manager,
+        message_system,
+    )
+    .await
 }
 
 pub async fn handle_terminate_with_recovery(
@@ -235,67 +185,17 @@ pub async fn handle_terminate_with_recovery(
 ) -> Result<()> {
     let context =
         ErrorContext::new("terminate_session", "aws_manager").with_session_id(&session_id);
-
-    match handle_terminate(session_id.clone(), config).await {
-        Ok(_) => Ok(()),
-        Err(e) => {
-            let ec2_error = match e.downcast::<NimbusError>() {
-                Ok(ec2_err) => ec2_err,
-                Err(other_err) => NimbusError::System(other_err.to_string()),
-            };
-
-            let contextual_error = ContextualError::new(ec2_error, context);
-            StructuredLogger::log_error(&contextual_error);
-
-            if contextual_error.error.is_recoverable() {
-                warn!(
-                    "Terminate operation failed, attempting recovery: {}",
-                    contextual_error.error
-                );
-
-                let session_id_clone = session_id.clone();
-                let config_clone = config.clone();
-                let recovery_operation = || -> crate::error::Result<()> {
-                    // For async recovery, return error to indicate retry needed
-                    Err(contextual_error.error.clone())
-                };
-
-                match recovery_manager
-                    .recover(recovery_operation, &contextual_error.error)
-                    .await
-                {
-                    Ok(_) => {
-                        // Retry the actual operation
-                        match handle_terminate(session_id_clone, &config_clone).await {
-                            Ok(_) => Ok(()),
-                            Err(retry_error) => {
-                                let retry_ec2_error =
-                                    match retry_error.downcast::<NimbusError>() {
-                                        Ok(ec2_err) => ec2_err,
-                                        Err(other_err) => {
-                                            NimbusError::System(other_err.to_string())
-                                        }
-                                    };
-                                let user_message =
-                                    message_system.get_error_message(&retry_ec2_error);
-                                eprintln!("{}", user_message.format_for_display());
-                                Err(retry_ec2_error.into())
-                            }
-                        }
-                    }
-                    Err(recovery_error) => {
-                        let user_message = message_system.get_error_message(&recovery_error);
-                        eprintln!("{}", user_message.format_for_display());
-                        Err(recovery_error.into())
-                    }
-                }
-            } else {
-                let user_message = message_system.get_error_message(&contextual_error.error);
-                eprintln!("{}", user_message.format_for_display());
-                Err(contextual_error.error.into())
-            }
-        }
-    }
+    let config = config.clone();
+    with_recovery(
+        || {
+            let (session_id, config) = (session_id.clone(), config.clone());
+            async move { handle_terminate(session_id, &config).await }
+        },
+        context,
+        recovery_manager,
+        message_system,
+    )
+    .await
 }
 
 #[allow(clippy::too_many_arguments)]
