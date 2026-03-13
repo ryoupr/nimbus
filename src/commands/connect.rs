@@ -58,7 +58,7 @@ where
     Fut: std::future::Future<Output = Result<()>>,
 {
     match operation().await {
-        Ok(()) => return Ok(()),
+        Ok(()) => Ok(()),
         Err(e) => {
             let ec2_error = match e.downcast::<NimbusError>() {
                 Ok(ec2_err) => ec2_err,
@@ -85,7 +85,7 @@ where
                     Ok(_) => match operation().await {
                         Ok(()) => {
                             info!("Operation recovered successfully after retry");
-                            return Ok(());
+                            Ok(())
                         }
                         Err(retry_error) => {
                             let retry_ec2_error = match retry_error.downcast::<NimbusError>() {
@@ -95,19 +95,19 @@ where
                             let user_message =
                                 message_system.get_error_message(&retry_ec2_error);
                             eprintln!("{}", user_message.format_for_display());
-                            return Err(retry_ec2_error.into());
+                            Err(retry_ec2_error.into())
                         }
                     },
                     Err(recovery_error) => {
                         let user_message = message_system.get_error_message(&recovery_error);
                         eprintln!("{}", user_message.format_for_display());
-                        return Err(recovery_error.into());
+                        Err(recovery_error.into())
                     }
                 }
             } else {
                 let user_message = message_system.get_error_message(&contextual_error.error);
                 eprintln!("{}", user_message.format_for_display());
-                return Err(contextual_error.error.into());
+                Err(contextual_error.error.into())
             }
         }
     }
