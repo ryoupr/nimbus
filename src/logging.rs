@@ -37,13 +37,26 @@ pub struct LoggingConfig {
     pub performance_tracing: bool,
 }
 
+/// Returns the platform-appropriate default log directory.
+///
+/// - Linux: `~/.local/share/nimbus/logs`
+/// - macOS: `~/Library/Application Support/nimbus/logs`
+/// - Windows: `%APPDATA%\nimbus\logs`
+/// - Fallback: `./logs`
+pub fn default_log_dir() -> PathBuf {
+    dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("nimbus")
+        .join("logs")
+}
+
 impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
             level: "info".to_string(),
             console_enabled: true,
             file_enabled: true,
-            log_dir: PathBuf::from("logs"),
+            log_dir: default_log_dir(),
             file_prefix: "nimbus".to_string(),
             rotation: "daily".to_string(),
             max_files: 7,
