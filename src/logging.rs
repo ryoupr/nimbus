@@ -39,7 +39,8 @@ pub struct LoggingConfig {
 
 /// Returns the platform-appropriate default log directory.
 ///
-/// - Linux/macOS: `~/.local/share/nimbus/logs`
+/// - Linux: `~/.local/share/nimbus/logs`
+/// - macOS: `~/Library/Application Support/nimbus/logs`
 /// - Windows: `%APPDATA%\nimbus\logs`
 /// - Fallback: `./logs`
 pub fn default_log_dir() -> PathBuf {
