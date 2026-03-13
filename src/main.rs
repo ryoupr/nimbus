@@ -634,14 +634,8 @@ async fn main() -> Result<()> {
         } else {
             "info".to_string()
         },
-        console_enabled: true,
-        file_enabled: true,
-        log_dir: std::path::PathBuf::from("logs"),
-        file_prefix: "nimbus".to_string(),
-        rotation: "daily".to_string(),
-        max_files: 7,
-        json_format: false,
         performance_tracing: cli.verbose,
+        ..LoggingConfig::default()
     };
 
     if let Err(e) = crate::logging::init_logging(&logging_config) {
