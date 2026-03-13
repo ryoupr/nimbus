@@ -283,13 +283,7 @@ impl DefaultSsmAgentDiagnostics {
         // Consider versions 3.0.0 and above as current
         // This is a simplified check - in production, you might want to check against
         // the latest available version from AWS
-        if major >= 3 {
-            true
-        } else if major == 2 && minor >= 3 {
-            true // 2.3.x and above are acceptable
-        } else {
-            false
-        }
+        major >= 3 || (major == 2 && minor >= 3)
     }
     
     /// Calculate time since last ping
@@ -407,13 +401,12 @@ impl DefaultSsmAgentDiagnostics {
             }
             
             // Patch version difference
-            if current_parts.len() >= 3 && latest_parts.len() >= 3 {
-                if current_parts[0] == latest_parts[0] 
+            if current_parts.len() >= 3 && latest_parts.len() >= 3
+                && current_parts[0] == latest_parts[0] 
                     && current_parts[1] == latest_parts[1] 
                     && current_parts[2] < latest_parts[2] {
                     return UpdateUrgency::Low;
                 }
-            }
         }
         
         UpdateUrgency::None
@@ -456,7 +449,7 @@ impl DefaultSsmAgentDiagnostics {
         }
         
         // Ensure score is between 0 and 100
-        score.max(0.0).min(100.0)
+        score.clamp(0.0, 100.0)
     }
     
     /// Calculate agent health metrics
@@ -1037,7 +1030,7 @@ impl SsmAgentDiagnostics for DefaultSsmAgentDiagnostics {
                         "registration_analysis".to_string(),
                         format!("Registration quality excellent: {:.1}% ({})", 
                             analysis.registration_quality_score,
-                            analysis.registration_status.to_string()),
+                            analysis.registration_status),
                         start_time.elapsed(),
                     ).with_details(details))
                 } else if analysis.registration_quality_score >= 60.0 {

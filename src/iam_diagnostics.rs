@@ -306,7 +306,7 @@ impl DefaultIamDiagnostics {
                         
                         if let Some(arn) = profile_arn {
                             // ARNからプロファイル名を抽出
-                            let profile_name = arn.split('/').last().unwrap_or("unknown").to_string();
+                            let profile_name = arn.split('/').next_back().unwrap_or("unknown").to_string();
                             
                             // インスタンスプロファイルの詳細を取得
                             let iam_info = self.get_instance_profile_details(&profile_name).await?;
@@ -577,10 +577,7 @@ impl DefaultIamDiagnostics {
         
         // EC2インスタンスメタデータサービスから取得を試行
         // 注意: これは実際のEC2インスタンス上でのみ動作する
-        match self.get_instance_metadata_token_expiration().await {
-            Ok(expiration) => Some(expiration),
-            Err(_) => None,
-        }
+        (self.get_instance_metadata_token_expiration().await).ok()
     }
     
     /// EC2インスタンスメタデータサービスからトークン有効期限を取得
@@ -608,7 +605,7 @@ impl DefaultIamDiagnostics {
         let role_name = creds_response.text().await?;
         
         let expiration_response = client
-            .get(&format!("http://169.254.169.254/latest/meta-data/iam/security-credentials/{}", role_name.trim()))
+            .get(format!("http://169.254.169.254/latest/meta-data/iam/security-credentials/{}", role_name.trim()))
             .header("X-aws-ec2-metadata-token", &token)
             .timeout(Duration::from_secs(2))
             .send()
@@ -1269,8 +1266,6 @@ impl IamDiagnostics for DefaultIamDiagnostics {
 }
 
 // 必要な依存関係を追加
-use reqwest;
-use urlencoding;
 
 #[cfg(test)]
 mod tests {

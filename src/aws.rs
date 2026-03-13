@@ -275,22 +275,13 @@ impl AwsManager {
                             .as_ref()
                             .and_then(|s| s.name.as_ref())
                             .map(|n| n.as_str().to_string()),
-                        private_ip: instance.private_ip_address
-                            .as_ref()
-                            .map(|ip| ip.clone()),
-                        public_ip: instance.public_ip_address
-                            .as_ref()
-                            .map(|ip| ip.clone()),
+                        private_ip: instance.private_ip_address.clone(),
+                        public_ip: instance.public_ip_address.clone(),
                         availability_zone: instance.placement
                             .as_ref()
-                            .and_then(|p| p.availability_zone.as_ref())
-                            .map(|az| az.clone()),
-                        vpc_id: instance.vpc_id
-                            .as_ref()
-                            .map(|vpc| vpc.clone()),
-                        subnet_id: instance.subnet_id
-                            .as_ref()
-                            .map(|subnet| subnet.clone()),
+                            .and_then(|p| p.availability_zone.as_ref()).cloned(),
+                        vpc_id: instance.vpc_id.clone(),
+                        subnet_id: instance.subnet_id.clone(),
                     };
                     
                     debug!("Instance info retrieved: {:?}", info);

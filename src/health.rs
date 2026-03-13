@@ -78,7 +78,7 @@ impl DefaultHealthChecker {
     /// Execute AWS CLI command to check SSM session
     async fn check_aws_ssm_session(&self, session_id: &str) -> Result<bool> {
         let output = Command::new("aws")
-            .args(&["ssm", "describe-sessions", "--session-id", session_id])
+            .args(["ssm", "describe-sessions", "--session-id", session_id])
             .output();
             
         match output {

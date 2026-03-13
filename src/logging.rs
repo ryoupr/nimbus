@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::SystemTime;
-use tracing;
 use tracing_appender::{non_blocking, rolling};
 use tracing_subscriber::{
     fmt::{self, format::FmtSpan},

@@ -191,7 +191,7 @@ impl DefaultNetworkDiagnostics {
                     .map(|entry| NetworkAclEntry {
                         rule_number: entry.rule_number.unwrap_or(0),
                         protocol: entry.protocol.clone().unwrap_or_default(),
-                        rule_action_deny: entry.rule_action.as_ref().map_or(false, |action| action.as_str() == "deny"),
+                        rule_action_deny: entry.rule_action.as_ref().is_some_and(|action| action.as_str() == "deny"),
                         port_range: entry.port_range.as_ref().map(|range| PortRange {
                             from: range.from.unwrap_or(0),
                             to: range.to.unwrap_or(0),
@@ -262,8 +262,7 @@ impl DefaultNetworkDiagnostics {
                 if instance.instance_id.as_deref() == Some(instance_id) {
                     let security_groups: Vec<String> = instance.security_groups()
                         .iter()
-                        .filter_map(|sg| sg.group_id.as_ref())
-                        .map(|id| id.clone())
+                        .filter_map(|sg| sg.group_id.as_ref()).cloned()
                         .collect();
                     
                     debug!("Instance security groups: {:?}", security_groups);
@@ -279,11 +278,9 @@ impl DefaultNetworkDiagnostics {
     async fn check_ssm_vpc_endpoints(&self, vpc_id: &str) -> Result<Vec<VpcEndpointInfo>> {
         debug!("Checking SSM VPC endpoints for VPC: {}", vpc_id);
         
-        let required_services = vec![
-            format!("com.amazonaws.{}.ssm", self.aws_manager.region()),
+        let required_services = [format!("com.amazonaws.{}.ssm", self.aws_manager.region()),
             format!("com.amazonaws.{}.ssmmessages", self.aws_manager.region()),
-            format!("com.amazonaws.{}.ec2messages", self.aws_manager.region()),
-        ];
+            format!("com.amazonaws.{}.ec2messages", self.aws_manager.region())];
         
         let response = self.aws_manager.ec2_client
             .describe_vpc_endpoints()
@@ -304,15 +301,9 @@ impl DefaultNetworkDiagnostics {
                 (&endpoint.service_name, &endpoint.vpc_endpoint_id, &endpoint.state) {
                 
                 if required_services.iter().any(|service| service == service_name) {
-                    let route_table_ids = endpoint.route_table_ids()
-                        .iter()
-                        .map(|id| id.clone())
-                        .collect();
+                    let route_table_ids = endpoint.route_table_ids().to_vec();
                     
-                    let subnet_ids = endpoint.subnet_ids()
-                        .iter()
-                        .map(|id| id.clone())
-                        .collect();
+                    let subnet_ids = endpoint.subnet_ids().to_vec();
                     
                     found_endpoints.push(VpcEndpointInfo {
                         endpoint_id: endpoint_id.clone(),
@@ -351,8 +342,7 @@ impl DefaultNetworkDiagnostics {
                     if let Some(protocol) = &rule.ip_protocol {
                         let cidr_blocks: Vec<String> = rule.ip_ranges()
                             .iter()
-                            .filter_map(|range| range.cidr_ip.as_ref())
-                            .map(|cidr| cidr.clone())
+                            .filter_map(|range| range.cidr_ip.as_ref()).cloned()
                             .collect();
                         
                         rules.push(SecurityGroupRule {
@@ -365,8 +355,7 @@ impl DefaultNetworkDiagnostics {
                             cidr_blocks,
                             description: rule.ip_ranges()
                                 .first()
-                                .and_then(|range| range.description.as_ref())
-                                .map(|desc| desc.clone()),
+                                .and_then(|range| range.description.as_ref()).cloned(),
                         });
                     }
                 }
@@ -376,8 +365,7 @@ impl DefaultNetworkDiagnostics {
                     if let Some(protocol) = &rule.ip_protocol {
                         let cidr_blocks: Vec<String> = rule.ip_ranges()
                             .iter()
-                            .filter_map(|range| range.cidr_ip.as_ref())
-                            .map(|cidr| cidr.clone())
+                            .filter_map(|range| range.cidr_ip.as_ref()).cloned()
                             .collect();
                         
                         rules.push(SecurityGroupRule {
@@ -390,8 +378,7 @@ impl DefaultNetworkDiagnostics {
                             cidr_blocks,
                             description: rule.ip_ranges()
                                 .first()
-                                .and_then(|range| range.description.as_ref())
-                                .map(|desc| desc.clone()),
+                                .and_then(|range| range.description.as_ref()).cloned(),
                         });
                     }
                 }
@@ -473,8 +460,7 @@ impl DefaultNetworkDiagnostics {
         
         let subnet_associations: Vec<String> = route_table.associations()
             .iter()
-            .filter_map(|assoc| assoc.subnet_id.as_ref())
-            .map(|id| id.clone())
+            .filter_map(|assoc| assoc.subnet_id.as_ref()).cloned()
             .collect();
         
         let routes: Vec<RouteInfo> = route_table.routes()
@@ -649,8 +635,8 @@ impl NetworkDiagnostics for DefaultNetworkDiagnostics {
                         let has_https_outbound = rules.iter().any(|rule| {
                             rule.rule_type == "egress" &&
                             (rule.protocol == "tcp" || rule.protocol == "-1") &&
-                            (rule.to_port.map_or(false, |port| port >= 443) || rule.protocol == "-1") &&
-                            (rule.from_port.map_or(false, |port| port <= 443) || rule.protocol == "-1") &&
+                            (rule.to_port.is_some_and(|port| port >= 443) || rule.protocol == "-1") &&
+                            (rule.from_port.is_some_and(|port| port <= 443) || rule.protocol == "-1") &&
                             (rule.cidr_blocks.contains(&"0.0.0.0/0".to_string()) || !rule.cidr_blocks.is_empty())
                         });
                         
@@ -668,13 +654,13 @@ impl NetworkDiagnostics for DefaultNetworkDiagnostics {
                         if has_https_outbound {
                             Ok(DiagnosticResult::success(
                                 "security_groups".to_string(),
-                                format!("Security groups allow HTTPS outbound traffic (required for SSM)"),
+                                "Security groups allow HTTPS outbound traffic (required for SSM)".to_string(),
                                 start_time.elapsed(),
                             ).with_details(details))
                         } else {
                             Ok(DiagnosticResult::error(
                                 "security_groups".to_string(),
-                                format!("Security groups do not allow HTTPS outbound traffic on port 443 (required for SSM)"),
+                                "Security groups do not allow HTTPS outbound traffic on port 443 (required for SSM)".to_string(),
                                 start_time.elapsed(),
                                 Severity::Critical,
                             ).with_details(details).with_auto_fixable(true))
@@ -714,13 +700,13 @@ impl NetworkDiagnostics for DefaultNetworkDiagnostics {
                         // Check for internet gateway or NAT gateway route
                         let has_internet_route = route_table.routes.iter().any(|route| {
                             route.destination_cidr_block.as_deref() == Some("0.0.0.0/0") &&
-                            (route.gateway_id.as_ref().map_or(false, |gw| gw.starts_with("igw-")) ||
+                            (route.gateway_id.as_ref().is_some_and(|gw| gw.starts_with("igw-")) ||
                              route.nat_gateway_id.is_some())
                         });
                         
                         // Check for VPC endpoint routes
                         let has_vpc_endpoint_routes = route_table.routes.iter().any(|route| {
-                            route.gateway_id.as_ref().map_or(false, |gw| gw.starts_with("vpce-"))
+                            route.gateway_id.as_ref().is_some_and(|gw| gw.starts_with("vpce-"))
                         });
                         
                         let details = serde_json::json!({
@@ -933,13 +919,13 @@ impl NetworkDiagnostics for DefaultNetworkDiagnostics {
                             
                             let result = if endpoint_issues.is_empty() {
                                 DiagnosticResult::success(
-                                    format!("vpc_endpoint_{}", endpoint.service_name.split('.').last().unwrap_or("unknown")),
+                                    format!("vpc_endpoint_{}", endpoint.service_name.split('.').next_back().unwrap_or("unknown")),
                                     format!("VPC endpoint {} is properly configured", endpoint.service_name),
                                     start_time.elapsed(),
                                 ).with_details(details)
                             } else {
                                 DiagnosticResult::warning(
-                                    format!("vpc_endpoint_{}", endpoint.service_name.split('.').last().unwrap_or("unknown")),
+                                    format!("vpc_endpoint_{}", endpoint.service_name.split('.').next_back().unwrap_or("unknown")),
                                     format!("VPC endpoint {} has issues: {}", endpoint.service_name, endpoint_issues.join(", ")),
                                     start_time.elapsed(),
                                     Severity::Medium,
@@ -986,7 +972,7 @@ impl NetworkDiagnostics for DefaultNetworkDiagnostics {
                         let mut sg_rules_map: HashMap<String, Vec<&SecurityGroupRule>> = HashMap::new();
                         
                         for rule in &rules {
-                            sg_rules_map.entry(rule.group_id.clone()).or_insert_with(Vec::new).push(rule);
+                            sg_rules_map.entry(rule.group_id.clone()).or_default().push(rule);
                         }
                         
                         // Analyze each security group individually
@@ -1000,8 +986,8 @@ impl NetworkDiagnostics for DefaultNetworkDiagnostics {
                             let has_https_outbound = sg_rules.iter().any(|rule| {
                                 rule.rule_type == "egress" &&
                                 (rule.protocol == "tcp" || rule.protocol == "-1") &&
-                                (rule.to_port.map_or(false, |port| port >= 443) || rule.protocol == "-1") &&
-                                (rule.from_port.map_or(false, |port| port <= 443) || rule.protocol == "-1") &&
+                                (rule.to_port.is_some_and(|port| port >= 443) || rule.protocol == "-1") &&
+                                (rule.from_port.is_some_and(|port| port <= 443) || rule.protocol == "-1") &&
                                 (rule.cidr_blocks.contains(&"0.0.0.0/0".to_string()) || !rule.cidr_blocks.is_empty())
                             });
                             
@@ -1028,8 +1014,8 @@ impl NetworkDiagnostics for DefaultNetworkDiagnostics {
                                 let has_port = sg_rules.iter().any(|rule| {
                                     rule.rule_type == "egress" &&
                                     rule.protocol == "tcp" &&
-                                    rule.from_port.map_or(false, |from| from <= port) &&
-                                    rule.to_port.map_or(false, |to| to >= port)
+                                    rule.from_port.is_some_and(|from| from <= port) &&
+                                    rule.to_port.is_some_and(|to| to >= port)
                                 });
                                 
                                 if has_port {
@@ -1227,7 +1213,7 @@ impl NetworkDiagnostics for DefaultNetworkDiagnostics {
                         // Check for internet gateway routes
                         let has_igw_route = route_table.routes.iter().any(|route| {
                             route.destination_cidr_block.as_deref() == Some("0.0.0.0/0") &&
-                            route.gateway_id.as_ref().map_or(false, |gw| gw.starts_with("igw-"))
+                            route.gateway_id.as_ref().is_some_and(|gw| gw.starts_with("igw-"))
                         });
                         
                         if has_igw_route {
@@ -1349,7 +1335,7 @@ impl NetworkDiagnostics for DefaultNetworkDiagnostics {
                                 !entry.rule_action_deny &&
                                 entry.egress &&
                                 entry.protocol == "6" && // TCP
-                                entry.port_range.as_ref().map_or(false, |range| 
+                                entry.port_range.as_ref().is_some_and(|range| 
                                     range.from <= 443 && range.to >= 443)
                             });
                             

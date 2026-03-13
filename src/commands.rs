@@ -36,6 +36,7 @@ use crate::multi_session_ui::MultiSessionUi;
 #[cfg(feature = "persistence")]
 use crate::persistence::{PersistenceManager, SqlitePersistenceManager};
 
+#[allow(clippy::too_many_arguments)]
 pub async fn handle_connect_with_recovery(
     instance_id: String,
     local_port: u16,
@@ -292,6 +293,7 @@ pub async fn handle_terminate_with_recovery(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn handle_connect(
     instance_id: String,
     local_port: u16,
@@ -695,11 +697,9 @@ pub async fn handle_connect(
             error!("Failed to create session: {}", e);
 
             // Convert to appropriate NimbusError
-            let ec2_error = match e {
-                _ => NimbusError::Session(crate::error::SessionError::CreationFailed {
-                    reason: e.to_string(),
-                }),
-            };
+            let ec2_error = NimbusError::Session(crate::error::SessionError::CreationFailed {
+                reason: e.to_string(),
+            });
 
             return Err(ec2_error.into());
         }
@@ -758,7 +758,7 @@ pub async fn handle_terminate(session_id: String, _config: &Config) -> Result<()
         Err(e) => {
             error!("Failed to terminate session: {}", e);
             println!("❌ Failed to terminate session: {}", e);
-            return Err(e.into());
+            return Err(e);
         }
     }
 
@@ -1694,12 +1694,10 @@ pub async fn handle_config(action: ConfigCommands, config: &Config) -> Result<()
                 } else {
                     config_path
                 }
+            } else if config_path.extension().and_then(|s| s.to_str()) != Some("json") {
+                config_path.with_extension("json")
             } else {
-                if config_path.extension().and_then(|s| s.to_str()) != Some("json") {
-                    config_path.with_extension("json")
-                } else {
-                    config_path
-                }
+                config_path
             };
 
             let default_config = Config::default();
@@ -2315,16 +2313,14 @@ pub async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()
 
                                                     // End skip when we hit a new section or empty line
                                                     if skip_section {
-                                                        if trimmed.starts_with("Host ")
-                                                            && !trimmed.contains("ec2-")
-                                                        {
-                                                            skip_section = false;
-                                                        } else if trimmed.is_empty()
-                                                            && result_lines
-                                                                .last()
-                                                                .map_or(false, |l: &String| {
-                                                                    l.trim().is_empty()
-                                                                })
+                                                        if (trimmed.starts_with("Host ")
+                                                            && !trimmed.contains("ec2-"))
+                                                            || (trimmed.is_empty()
+                                                                && result_lines
+                                                                    .last()
+                                                                    .is_some_and(|l: &String| {
+                                                                        l.trim().is_empty()
+                                                                    }))
                                                         {
                                                             skip_section = false;
                                                         }
@@ -3601,6 +3597,7 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn handle_precheck(
     instance_id: String,
     local_port: Option<u16>,
@@ -3764,6 +3761,7 @@ pub async fn handle_precheck(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn handle_fix(
     instance_id: String,
     local_port: Option<u16>,
@@ -3927,11 +3925,11 @@ pub async fn handle_fix(
             auto_fix::RiskLevel::Critical => "🚨",
         };
         println!(
-            "   {}. {} {} - {}",
+            "   {}. {} {} - Risk: {:?}",
             index + 1,
             risk_icon,
             action.description,
-            format!("Risk: {:?}", action.risk_level)
+            action.risk_level
         );
         if let Some(command) = &action.command {
             println!("      Command: {}", command);
