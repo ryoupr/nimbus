@@ -644,10 +644,13 @@ async fn main() -> Result<()> {
         performance_tracing: cli.verbose,
     };
 
-    if let Err(e) = crate::logging::init_logging(&logging_config) {
-        eprintln!("Failed to initialize logging: {}", e);
-        return Err(anyhow::anyhow!("Failed to initialize logging: {}", e));
-    }
+    let _guard = match crate::logging::init_logging(&logging_config) {
+        Ok(guard) => guard,
+        Err(e) => {
+            eprintln!("Failed to initialize logging: {}", e);
+            return Err(anyhow::anyhow!("Failed to initialize logging: {}", e));
+        }
+    };
 
     info!("Starting Nimbus v3.0.0");
 
