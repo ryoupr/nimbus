@@ -17,6 +17,19 @@ Nimbus v3.0 の完全な API リファレンスです。このドキュメント
 
 ## CLI コマンド
 
+> **Feature Flags について**
+>
+> 一部のコマンドは Cargo feature flag を有効にしてビルドする必要があります。
+>
+> | Feature Flag | 対象コマンド |
+> |---|---|
+> | `performance-monitoring` | `metrics` |
+> | `persistence` | `database` |
+> | `multi-session` | `multi-session` |
+> | `auto-reconnect` | 自動再接続機能 |
+>
+> すべて有効にするには: `cargo build --features advanced`
+
 ### 基本コマンド
 
 #### `connect` - EC2 インスタンスに接続
@@ -35,9 +48,11 @@ nimbus connect [OPTIONS] (--instance-id <INSTANCE_ID> | --target <NAME>)
 - `--targets-file <PATH>` - targets ファイルのパス（省略時は `~/.config/nimbus/targets.json`）
 - `--local-port, -l <PORT>` - ローカルポート番号 (デフォルト: 8080)
 - `--remote-port, -r <PORT>` - リモートポート番号 (デフォルト: 80)
+- `--remote-host <HOST>` - リモートホスト（踏み台インスタンス経由で内部 ALB 等に接続する場合。`AWS-StartPortForwardingSessionToRemoteHost` を使用）
 - `--profile, -p <PROFILE>` - AWS プロファイル名
 - `--region <REGION>` - AWS リージョン
 - `--priority <PRIORITY>` - セッション優先度 (low, normal, high, critical)
+- `--precheck` - 接続前に予防的チェックを実行
 
 **解決ルール:**
 
@@ -58,8 +73,15 @@ nimbus connect --targets-file ~/.config/nimbus/targets.json --target dev
 # カスタムポートとプロファイル
 nimbus connect -i i-1234567890abcdef0 -l 8080 -r 443 -p production
 
+# リモートホスト経由でポートフォワード（踏み台経由で内部ALB等に接続）
+nimbus connect -i i-1234567890abcdef0 -l 10443 -r 443 \
+  --remote-host internal-alb-xxx.ap-northeast-1.elb.amazonaws.com
+
 # 高優先度セッション
 nimbus connect -i i-1234567890abcdef0 --priority high
+
+# 接続前チェック付き
+nimbus connect -i i-1234567890abcdef0 --precheck
 ```
 
 **戻り値:**
@@ -129,6 +151,8 @@ nimbus tui
 - `Enter` - 選択
 
 #### `multi-session` - マルチセッション管理 UI
+
+> ⚠️ `multi-session` feature flag が必要です（`cargo build --features multi-session`）
 
 ```bash
 nimbus multi-session
@@ -260,6 +284,77 @@ nimbus diagnose interactive [OPTIONS] --instance-id <INSTANCE_ID>
 - 色分け表示
 - 自動更新
 
+##### `precheck` - 接続前チェック（diagnose サブコマンド）
+
+```bash
+nimbus diagnose precheck [OPTIONS] --instance-id <INSTANCE_ID>
+```
+
+**オプション:**
+
+- `--instance-id, -i <ID>` - EC2 インスタンス ID
+- `--local-port <PORT>` - ローカルポート
+- `--profile, -p <PROFILE>` - AWS プロファイル
+- `--region <REGION>` - AWS リージョン
+
+##### `item` - 個別診断項目の実行
+
+```bash
+nimbus diagnose item [OPTIONS] --item <NAME> --instance-id <INSTANCE_ID>
+```
+
+**オプション:**
+
+- `--item, -t <NAME>` - 診断項目名
+- `--instance-id, -i <ID>` - EC2 インスタンス ID
+- `--local-port <PORT>` - ローカルポート
+- `--remote-port <PORT>` - リモートポート
+- `--profile, -p <PROFILE>` - AWS プロファイル
+- `--region <REGION>` - AWS リージョン
+
+##### `list` - 利用可能な診断項目の一覧
+
+```bash
+nimbus diagnose list
+```
+
+##### `aws-config-integrated` - 統合 AWS 設定検証
+
+クロスバリデーションとキャッシュ機能付きの AWS 設定検証を実行します。
+
+```bash
+nimbus diagnose aws-config-integrated [OPTIONS] --instance-id <INSTANCE_ID>
+```
+
+**オプション:**
+
+- `--instance-id, -i <ID>` - EC2 インスタンス ID
+- `--profile, -p <PROFILE>` - AWS プロファイル
+- `--region <REGION>` - AWS リージョン
+- `--include-credentials` - 認証情報検証を含む (デフォルト: true)
+- `--include-iam` - IAM 権限検証を含む (デフォルト: true)
+- `--include-vpc` - VPC 設定検証を含む (デフォルト: true)
+- `--include-security-groups` - セキュリティグループ検証を含む (デフォルト: true)
+- `--minimum-score <SCORE>` - 最低コンプライアンススコア (デフォルト: 75.0)
+- `--clear-cache` - 検証前にキャッシュをクリア (デフォルト: false)
+
+##### `settings` - 診断設定の管理
+
+```bash
+nimbus diagnose settings <SUBCOMMAND>
+```
+
+**サブコマンド:**
+
+- `show` - 現在の診断設定を表示
+- `enable <CHECK_NAME>` - 診断チェックを有効化
+- `disable <CHECK_NAME>` - 診断チェックを無効化
+- `auto-fix --enable [--safe-only]` - 自動修復モードを設定
+- `parallel <true|false>` - 並列実行モードを設定
+- `timeout <SECONDS>` - デフォルトタイムアウトを設定
+- `format <text|json|yaml>` - レポート形式を設定
+- `reset` - デフォルト設定にリセット
+
 #### `precheck` - 接続前チェック
 
 ```bash
@@ -366,6 +461,8 @@ nimbus vscode cleanup [SESSION_ID]
 ### データベース管理コマンド
 
 #### `database` - データベース管理
+
+> ⚠️ `persistence` feature flag が必要です（`cargo build --features persistence`）
 
 ```bash
 nimbus database <SUBCOMMAND>
