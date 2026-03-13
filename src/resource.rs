@@ -357,6 +357,7 @@ impl ResourceMonitor {
 
 /// Resource violation types
 #[derive(Debug, Clone)]
+#[allow(clippy::enum_variant_names)]
 pub enum ResourceViolation {
     MemoryExceeded { current: f64, limit: f64 },
     CpuExceeded { current: f64, limit: f64 },

@@ -100,7 +100,7 @@ impl RealtimeFeedbackManager {
 
             loop {
                 // Check for interruption
-                if let Ok(_) = interrupt_rx.try_recv() {
+                if interrupt_rx.try_recv().is_ok() {
                     debug!("Received interrupt signal");
                     break;
                 }

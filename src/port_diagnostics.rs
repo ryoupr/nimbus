@@ -195,10 +195,7 @@ impl DefaultPortDiagnostics {
 
     /// Check if a port is available by attempting to bind to it
     fn is_port_available(&self, port: u16) -> bool {
-        match TcpListener::bind(format!("127.0.0.1:{}", port)) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
     }
 
     /// Get process information using sysinfo
@@ -234,7 +231,7 @@ impl DefaultPortDiagnostics {
     fn find_process_by_port_system_specific(&self, port: u16) -> Option<ProcessInfo> {
         // Use lsof on Unix systems
         let output = Command::new("lsof")
-            .args(&["-i", &format!(":{}", port), "-t"])
+            .args(["-i", &format!(":{}", port), "-t"])
             .output();
 
         if let Ok(output) = output {
@@ -248,7 +245,7 @@ impl DefaultPortDiagnostics {
 
         // Fallback to netstat
         let output = Command::new("netstat")
-            .args(&["-tlnp"])
+            .args(["-tlnp"])
             .output();
 
         if let Ok(output) = output {
@@ -336,7 +333,7 @@ impl DefaultPortDiagnostics {
     /// Find available ports in a range around the target port
     fn find_available_ports_in_range(&self, center_port: u16, range: u16) -> Vec<u16> {
         let start_port = center_port.saturating_sub(range);
-        let end_port = center_port.saturating_add(range).min(65535);
+        let end_port = center_port.saturating_add(range);
         
         let mut available_ports = Vec::new();
         

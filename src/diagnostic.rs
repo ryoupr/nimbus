@@ -195,9 +195,11 @@ pub trait DiagnosticManager {
     fn register_progress_callback(&mut self, callback: Box<dyn Fn(DiagnosticProgress) + Send + Sync>);
 }
 
+type ProgressCallback = std::sync::Arc<std::sync::Mutex<Box<dyn Fn(DiagnosticProgress) + Send + Sync>>>;
+
 /// Default implementation of the diagnostic manager
 pub struct DefaultDiagnosticManager {
-    progress_callback: Option<std::sync::Arc<std::sync::Mutex<Box<dyn Fn(DiagnosticProgress) + Send + Sync>>>>,
+    progress_callback: Option<ProgressCallback>,
     diagnostic_items: Vec<String>,
     realtime_feedback: Option<std::sync::Arc<RealtimeFeedbackManager>>,
 }
@@ -1303,11 +1305,9 @@ impl DiagnosticManager for DefaultDiagnosticManager {
         info!("Starting precheck diagnostics for instance: {}", config.instance_id);
         
         // For precheck, run only essential items
-        let precheck_items = vec![
-            "instance_state",
+        let precheck_items = ["instance_state",
             "local_port_availability",
-            "iam_permissions",
-        ];
+            "iam_permissions"];
         
         let start_time = Instant::now();
         let mut results = Vec::new();

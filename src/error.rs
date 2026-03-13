@@ -186,12 +186,7 @@ impl From<anyhow::Error> for NimbusError {
 impl NimbusError {
     /// Check if error is recoverable
     pub fn is_recoverable(&self) -> bool {
-        match self {
-            NimbusError::Connection(ConnectionError::PreventiveCheckFailed { .. }) => true,
-            NimbusError::Session(SessionError::CreationFailed { .. }) => true,
-            NimbusError::Io(_) => true,
-            _ => false,
-        }
+        matches!(self, NimbusError::Connection(ConnectionError::PreventiveCheckFailed { .. }) | NimbusError::Session(SessionError::CreationFailed { .. }) | NimbusError::Io(_))
     }
     
     /// Get error severity level

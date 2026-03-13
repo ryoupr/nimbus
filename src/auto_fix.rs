@@ -241,8 +241,8 @@ impl DefaultAutoFixManager {
     fn analyze_ssm_agent_fixes(&self, result: &DiagnosticResult) -> Vec<FixAction> {
         let mut fixes = Vec::new();
 
-        if result.status == DiagnosticStatus::Error {
-            if result.message.contains("not registered") || result.message.contains("offline") {
+        if result.status == DiagnosticStatus::Error
+            && (result.message.contains("not registered") || result.message.contains("offline")) {
                 let instance_id = result
                     .details
                     .as_ref()
@@ -258,7 +258,6 @@ impl DefaultAutoFixManager {
                 .with_command("sudo systemctl restart amazon-ssm-agent".to_string());
                 fixes.push(fix);
             }
-        }
 
         fixes
     }
@@ -320,8 +319,8 @@ impl DefaultAutoFixManager {
     fn analyze_port_fixes(&self, result: &DiagnosticResult) -> Vec<FixAction> {
         let mut fixes = Vec::new();
 
-        if result.status == DiagnosticStatus::Error {
-            if result.message.contains("port in use") || result.message.contains("already bound") {
+        if result.status == DiagnosticStatus::Error
+            && (result.message.contains("port in use") || result.message.contains("already bound")) {
                 if let Some(details) = &result.details {
                     if let Some(process_info) = details.get("process_info") {
                         let process_name = process_info
@@ -353,7 +352,6 @@ impl DefaultAutoFixManager {
                 );
                 fixes.push(fix);
             }
-        }
 
         fixes
     }
@@ -557,8 +555,7 @@ impl DefaultAutoFixManager {
             if start_time.elapsed() > max_wait_time {
                 return Err(NimbusError::Aws(AwsError::Timeout {
                     operation: "Instance startup monitoring".to_string(),
-                })
-                .into());
+                }));
             }
 
             let describe_request = self
@@ -598,8 +595,7 @@ impl DefaultAutoFixManager {
                                         "Instance startup failed, current state: {}",
                                         state
                                     ),
-                                })
-                                .into());
+                                }));
                             }
 
                             // Continue monitoring for pending/starting states
@@ -610,8 +606,7 @@ impl DefaultAutoFixManager {
                     error!("Failed to check instance state during monitoring: {}", e);
                     return Err(NimbusError::Aws(AwsError::Ec2ServiceError {
                         message: format!("Failed to check instance state: {}", e),
-                    })
-                    .into());
+                    }));
                 }
             }
 
@@ -642,8 +637,7 @@ impl DefaultAutoFixManager {
             if start_time.elapsed() > timeout {
                 return Err(NimbusError::Aws(AwsError::Timeout {
                     operation: "SSM registration wait".to_string(),
-                })
-                .into());
+                }));
             }
 
             let state = self.check_ssm_agent_state(instance_id).await?;
@@ -836,8 +830,7 @@ impl DefaultAutoFixManager {
                 );
                 Err(NimbusError::Aws(AwsError::SsmServiceError {
                     message: format!("Failed to check SSM agent state: {}", e),
-                })
-                .into())
+                }))
             }
         }
     }
@@ -873,8 +866,7 @@ impl DefaultAutoFixManager {
                     error!("No command information returned");
                     Err(NimbusError::Aws(AwsError::SsmServiceError {
                         message: "No command information returned".to_string(),
-                    })
-                    .into())
+                    }))
                 }
             }
             Err(e) => {
@@ -884,8 +876,7 @@ impl DefaultAutoFixManager {
                 );
                 Err(NimbusError::Aws(AwsError::SsmServiceError {
                     message: format!("Failed to send SSM restart command: {}", e),
-                })
-                .into())
+                }))
             }
         }
     }

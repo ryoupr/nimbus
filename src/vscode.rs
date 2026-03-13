@@ -150,7 +150,7 @@ impl VsCodeIntegration {
         for path_str in common_paths {
             let path = if path_str.contains("{}") {
                 // Windowsのユーザーディレクトリを展開
-                if let Some(username) = std::env::var("USERNAME").ok() {
+                if let Ok(username) = std::env::var("USERNAME") {
                     PathBuf::from(path_str.replace("{}", &username))
                 } else {
                     continue;
@@ -485,7 +485,7 @@ Host {}
         {
             let _ = Command::new("osascript")
                 .arg("-e")
-                .arg(&format!(
+                .arg(format!(
                     r#"display notification "{}" with title "{}""#,
                     message.replace('\n', " - "),
                     title
@@ -666,7 +666,7 @@ Host {}
         // 末尾の余分な空行を削除
         while result_lines
             .last()
-            .map_or(false, |line| line.trim().is_empty())
+            .is_some_and(|line| line.trim().is_empty())
         {
             result_lines.pop();
         }

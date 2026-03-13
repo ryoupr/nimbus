@@ -237,7 +237,7 @@ impl PreventiveCheck for DefaultPreventiveCheck {
         // If instance is not in a good state, abort early
         if basic_state_result.status == DiagnosticStatus::Error && basic_state_result.severity == Severity::Critical {
             warn!("Critical instance state issue detected, aborting preventive checks");
-            let recommendations = self.generate_recommendations(&[basic_state_result.clone()]);
+            let recommendations = self.generate_recommendations(std::slice::from_ref(&basic_state_result));
             return Ok(PreventiveCheckResult {
                 overall_status: PreventiveCheckStatus::Critical,
                 connection_likelihood: ConnectionLikelihood::VeryLow,

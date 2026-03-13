@@ -29,18 +29,15 @@ impl fmt::Display for SessionStatus {
 
 /// Session priority for resource management
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum SessionPriority {
     Low = 0,
+    #[default]
     Normal = 1,
     High = 2,
     Critical = 3,
 }
 
-impl Default for SessionPriority {
-    fn default() -> Self {
-        SessionPriority::Normal
-    }
-}
 
 impl fmt::Display for SessionPriority {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
