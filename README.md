@@ -101,11 +101,15 @@ nimbus multi-session
 
 ## 設定
 
-設定ファイルの場所:
-- **Windows**: `%APPDATA%\nimbus\config.json`
-- **Linux/macOS**: `~/.config/nimbus/config.json`
+設定ファイルは JSON と TOML の両形式に対応しています（JSON が優先）。
 
-### 設定例
+設定ファイルの場所:
+- **Windows**: `%APPDATA%\nimbus\config.json` (または `config.toml`)
+- **Linux/macOS**: `~/.config/nimbus/config.json` (または `config.toml`)
+
+サンプルファイル: `config.json.example` / `config.toml.example`
+
+### 設定例 (JSON)
 
 ```json
 {
@@ -122,6 +126,22 @@ nimbus multi-session
     }
   }
 }
+```
+
+### 設定例 (TOML)
+
+```toml
+[aws]
+default_region = "ap-northeast-1"
+connection_timeout = 30
+
+[session]
+max_sessions_per_instance = 3
+health_check_interval = 5
+
+[session.reconnection]
+enabled = true
+max_attempts = 5
 ```
 
 ### 環境変数
