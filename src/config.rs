@@ -419,144 +419,39 @@ impl Config {
     /// Apply environment variable overrides to configuration
     pub fn apply_env_overrides(&mut self) -> Result<()> {
         // AWS configuration overrides
-        if let Ok(profile) = env::var("NIMBUS_AWS_PROFILE") {
-            self.aws.default_profile = Some(profile);
-        }
-
-        if let Ok(region) = env::var("NIMBUS_AWS_REGION") {
-            self.aws.default_region = region;
-        }
-
-        if let Ok(timeout) = env::var("NIMBUS_CONNECTION_TIMEOUT") {
-            self.aws.connection_timeout = timeout
-                .parse()
-                .with_context(|| "Invalid NIMBUS_CONNECTION_TIMEOUT value")?;
-        }
-
-        if let Ok(timeout) = env::var("NIMBUS_REQUEST_TIMEOUT") {
-            self.aws.request_timeout = timeout
-                .parse()
-                .with_context(|| "Invalid NIMBUS_REQUEST_TIMEOUT value")?;
-        }
+        env_override_opt_string(&mut self.aws.default_profile, "NIMBUS_AWS_PROFILE");
+        env_override(&mut self.aws.default_region, "NIMBUS_AWS_REGION")?;
+        env_override(&mut self.aws.connection_timeout, "NIMBUS_CONNECTION_TIMEOUT")?;
+        env_override(&mut self.aws.request_timeout, "NIMBUS_REQUEST_TIMEOUT")?;
 
         // Session configuration overrides
-        if let Ok(max_sessions) = env::var("NIMBUS_MAX_SESSIONS") {
-            self.session.max_sessions_per_instance = max_sessions
-                .parse()
-                .with_context(|| "Invalid NIMBUS_MAX_SESSIONS value")?;
-        }
-
-        if let Ok(health_interval) = env::var("NIMBUS_HEALTH_CHECK_INTERVAL") {
-            self.session.health_check_interval = health_interval
-                .parse()
-                .with_context(|| "Invalid NIMBUS_HEALTH_CHECK_INTERVAL value")?;
-        }
-
-        if let Ok(inactive_timeout) = env::var("NIMBUS_INACTIVE_TIMEOUT") {
-            self.session.inactive_timeout = inactive_timeout
-                .parse()
-                .with_context(|| "Invalid NIMBUS_INACTIVE_TIMEOUT value")?;
-        }
+        env_override(&mut self.session.max_sessions_per_instance, "NIMBUS_MAX_SESSIONS")?;
+        env_override(&mut self.session.health_check_interval, "NIMBUS_HEALTH_CHECK_INTERVAL")?;
+        env_override(&mut self.session.inactive_timeout, "NIMBUS_INACTIVE_TIMEOUT")?;
 
         // Reconnection policy overrides
-        if let Ok(enabled) = env::var("NIMBUS_RECONNECTION_ENABLED") {
-            self.session.reconnection.enabled = enabled.parse().with_context(|| {
-                "Invalid NIMBUS_RECONNECTION_ENABLED value (use true/false)"
-            })?;
-        }
-
-        if let Ok(max_attempts) = env::var("NIMBUS_MAX_RECONNECTION_ATTEMPTS") {
-            self.session.reconnection.max_attempts = max_attempts
-                .parse()
-                .with_context(|| "Invalid NIMBUS_MAX_RECONNECTION_ATTEMPTS value")?;
-        }
-
-        if let Ok(base_delay) = env::var("NIMBUS_RECONNECTION_BASE_DELAY_MS") {
-            self.session.reconnection.base_delay_ms = base_delay
-                .parse()
-                .with_context(|| "Invalid NIMBUS_RECONNECTION_BASE_DELAY_MS value")?;
-        }
-
-        if let Ok(max_delay) = env::var("NIMBUS_RECONNECTION_MAX_DELAY_MS") {
-            self.session.reconnection.max_delay_ms = max_delay
-                .parse()
-                .with_context(|| "Invalid NIMBUS_RECONNECTION_MAX_DELAY_MS value")?;
-        }
-
-        if let Ok(aggressive) = env::var("NIMBUS_AGGRESSIVE_RECONNECTION") {
-            self.session.reconnection.aggressive_mode = aggressive.parse().with_context(|| {
-                "Invalid NIMBUS_AGGRESSIVE_RECONNECTION value (use true/false)"
-            })?;
-        }
-
-        if let Ok(aggressive_attempts) = env::var("NIMBUS_AGGRESSIVE_ATTEMPTS") {
-            self.session.reconnection.aggressive_attempts = aggressive_attempts
-                .parse()
-                .with_context(|| "Invalid NIMBUS_AGGRESSIVE_ATTEMPTS value")?;
-        }
-
-        if let Ok(aggressive_interval) = env::var("NIMBUS_AGGRESSIVE_INTERVAL_MS") {
-            self.session.reconnection.aggressive_interval_ms = aggressive_interval
-                .parse()
-                .with_context(|| "Invalid NIMBUS_AGGRESSIVE_INTERVAL_MS value")?;
-        }
+        env_override(&mut self.session.reconnection.enabled, "NIMBUS_RECONNECTION_ENABLED")?;
+        env_override(&mut self.session.reconnection.max_attempts, "NIMBUS_MAX_RECONNECTION_ATTEMPTS")?;
+        env_override(&mut self.session.reconnection.base_delay_ms, "NIMBUS_RECONNECTION_BASE_DELAY_MS")?;
+        env_override(&mut self.session.reconnection.max_delay_ms, "NIMBUS_RECONNECTION_MAX_DELAY_MS")?;
+        env_override(&mut self.session.reconnection.aggressive_mode, "NIMBUS_AGGRESSIVE_RECONNECTION")?;
+        env_override(&mut self.session.reconnection.aggressive_attempts, "NIMBUS_AGGRESSIVE_ATTEMPTS")?;
+        env_override(&mut self.session.reconnection.aggressive_interval_ms, "NIMBUS_AGGRESSIVE_INTERVAL_MS")?;
 
         // Performance configuration overrides
-        if let Ok(monitoring) = env::var("NIMBUS_PERFORMANCE_MONITORING") {
-            self.performance.monitoring_enabled = monitoring.parse().with_context(|| {
-                "Invalid NIMBUS_PERFORMANCE_MONITORING value (use true/false)"
-            })?;
-        }
-
-        if let Ok(threshold) = env::var("NIMBUS_LATENCY_THRESHOLD_MS") {
-            self.performance.latency_threshold_ms = threshold
-                .parse()
-                .with_context(|| "Invalid NIMBUS_LATENCY_THRESHOLD_MS value")?;
-        }
-
-        if let Ok(optimization) = env::var("NIMBUS_OPTIMIZATION_ENABLED") {
-            self.performance.optimization_enabled = optimization.parse().with_context(|| {
-                "Invalid NIMBUS_OPTIMIZATION_ENABLED value (use true/false)"
-            })?;
-        }
+        env_override(&mut self.performance.monitoring_enabled, "NIMBUS_PERFORMANCE_MONITORING")?;
+        env_override(&mut self.performance.latency_threshold_ms, "NIMBUS_LATENCY_THRESHOLD_MS")?;
+        env_override(&mut self.performance.optimization_enabled, "NIMBUS_OPTIMIZATION_ENABLED")?;
 
         // Resource configuration overrides
-        if let Ok(max_memory) = env::var("NIMBUS_MAX_MEMORY_MB") {
-            self.resources.max_memory_mb = max_memory
-                .parse()
-                .with_context(|| "Invalid NIMBUS_MAX_MEMORY_MB value")?;
-        }
-
-        if let Ok(max_cpu) = env::var("NIMBUS_MAX_CPU_PERCENT") {
-            self.resources.max_cpu_percent = max_cpu
-                .parse()
-                .with_context(|| "Invalid NIMBUS_MAX_CPU_PERCENT value")?;
-        }
-
-        if let Ok(low_power) = env::var("NIMBUS_LOW_POWER_MODE") {
-            self.resources.low_power_mode = low_power
-                .parse()
-                .with_context(|| "Invalid NIMBUS_LOW_POWER_MODE value (use true/false)")?;
-        }
+        env_override(&mut self.resources.max_memory_mb, "NIMBUS_MAX_MEMORY_MB")?;
+        env_override(&mut self.resources.max_cpu_percent, "NIMBUS_MAX_CPU_PERCENT")?;
+        env_override(&mut self.resources.low_power_mode, "NIMBUS_LOW_POWER_MODE")?;
 
         // UI configuration overrides
-        if let Ok(rich_ui) = env::var("NIMBUS_RICH_UI") {
-            self.ui.rich_ui = rich_ui
-                .parse()
-                .with_context(|| "Invalid NIMBUS_RICH_UI value (use true/false)")?;
-        }
-
-        if let Ok(update_interval) = env::var("NIMBUS_UI_UPDATE_INTERVAL_MS") {
-            self.ui.update_interval_ms = update_interval
-                .parse()
-                .with_context(|| "Invalid NIMBUS_UI_UPDATE_INTERVAL_MS value")?;
-        }
-
-        if let Ok(notifications) = env::var("NIMBUS_NOTIFICATIONS") {
-            self.ui.notifications = notifications
-                .parse()
-                .with_context(|| "Invalid NIMBUS_NOTIFICATIONS value (use true/false)")?;
-        }
+        env_override(&mut self.ui.rich_ui, "NIMBUS_RICH_UI")?;
+        env_override(&mut self.ui.update_interval_ms, "NIMBUS_UI_UPDATE_INTERVAL_MS")?;
+        env_override(&mut self.ui.notifications, "NIMBUS_NOTIFICATIONS")?;
 
         // Logging configuration overrides
         if let Ok(level) = env::var("NIMBUS_LOG_LEVEL") {
@@ -569,70 +464,24 @@ impl Config {
             }
             self.logging.level = level.to_lowercase();
         }
-
-        if let Ok(file_logging) = env::var("NIMBUS_FILE_LOGGING") {
-            self.logging.file_logging = file_logging
-                .parse()
-                .with_context(|| "Invalid NIMBUS_FILE_LOGGING value (use true/false)")?;
-        }
-
+        env_override(&mut self.logging.file_logging, "NIMBUS_FILE_LOGGING")?;
         if let Ok(log_file) = env::var("NIMBUS_LOG_FILE") {
             self.logging.log_file = Some(PathBuf::from(log_file));
         }
-
-        if let Ok(json_format) = env::var("NIMBUS_JSON_LOGGING") {
-            self.logging.json_format = json_format
-                .parse()
-                .with_context(|| "Invalid NIMBUS_JSON_LOGGING value (use true/false)")?;
-        }
+        env_override(&mut self.logging.json_format, "NIMBUS_JSON_LOGGING")?;
 
         // VS Code integration overrides
-        if let Ok(vscode_path) = env::var("NIMBUS_VSCODE_PATH") {
-            self.vscode.vscode_path = Some(vscode_path);
-        }
+        env_override_opt_string(&mut self.vscode.vscode_path, "NIMBUS_VSCODE_PATH");
+        env_override_opt_string(&mut self.vscode.ssh_config_path, "NIMBUS_SSH_CONFIG_PATH");
+        env_override(&mut self.vscode.auto_launch_enabled, "NIMBUS_VSCODE_AUTO_LAUNCH")?;
+        env_override(&mut self.vscode.notifications_enabled, "NIMBUS_VSCODE_NOTIFICATIONS")?;
+        env_override(&mut self.vscode.launch_delay_seconds, "NIMBUS_VSCODE_LAUNCH_DELAY")?;
+        env_override(&mut self.vscode.auto_update_ssh_config, "NIMBUS_VSCODE_AUTO_UPDATE_SSH")?;
 
-        if let Ok(ssh_config_path) = env::var("NIMBUS_SSH_CONFIG_PATH") {
-            self.vscode.ssh_config_path = Some(ssh_config_path);
-        }
-
-        if let Ok(auto_launch) = env::var("NIMBUS_VSCODE_AUTO_LAUNCH") {
-            self.vscode.auto_launch_enabled = auto_launch
-                .parse()
-                .with_context(|| "Invalid NIMBUS_VSCODE_AUTO_LAUNCH value (use true/false)")?;
-        }
-
-        if let Ok(notifications) = env::var("NIMBUS_VSCODE_NOTIFICATIONS") {
-            self.vscode.notifications_enabled = notifications.parse().with_context(|| {
-                "Invalid NIMBUS_VSCODE_NOTIFICATIONS value (use true/false)"
-            })?;
-        }
-
-        if let Ok(delay) = env::var("NIMBUS_VSCODE_LAUNCH_DELAY") {
-            self.vscode.launch_delay_seconds = delay
-                .parse()
-                .with_context(|| "Invalid NIMBUS_VSCODE_LAUNCH_DELAY value")?;
-        }
-
-        if let Ok(auto_update) = env::var("NIMBUS_VSCODE_AUTO_UPDATE_SSH") {
-            self.vscode.auto_update_ssh_config = auto_update.parse().with_context(|| {
-                "Invalid NIMBUS_VSCODE_AUTO_UPDATE_SSH value (use true/false)"
-            })?;
-        }
-
-        // SSH configuration overrides (for generated ~/.ssh/config entry)
-        if let Ok(ssh_user) = env::var("NIMBUS_SSH_USER") {
-            self.vscode.ssh_user = Some(ssh_user);
-        }
-
-        if let Ok(identity_file) = env::var("NIMBUS_SSH_IDENTITY_FILE") {
-            self.vscode.ssh_identity_file = Some(identity_file);
-        }
-
-        if let Ok(identities_only) = env::var("NIMBUS_SSH_IDENTITIES_ONLY") {
-            self.vscode.ssh_identities_only = identities_only.parse().with_context(|| {
-                "Invalid NIMBUS_SSH_IDENTITIES_ONLY value (use true/false)"
-            })?;
-        }
+        // SSH configuration overrides
+        env_override_opt_string(&mut self.vscode.ssh_user, "NIMBUS_SSH_USER");
+        env_override_opt_string(&mut self.vscode.ssh_identity_file, "NIMBUS_SSH_IDENTITY_FILE");
+        env_override(&mut self.vscode.ssh_identities_only, "NIMBUS_SSH_IDENTITIES_ONLY")?;
 
         Ok(())
     }
@@ -972,5 +821,25 @@ impl Config {
                 "Enable IdentitiesOnly for generated SSH config entry (true/false)",
             ),
         ]
+    }
+}
+
+/// Read an environment variable and parse it into the target field.
+fn env_override<T: std::str::FromStr>(field: &mut T, var: &str) -> Result<()>
+where
+    T::Err: std::fmt::Display,
+{
+    if let Ok(val) = env::var(var) {
+        *field = val
+            .parse()
+            .map_err(|e| anyhow::anyhow!("Invalid {} value: {}", var, e))?;
+    }
+    Ok(())
+}
+
+/// Read an environment variable and assign it as `Some(value)`.
+fn env_override_opt_string(field: &mut Option<String>, var: &str) {
+    if let Ok(val) = env::var(var) {
+        *field = Some(val);
     }
 }
