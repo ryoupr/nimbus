@@ -170,7 +170,7 @@ cargo test
 cargo bench
 
 # デバッグログ
-RUST_LOG=debug nimbus connect --instance-id i-xxx
+NIMBUS_LOG_LEVEL=debug nimbus connect --instance-id i-xxx
 ```
 
 ## ライセンス

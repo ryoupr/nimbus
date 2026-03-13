@@ -106,6 +106,29 @@ cp config.toml.example ~/.config/nimbus/config.toml
 | `ssh_identity_file` | string/null | `null` | SSH秘密鍵のパス |
 | `ssh_identities_only` | boolean | `false` | 指定した鍵のみを使用 |
 
+### diagnostic - 診断設定
+
+`diagnostic` セクションは省略可能です（すべてデフォルト値が適用されます）。
+
+| フィールド | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `enabled` | boolean | `true` | 診断機能を有効化 |
+| `enabled_checks` | string[] | *(下記参照)* | 有効な診断項目のリスト |
+| `auto_fix_enabled` | boolean | `false` | 自動修復を有効化 |
+| `safe_auto_fix_only` | boolean | `true` | 安全な自動修復のみ実行 |
+| `parallel_execution` | boolean | `true` | 診断の並列実行を有効化 |
+| `timeout_seconds` | number | `30` | 診断タイムアウト（秒） |
+| `port_scan_range` | number | `10` | ローカルポート診断のスキャン範囲 |
+| `report_format` | string | `"text"` | レポート形式（text/json/yaml） |
+| `output_directory` | string | *(OS依存)* | レポート出力先ディレクトリ |
+| `realtime_feedback` | boolean | `true` | リアルタイムフィードバックを有効化 |
+| `feedback_refresh_interval_ms` | number | `100` | フィードバック更新間隔（ミリ秒） |
+| `enable_colors` | boolean | `true` | 出力のカラー表示を有効化 |
+| `auto_confirm_critical` | boolean | `false` | 重大な問題を自動確認 |
+
+`enabled_checks` のデフォルト値:
+`instance_state`, `ssm_agent`, `iam_permissions`, `vpc_endpoints`, `security_groups`, `network_connectivity`, `local_port_availability`
+
 ### 設定ファイル例
 
 ```json

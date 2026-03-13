@@ -42,34 +42,40 @@ pub struct TargetConfig {
 }
 
 impl TargetsConfig {
-    pub fn default_path() -> Result<PathBuf> {
-        // Prefer ~/.config on Unix-like platforms (including macOS) for consistency
-        // with the main config file and common CLI tool conventions.
-        let base_dir = if cfg!(windows) {
+    fn base_dir() -> Result<PathBuf> {
+        let dir = if cfg!(windows) {
             dirs::config_dir().context("Could not determine config directory")?
         } else {
             dirs::home_dir()
                 .map(|h| h.join(".config"))
                 .or_else(dirs::config_dir)
                 .context("Could not determine config directory")?
-        }
-        .join("nimbus");
+        };
+        Ok(dir.join("nimbus"))
+    }
 
-        Ok(base_dir.join("targets.json"))
+    /// Return candidate paths in priority order: JSON first, then TOML.
+    fn candidate_paths() -> Result<Vec<PathBuf>> {
+        let base = Self::base_dir()?;
+        Ok(vec![
+            base.join("targets.json"),
+            base.join("targets.toml"),
+        ])
     }
 
     pub async fn load(path: Option<&str>) -> Result<(Self, PathBuf)> {
-        let path = match path {
-            Some(p) => PathBuf::from(p),
-            None => Self::default_path()?,
+        let candidates = match path {
+            Some(p) => vec![PathBuf::from(p)],
+            None => Self::candidate_paths()?,
         };
 
-        if !path.exists() {
-            anyhow::bail!(
-                "Targets file not found: {:?}. Create it (e.g. from targets.json.example) or pass --targets-file.",
-                path
-            );
-        }
+        let found = candidates.iter().find(|p| p.exists());
+        let path = found.cloned().ok_or_else(|| {
+            anyhow::anyhow!(
+                "Targets file not found. Create it (e.g. from targets.json.example) or pass --targets-file.\nSearched: {:?}",
+                candidates
+            )
+        })?;
 
         let content = fs::read_to_string(&path)
             .await

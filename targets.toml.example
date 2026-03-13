@@ -1,0 +1,29 @@
+# Nimbus Targets Example (TOML format)
+
+[targets.dev]
+instance_id = "i-1234567890abcdef0"
+local_port = 5555
+remote_port = 22
+profile = "default"
+region = "ap-northeast-1"
+ssh_user = "ubuntu"
+ssh_identity_file = "~/.ssh/dev.pem"
+ssh_identities_only = true
+
+[targets.prod]
+instance_id = "i-0abcdef0123456789"
+local_port = 5556
+remote_port = 22
+profile = "production"
+region = "ap-northeast-1"
+ssh_user = "ec2-user"
+ssh_identity_file = "~/.ssh/prod.pem"
+ssh_identities_only = true
+
+[targets.internal-alb]
+instance_id = "i-bastion123456789"
+local_port = 10443
+remote_port = 443
+remote_host = "internal-alb-xxx.ap-northeast-1.elb.amazonaws.com"
+profile = "production"
+region = "ap-northeast-1"
