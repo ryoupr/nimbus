@@ -85,12 +85,52 @@ cargo build
 # リリースビルド
 cargo build --release
 
+# 全 feature 有効でビルド
+cargo build --features advanced
+
 # テスト
 cargo test
 
 # 実行
 cargo run -- --help
 ```
+
+## プロジェクト構造
+
+```
+src/
+├── main.rs                  # CLI 定義 (clap) とエントリポイント
+├── commands/                # コマンドハンドラ（サブコマンドごとに分割）
+│   ├── mod.rs
+│   ├── connect.rs           # connect コマンド
+│   ├── config.rs            # config サブコマンド
+│   ├── database.rs          # database サブコマンド (persistence feature)
+│   ├── diagnose.rs          # diagnose サブコマンド
+│   ├── diagnostic_settings.rs # diagnose settings サブコマンド
+│   ├── fix.rs               # fix コマンド
+│   ├── monitoring.rs        # metrics / resources / health コマンド
+│   ├── multi_session.rs     # multi-session コマンド (multi-session feature)
+│   ├── tui.rs               # tui コマンド
+│   └── vscode.rs            # vscode サブコマンド
+├── aws.rs                   # AWS SDK ラッパー
+├── config.rs                # 設定ファイル読み込み・検証
+├── targets.rs               # ターゲットファイル (JSON/TOML)
+├── diagnostic.rs            # 診断エンジン
+├── error.rs                 # エラー型定義
+├── error_recovery.rs        # エラー回復・リトライ
+├── user_messages.rs         # ユーザー向けメッセージ
+└── ...                      # その他モジュール
+```
+
+### Feature Flags
+
+| Flag | 説明 |
+|---|---|
+| `performance-monitoring` | パフォーマンス監視 (`monitor`, `performance` モジュール) |
+| `persistence` | データベース永続化 (`persistence` モジュール) |
+| `multi-session` | マルチセッション管理 (`multi_session`, `multi_session_ui` モジュール) |
+| `auto-reconnect` | 自動再接続 (`reconnect` モジュール) |
+| `advanced` | 上記すべてを有効化 |
 
 ## クロスコンパイル（手動）
 
