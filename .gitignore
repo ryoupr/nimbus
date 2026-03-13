@@ -75,6 +75,9 @@ perf.data.old
 flamegraph.svg
 
 
+# Personal notes
+daily_notes/
+
 # Kiro
 .kiro/hooks
 .kiro/settings
