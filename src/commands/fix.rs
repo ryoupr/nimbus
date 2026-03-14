@@ -45,15 +45,6 @@ use crate::{
     aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui,
 };
 
-#[cfg(feature = "performance-monitoring")]
-use crate::monitor::DefaultSessionMonitor;
-#[cfg(feature = "multi-session")]
-use crate::multi_session::{MultiSessionManager, ResourceThresholds};
-#[cfg(feature = "multi-session")]
-use crate::multi_session_ui::MultiSessionUi;
-#[cfg(feature = "persistence")]
-use crate::persistence::{PersistenceManager, SqlitePersistenceManager};
-
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_fix(
     instance_id: String,

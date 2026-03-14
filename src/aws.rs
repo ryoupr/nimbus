@@ -156,6 +156,14 @@ impl AwsManager {
         Self::new(Some(region.to_string()), None).await
     }
 
+    /// セッションを作成（reconnect モジュール用スタブ）
+    pub async fn create_session(
+        &self,
+        _config: crate::session::SessionConfig,
+    ) -> Result<crate::session::Session> {
+        anyhow::bail!("create_session via AwsManager is not yet implemented")
+    }
+
     /// SSM セッションを終了
     pub async fn terminate_ssm_session(&self, session_id: &str) -> Result<()> {
         info!("Terminating SSM session: {}", session_id);

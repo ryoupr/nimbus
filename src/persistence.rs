@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::error::Result;
 use crate::session::SessionStatus;
 use async_trait::async_trait;
@@ -92,7 +93,6 @@ pub trait PersistenceManager {
     async fn get_database_info(&self) -> Result<DatabaseInfo>;
 
     /// Application restart recovery methods
-
     /// Mark sessions as potentially stale on application startup
     async fn mark_sessions_as_stale(&self) -> Result<u32>;
 
@@ -1093,12 +1093,11 @@ impl PersistenceManager for SqlitePersistenceManager {
         info!("Restoring database from backup: {:?}", backup_path);
 
         if !backup_path.exists() {
-            return Err(
-                crate::error::NimbusError::Config(crate::error::ConfigError::Invalid {
+            return Err(crate::error::NimbusError::Config(
+                crate::error::ConfigError::Invalid {
                     message: format!("Backup file not found: {:?}", backup_path),
-                })
-                .into(),
-            );
+                },
+            ));
         }
 
         // Create backup of current database before restore
@@ -1319,6 +1318,10 @@ impl SessionStatus {
         }
     }
 
+    #[allow(
+        clippy::inherent_to_string_shadow_display,
+        clippy::wrong_self_convention
+    )]
     pub fn to_string(&self) -> String {
         match self {
             SessionStatus::Active => "Active".to_string(),

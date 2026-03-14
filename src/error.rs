@@ -45,7 +45,10 @@ pub enum NimbusError {
 
 /// Configuration-related errors
 #[derive(Error, Debug, Clone)]
-pub enum ConfigError {}
+pub enum ConfigError {
+    #[error("Invalid configuration: {message}")]
+    Invalid { message: String },
+}
 
 /// AWS-related errors
 #[derive(Error, Debug, Clone)]
@@ -74,6 +77,16 @@ pub enum SessionError {
 
     #[error("Session limit exceeded: max {max_sessions}")]
     LimitExceeded { max_sessions: u32 },
+
+    #[error("Resource limit exceeded: {resource} ({current} >= {limit})")]
+    ResourceLimitExceeded {
+        resource: String,
+        current: f64,
+        limit: f64,
+    },
+
+    #[error("Reconnection failed for session {session_id} after {attempts} attempts")]
+    ReconnectionFailed { session_id: String, attempts: u32 },
 }
 
 /// Connection-related errors

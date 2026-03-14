@@ -44,14 +44,6 @@ use config::Config;
 use error::NimbusError;
 use error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager, RecoveryConfig};
 use logging::{LoggingConfig, StructuredLogger};
-#[cfg(feature = "performance-monitoring")]
-use monitor::DefaultSessionMonitor;
-#[cfg(feature = "multi-session")]
-use multi_session::{MultiSessionManager, ResourceThresholds};
-#[cfg(feature = "multi-session")]
-use multi_session_ui::MultiSessionUi;
-#[cfg(feature = "persistence")]
-use persistence::{PersistenceManager, SqlitePersistenceManager};
 use targets::TargetsConfig;
 use user_messages::UserMessageSystem;
 

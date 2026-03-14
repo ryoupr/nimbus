@@ -52,6 +52,7 @@ use crate::multi_session::{MultiSessionManager, ResourceThresholds};
 #[cfg(feature = "multi-session")]
 use crate::multi_session_ui::MultiSessionUi;
 #[cfg(feature = "persistence")]
+#[allow(unused_imports)]
 use crate::persistence::{PersistenceManager, SqlitePersistenceManager};
 
 #[cfg(feature = "multi-session")]

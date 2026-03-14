@@ -1,4 +1,5 @@
 #![allow(async_fn_in_trait)]
+#![allow(dead_code)]
 
 use crate::aws::AwsClient;
 use crate::config::ReconnectionConfig;
@@ -179,10 +180,10 @@ impl DefaultAutoReconnector {
         let address = format!("127.0.0.1:{}", port);
         let connect_timeout = Duration::from_secs(1);
 
-        match timeout(connect_timeout, TcpStream::connect(&address)).await {
-            Ok(Ok(_)) => true,
-            _ => false,
-        }
+        matches!(
+            timeout(connect_timeout, TcpStream::connect(&address)).await,
+            Ok(Ok(_))
+        )
     }
 
     /// Update session in active sessions map

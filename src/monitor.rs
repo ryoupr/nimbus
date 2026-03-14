@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::error::{Result, SessionError};
 use crate::session::{Session, SessionEvent};
 use std::collections::HashMap;
@@ -360,7 +361,7 @@ impl DefaultSessionMonitor {
     #[cfg(not(target_os = "windows"))]
     async fn count_connections_unix(&self, port: u16) -> u32 {
         match Command::new("ss")
-            .args(&["-tn", "state", "established"])
+            .args(["-tn", "state", "established"])
             .output()
         {
             Ok(output) => {
@@ -373,7 +374,7 @@ impl DefaultSessionMonitor {
             }
             Err(_) => {
                 // Fallback to netstat if ss is not available
-                match Command::new("netstat").args(&["-tn"]).output() {
+                match Command::new("netstat").args(["-tn"]).output() {
                     Ok(output) => {
                         let output_str = String::from_utf8_lossy(&output.stdout);
                         let port_str = format!(":{}", port);

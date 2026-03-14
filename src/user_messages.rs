@@ -153,6 +153,29 @@ impl UserMessageSystem {
                 ],
                 help_command: Some("nimbus list-sessions".to_string()),
             },
+            SessionError::ResourceLimitExceeded { resource, .. } => UserErrorMessage {
+                title: "リソース制限に達しました".to_string(),
+                message: format!("リソース '{}' が制限に達しました。", resource),
+                severity: "high".to_string(),
+                solutions: vec!["不要なセッションを終了してリソースを解放してください".to_string()],
+                help_command: Some("nimbus list-sessions".to_string()),
+            },
+            SessionError::ReconnectionFailed {
+                session_id,
+                attempts,
+            } => UserErrorMessage {
+                title: "再接続に失敗しました".to_string(),
+                message: format!(
+                    "セッション '{}' への再接続が {} 回失敗しました。",
+                    session_id, attempts
+                ),
+                severity: "high".to_string(),
+                solutions: vec![
+                    "ネットワーク接続を確認してください".to_string(),
+                    "新しいセッションを作成してください".to_string(),
+                ],
+                help_command: Some("nimbus connect".to_string()),
+            },
         }
     }
 

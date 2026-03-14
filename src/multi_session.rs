@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::error::{Result, SessionError};
 use crate::manager::{ResourceUsage, SessionManager, SessionStatistics};
 use crate::monitor::SessionMonitor;
@@ -64,7 +65,7 @@ impl SessionPriorityQueue {
 
         self.sessions_by_priority
             .entry(priority)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(session.id.clone());
 
         self.session_weights.insert(session.id.clone(), weight);
