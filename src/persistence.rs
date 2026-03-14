@@ -2,6 +2,7 @@ use crate::error::Result;
 use crate::session::SessionStatus;
 use rusqlite::{Connection, params, Row, OptionalExtension, backup::Backup};
 use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard};
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Deserialize};
 use tracing::{info, warn, debug};
@@ -114,12 +115,14 @@ pub trait PersistenceManager {
 /// SQLite implementation of persistence manager
 pub struct SqlitePersistenceManager {
     db_path: PathBuf,
+    conn: Mutex<Connection>,
 }
 
 impl SqlitePersistenceManager {
     /// Create new SQLite persistence manager
-    pub fn new(db_path: PathBuf) -> Self {
-        Self { db_path }
+    pub fn new(db_path: PathBuf) -> Result<Self> {
+        let conn = Self::open_connection(&db_path)?;
+        Ok(Self { db_path, conn: Mutex::new(conn) })
     }
     
     /// Create with default database path
@@ -136,50 +139,25 @@ impl SqlitePersistenceManager {
         std::fs::create_dir_all(&db_dir)?;
         let db_path = db_dir.join("sessions.db");
         
-        Ok(Self::new(db_path))
+        Self::new(db_path)
     }
     
-    /// Get database connection
-    fn get_connection(&self) -> Result<Connection> {
-        let conn = Connection::open(&self.db_path)?;
-        
-        // Enable foreign keys - this PRAGMA doesn't return results
+    /// Open and configure a database connection
+    fn open_connection(db_path: &std::path::Path) -> Result<Connection> {
+        let conn = Connection::open(db_path)?;
         conn.execute("PRAGMA foreign_keys = ON", [])?;
-        
-        // Set WAL mode - this PRAGMA returns the mode, so we need to use query_row or ignore the result
-        conn.execute("PRAGMA journal_mode = WAL", []).or_else(|e| {
-            match e {
-                rusqlite::Error::ExecuteReturnedResults => {
-                    // This is expected for journal_mode pragma, ignore it
-                    Ok(0)
-                },
-                _ => Err(e)
-            }
-        })?;
-        
-        // Set synchronous mode - this might return results too
-        conn.execute("PRAGMA synchronous = NORMAL", []).or_else(|e| {
-            match e {
-                rusqlite::Error::ExecuteReturnedResults => {
-                    // This is expected, ignore it
-                    Ok(0)
-                },
-                _ => Err(e)
-            }
-        })?;
-        
-        // Set cache size - this might return results too
-        conn.execute("PRAGMA cache_size = 10000", []).or_else(|e| {
-            match e {
-                rusqlite::Error::ExecuteReturnedResults => {
-                    // This is expected, ignore it
-                    Ok(0)
-                },
-                _ => Err(e)
-            }
-        })?;
-        
+        for pragma in &["journal_mode = WAL", "synchronous = NORMAL", "cache_size = 10000"] {
+            conn.execute(&format!("PRAGMA {pragma}"), []).or_else(|e| match e {
+                rusqlite::Error::ExecuteReturnedResults => Ok(0),
+                _ => Err(e),
+            })?;
+        }
         Ok(conn)
+    }
+    
+    /// Get a lock on the held connection
+    fn conn(&self) -> MutexGuard<'_, Connection> {
+        self.conn.lock().expect("database connection mutex poisoned")
     }
     
     /// Create database tables
@@ -487,7 +465,7 @@ impl PersistenceManager for SqlitePersistenceManager {
             std::fs::create_dir_all(parent)?;
         }
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         
         // First create the schema_version table if it doesn't exist
         conn.execute(
@@ -510,7 +488,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn save_session(&self, session: &PersistentSession) -> Result<()> {
         debug!("Saving session: {}", session.session_id);
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         conn.execute(
             "INSERT OR REPLACE INTO sessions 
              (session_id, instance_id, region, status, created_at, last_activity, 
@@ -539,7 +517,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn load_session(&self, session_id: &str) -> Result<Option<PersistentSession>> {
         debug!("Loading session: {}", session_id);
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         let mut stmt = conn.prepare(
             "SELECT session_id, instance_id, region, status, created_at, last_activity, 
                     connection_count, total_duration_seconds, process_id, is_stale, recovery_attempts
@@ -562,7 +540,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn load_active_sessions(&self) -> Result<Vec<PersistentSession>> {
         debug!("Loading active sessions");
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         let mut stmt = conn.prepare(
             "SELECT session_id, instance_id, region, status, created_at, last_activity,
                     connection_count, total_duration_seconds, process_id, is_stale, recovery_attempts
@@ -585,7 +563,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn update_session_status(&self, session_id: &str, status: SessionStatus) -> Result<()> {
         debug!("Updating session status: {} -> {:?}", session_id, status);
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         let rows_affected = conn.execute(
             "UPDATE sessions SET status = ?, last_activity = ? WHERE session_id = ?",
             params![status.to_string(), Utc::now().to_rfc3339(), session_id],
@@ -604,7 +582,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn update_session_activity(&self, session_id: &str) -> Result<()> {
         debug!("Updating session activity: {}", session_id);
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         let rows_affected = conn.execute(
             "UPDATE sessions SET last_activity = ? WHERE session_id = ?",
             params![Utc::now().to_rfc3339(), session_id],
@@ -621,7 +599,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn delete_session(&self, session_id: &str) -> Result<()> {
         debug!("Deleting session: {}", session_id);
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         let rows_affected = conn.execute(
             "DELETE FROM sessions WHERE session_id = ?",
             params![session_id],
@@ -640,7 +618,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn save_performance_metrics(&self, metrics: &PersistentPerformanceMetrics) -> Result<()> {
         debug!("Saving performance metrics for session: {}", metrics.session_id);
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         conn.execute(
             "INSERT INTO performance_metrics 
              (session_id, timestamp, connection_time_ms, latency_ms, throughput_mbps,
@@ -667,7 +645,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn load_performance_metrics(&self, session_id: &str, limit: Option<u32>) -> Result<Vec<PersistentPerformanceMetrics>> {
         debug!("Loading performance metrics for session: {} (limit: {:?})", session_id, limit);
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         let query = if let Some(limit) = limit {
             format!(
                 "SELECT session_id, timestamp, connection_time_ms, latency_ms, throughput_mbps,
@@ -701,7 +679,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn get_performance_statistics(&self, session_id: &str) -> Result<PerformanceStatistics> {
         debug!("Getting performance statistics for session: {}", session_id);
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         let stats = conn.query_row(
             "SELECT 
                 COUNT(*) as count,
@@ -749,7 +727,7 @@ impl PersistenceManager for SqlitePersistenceManager {
         info!("Cleaning up data older than {} days", retention_days);
         
         let cutoff_date = Utc::now() - chrono::Duration::days(retention_days as i64);
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         
         // Delete old performance metrics
         let metrics_deleted = conn.execute(
@@ -776,7 +754,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn get_database_info(&self) -> Result<DatabaseInfo> {
         debug!("Getting database information");
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         
         // Get schema version
         let schema_version: i32 = conn
@@ -817,7 +795,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn mark_sessions_as_stale(&self) -> Result<u32> {
         info!("Marking active sessions as potentially stale");
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         let rows_affected = conn.execute(
             "UPDATE sessions SET is_stale = 1 
              WHERE status IN ('Active', 'Connecting', 'Reconnecting')",
@@ -832,7 +810,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn restore_session_state(&self, session_id: &str) -> Result<Option<SessionRecoveryInfo>> {
         debug!("Restoring session state for: {}", session_id);
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         let mut stmt = conn.prepare(
             "SELECT session_id, instance_id, region, status, created_at, last_activity,
                     connection_count, total_duration_seconds, process_id, recovery_attempts
@@ -902,7 +880,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn save_application_state(&self, state: &ApplicationState) -> Result<()> {
         debug!("Saving application state");
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         conn.execute(
             "INSERT OR REPLACE INTO application_state 
              (id, startup_time, last_heartbeat, active_session_count, total_memory_usage_mb, 
@@ -926,7 +904,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn load_application_state(&self) -> Result<Option<ApplicationState>> {
         debug!("Loading application state");
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         let state = conn.query_row(
             "SELECT startup_time, last_heartbeat, active_session_count, 
                     total_memory_usage_mb, configuration_hash, recovery_mode
@@ -967,10 +945,10 @@ impl PersistenceManager for SqlitePersistenceManager {
         }
         
         // Create backup using SQLite backup API
-        let source_conn = self.get_connection()?;
+        let conn = self.conn();
         let mut backup_conn = Connection::open(backup_path)?;
         
-        let backup = Backup::new(&source_conn, &mut backup_conn)?;
+        let backup = Backup::new(&*conn, &mut backup_conn)?;
         backup.run_to_completion(5, std::time::Duration::from_millis(250), None)?;
         
         info!("Database backup completed successfully");
@@ -1002,6 +980,11 @@ impl PersistenceManager for SqlitePersistenceManager {
         
         let backup = Backup::new(&backup_conn, &mut target_conn)?;
         backup.run_to_completion(5, std::time::Duration::from_millis(250), None)?;
+        drop(target_conn);
+        drop(backup_conn);
+        
+        // Reopen held connection to pick up restored data
+        *self.conn.lock().expect("database connection mutex poisoned") = Self::open_connection(&self.db_path)?;
         
         info!("Database restored from backup successfully");
         Ok(())
@@ -1011,7 +994,7 @@ impl PersistenceManager for SqlitePersistenceManager {
     async fn validate_integrity(&self) -> Result<IntegrityReport> {
         info!("Validating database integrity");
         
-        let conn = self.get_connection()?;
+        let conn = self.conn();
         let mut issues = Vec::new();
         let mut recommendations = Vec::new();
         
