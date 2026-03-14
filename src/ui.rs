@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 use crate::session::Session;
 use crate::error::Result;

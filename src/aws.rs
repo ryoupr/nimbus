@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 use anyhow::{Context, Result};
 use aws_config::{BehaviorVersion, Region};

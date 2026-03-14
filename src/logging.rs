@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 use crate::error::{NimbusError, ErrorSeverity};
 use crate::error_recovery::ContextualError;
