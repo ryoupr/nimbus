@@ -1,7 +1,7 @@
 use clap::Subcommand;
 
-mod connect;
 mod config;
+mod connect;
 #[cfg(feature = "persistence")]
 mod database;
 mod diagnose;
@@ -13,8 +13,8 @@ mod multi_session;
 mod tui;
 mod vscode;
 
-pub use connect::*;
 pub use config::*;
+pub use connect::*;
 #[cfg(feature = "persistence")]
 pub use database::*;
 pub use diagnose::*;

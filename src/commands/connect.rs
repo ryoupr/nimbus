@@ -4,19 +4,10 @@ use anyhow::Result;
 use tracing::{error, info, warn};
 
 #[allow(unused_imports)]
-use crate::{
-    auto_fix, aws::AwsManager, aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator},
-    config::Config, diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager},
-    error::NimbusError, error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager},
-    health::{DefaultHealthChecker, HealthChecker}, logging::StructuredLogger,
-    manager::{DefaultSessionManager, SessionManager},
-    preventive_check::{DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig},
-    resource::ResourceMonitor, session::{SessionConfig, SessionPriority}, user_messages::UserMessageSystem, vscode::VsCodeIntegration,
+use super::{
+    ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands,
+    VsCodeCommands,
 };
-#[allow(unused_imports)]
-use super::{ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands, VsCodeCommands};
-#[allow(unused_imports)]
-use crate::{aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui};
 #[allow(unused_imports)]
 use crate::aws_config_validator::{SuggestionCategory, SuggestionPriority};
 #[allow(unused_imports)]
@@ -31,6 +22,28 @@ use crate::resource::ResourceViolation;
 use crate::session::{Session, SessionStatus};
 #[allow(unused_imports)]
 use crate::ui::{ResourceMetrics, TerminalUi};
+#[allow(unused_imports)]
+use crate::{
+    auto_fix,
+    aws::AwsManager,
+    aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator},
+    config::Config,
+    diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager},
+    error::NimbusError,
+    error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager},
+    health::{DefaultHealthChecker, HealthChecker},
+    logging::StructuredLogger,
+    manager::{DefaultSessionManager, SessionManager},
+    preventive_check::{DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig},
+    resource::ResourceMonitor,
+    session::{SessionConfig, SessionPriority},
+    user_messages::UserMessageSystem,
+    vscode::VsCodeIntegration,
+};
+#[allow(unused_imports)]
+use crate::{
+    aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui,
+};
 
 #[cfg(feature = "performance-monitoring")]
 use crate::monitor::DefaultSessionMonitor;
@@ -74,9 +87,8 @@ where
                     contextual_error.context.operation, contextual_error.error
                 );
 
-                let recovery_operation = || -> crate::error::Result<()> {
-                    Err(contextual_error.error.clone())
-                };
+                let recovery_operation =
+                    || -> crate::error::Result<()> { Err(contextual_error.error.clone()) };
 
                 match recovery_manager
                     .recover(recovery_operation, &contextual_error.error)
@@ -92,8 +104,7 @@ where
                                 Ok(ec2_err) => ec2_err,
                                 Err(other_err) => NimbusError::System(other_err.to_string()),
                             };
-                            let user_message =
-                                message_system.get_error_message(&retry_ec2_error);
+                            let user_message = message_system.get_error_message(&retry_ec2_error);
                             eprintln!("{}", user_message.format_for_display());
                             Err(retry_ec2_error.into())
                         }
@@ -145,8 +156,15 @@ pub async fn handle_connect_with_recovery(
             );
             async move {
                 handle_connect(
-                    instance_id, local_port, remote_port, remote_host, profile, region, priority,
-                    precheck, &config,
+                    instance_id,
+                    local_port,
+                    remote_port,
+                    remote_host,
+                    profile,
+                    region,
+                    priority,
+                    precheck,
+                    &config,
                 )
                 .await
             }
@@ -373,153 +391,154 @@ pub async fn handle_connect(
             .run_preventive_checks(preventive_config.clone())
             .await
         {
-        Ok(mut result) => {
-            println!(
-                "🎯 Connection Likelihood: {} ({}%)",
-                result.connection_likelihood.as_description(),
-                result.connection_likelihood.as_percentage()
-            );
+            Ok(mut result) => {
+                println!(
+                    "🎯 Connection Likelihood: {} ({}%)",
+                    result.connection_likelihood.as_description(),
+                    result.connection_likelihood.as_percentage()
+                );
 
-            if result.should_abort_connection {
-                // If auto-fix is enabled, try to resolve common blockers (task 26.1/26.2)
-                // and then re-run preventive checks once.
-                if config.diagnostic.auto_fix_enabled {
-                    let has_managed_instance_registration_issue = result
-                        .critical_issues
-                        .iter()
-                        .any(|issue| issue.item_name == "managed_instance_registration");
+                if result.should_abort_connection {
+                    // If auto-fix is enabled, try to resolve common blockers (task 26.1/26.2)
+                    // and then re-run preventive checks once.
+                    if config.diagnostic.auto_fix_enabled {
+                        let has_managed_instance_registration_issue = result
+                            .critical_issues
+                            .iter()
+                            .any(|issue| issue.item_name == "managed_instance_registration");
 
-                    if has_managed_instance_registration_issue {
-                        use auto_fix::{
-                            AutoFixManager, DefaultAutoFixManager, FixAction, FixActionType,
-                        };
+                        if has_managed_instance_registration_issue {
+                            use auto_fix::{
+                                AutoFixManager, DefaultAutoFixManager, FixAction, FixActionType,
+                            };
 
-                        println!(
+                            println!(
                             "🔧 Auto-fix is enabled - attempting to start instance and wait for SSM registration..."
                         );
 
-                        let mut auto_fix_manager = DefaultAutoFixManager::with_aws_config(
-                            preventive_config.region.clone(),
-                            preventive_config.profile.clone(),
-                        )
-                        .await
-                        .map_err(|e| {
-                            NimbusError::System(format!(
-                                "Failed to create auto-fix manager: {}",
-                                e
-                            ))
-                        })?;
+                            let mut auto_fix_manager = DefaultAutoFixManager::with_aws_config(
+                                preventive_config.region.clone(),
+                                preventive_config.profile.clone(),
+                            )
+                            .await
+                            .map_err(|e| {
+                                NimbusError::System(format!(
+                                    "Failed to create auto-fix manager: {}",
+                                    e
+                                ))
+                            })?;
 
-                        // Safety: in connect flow we only attempt the safe, non-confirmation fix.
-                        // (StartInstance is Low risk and requires no confirmation per task 26.1)
-                        let action = FixAction::new(
-                            FixActionType::StartInstance,
-                            format!("Starting instance: {}", instance_id),
-                            instance_id.clone(),
-                        );
+                            // Safety: in connect flow we only attempt the safe, non-confirmation fix.
+                            // (StartInstance is Low risk and requires no confirmation per task 26.1)
+                            let action = FixAction::new(
+                                FixActionType::StartInstance,
+                                format!("Starting instance: {}", instance_id),
+                                instance_id.clone(),
+                            );
 
-                        match auto_fix_manager.execute_fix(action).await {
-                            Ok(fix_result) => {
-                                if fix_result.success {
-                                    println!("✅ Auto-fix succeeded: {}", fix_result.message);
-                                    println!("🔁 Re-running preventive checks...");
-                                    match preventive_check
-                                        .run_preventive_checks(preventive_config.clone())
-                                        .await
-                                    {
-                                        Ok(retry_result) => {
-                                            result = retry_result;
-                                            println!(
-                                                "🎯 Connection Likelihood: {} ({}%)",
-                                                result.connection_likelihood.as_description(),
-                                                result.connection_likelihood.as_percentage()
-                                            );
-                                        }
-                                        Err(e) => {
-                                            warn!(
+                            match auto_fix_manager.execute_fix(action).await {
+                                Ok(fix_result) => {
+                                    if fix_result.success {
+                                        println!("✅ Auto-fix succeeded: {}", fix_result.message);
+                                        println!("🔁 Re-running preventive checks...");
+                                        match preventive_check
+                                            .run_preventive_checks(preventive_config.clone())
+                                            .await
+                                        {
+                                            Ok(retry_result) => {
+                                                result = retry_result;
+                                                println!(
+                                                    "🎯 Connection Likelihood: {} ({}%)",
+                                                    result.connection_likelihood.as_description(),
+                                                    result.connection_likelihood.as_percentage()
+                                                );
+                                            }
+                                            Err(e) => {
+                                                warn!(
                                                 "Preventive check failed after auto-fix, proceeding to abort handling: {}",
                                                 e
                                             );
+                                            }
                                         }
+                                    } else {
+                                        println!("❌ Auto-fix failed: {}", fix_result.message);
                                     }
-                                } else {
-                                    println!("❌ Auto-fix failed: {}", fix_result.message);
                                 }
-                            }
-                            Err(e) => {
-                                println!("❌ Auto-fix execution failed: {}", e);
+                                Err(e) => {
+                                    println!("❌ Auto-fix execution failed: {}", e);
+                                }
                             }
                         }
                     }
-                }
 
-                if result.should_abort_connection {
-                    println!(
+                    if result.should_abort_connection {
+                        println!(
                         "🛑 Preventive checks failed - connection aborted due to critical issues:"
                     );
-                    for issue in &result.critical_issues {
-                        println!("   ❌ {}: {}", issue.item_name, issue.message);
-                    }
-                    println!();
-                    println!("💡 Recommendations:");
-                    for (index, recommendation) in result.recommendations.iter().enumerate() {
-                        println!("   {}. {}", index + 1, recommendation);
-                    }
-                    println!();
-                    println!(
+                        for issue in &result.critical_issues {
+                            println!("   ❌ {}: {}", issue.item_name, issue.message);
+                        }
+                        println!();
+                        println!("💡 Recommendations:");
+                        for (index, recommendation) in result.recommendations.iter().enumerate() {
+                            println!("   {}. {}", index + 1, recommendation);
+                        }
+                        println!();
+                        println!(
                         "Run 'nimbus diagnose preventive --instance-id {}' for detailed analysis.",
                         instance_id
                     );
-                    if !config.diagnostic.auto_fix_enabled {
-                        println!();
-                        println!("💡 Auto-fix is currently disabled. You can enable it with:");
-                        println!("   nimbus diagnose settings auto-fix --enable --safe-only");
-                        println!(
-                            "   (or run: nimbus fix --instance-id {} --auto-fix)",
-                            instance_id
-                        );
+                        if !config.diagnostic.auto_fix_enabled {
+                            println!();
+                            println!("💡 Auto-fix is currently disabled. You can enable it with:");
+                            println!("   nimbus diagnose settings auto-fix --enable --safe-only");
+                            println!(
+                                "   (or run: nimbus fix --instance-id {} --auto-fix)",
+                                instance_id
+                            );
+                        }
+
+                        return Err(NimbusError::Connection(
+                            crate::error::ConnectionError::PreventiveCheckFailed {
+                                reason: "Critical issues detected during preventive checks"
+                                    .to_string(),
+                                issues: result
+                                    .critical_issues
+                                    .iter()
+                                    .map(|i| i.message.clone())
+                                    .collect(),
+                            },
+                        )
+                        .into());
                     }
-
-                    return Err(NimbusError::Connection(
-                        crate::error::ConnectionError::PreventiveCheckFailed {
-                            reason: "Critical issues detected during preventive checks".to_string(),
-                            issues: result
-                                .critical_issues
-                                .iter()
-                                .map(|i| i.message.clone())
-                                .collect(),
-                        },
-                    )
-                    .into());
                 }
-            }
 
-            if !result.warnings.is_empty() {
-                println!("⚠️  Proceeding with {} warnings:", result.warnings.len());
-                for warning in &result.warnings {
-                    println!("   ⚠️  {}: {}", warning.item_name, warning.message);
+                if !result.warnings.is_empty() {
+                    println!("⚠️  Proceeding with {} warnings:", result.warnings.len());
+                    for warning in &result.warnings {
+                        println!("   ⚠️  {}: {}", warning.item_name, warning.message);
+                    }
+                    println!();
                 }
-                println!();
-            }
 
-            if matches!(
-                result.overall_status,
-                preventive_check::PreventiveCheckStatus::Ready
-            ) {
-                println!("✅ Preventive checks passed - proceeding with connection");
-            } else {
-                println!(
+                if matches!(
+                    result.overall_status,
+                    preventive_check::PreventiveCheckStatus::Ready
+                ) {
+                    println!("✅ Preventive checks passed - proceeding with connection");
+                } else {
+                    println!(
                     "⚠️  Preventive checks completed with warnings - proceeding with connection"
                 );
+                }
             }
-        }
-        Err(e) => {
-            warn!("Preventive check failed, proceeding with connection: {}", e);
-            println!(
-                "⚠️  Preventive check failed, proceeding with connection: {}",
-                e
-            );
-        }
+            Err(e) => {
+                warn!("Preventive check failed, proceeding with connection: {}", e);
+                println!(
+                    "⚠️  Preventive check failed, proceeding with connection: {}",
+                    e
+                );
+            }
         }
         println!();
     }

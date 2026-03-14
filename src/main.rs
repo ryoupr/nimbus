@@ -5,6 +5,7 @@ use tracing::info;
 mod auto_fix;
 mod aws;
 mod aws_config_validator;
+mod commands;
 mod config;
 mod diagnostic;
 mod error;
@@ -36,9 +37,9 @@ mod ssm_agent_diagnostics;
 mod targets;
 mod ui;
 mod user_messages;
-mod commands;
 mod vscode;
 
+use commands::*;
 use config::Config;
 use error::NimbusError;
 use error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager, RecoveryConfig};
@@ -53,7 +54,6 @@ use multi_session_ui::MultiSessionUi;
 use persistence::{PersistenceManager, SqlitePersistenceManager};
 use targets::TargetsConfig;
 use user_messages::UserMessageSystem;
-use commands::*;
 
 #[derive(Parser)]
 #[command(name = "nimbus")]
@@ -166,8 +166,8 @@ async fn main() -> Result<()> {
                 .unwrap_or(80);
 
             // Resolve remote_host from CLI or target config
-            let resolved_remote_host = remote_host
-                .or_else(|| target_config.as_ref().and_then(|t| t.remote_host.clone()));
+            let resolved_remote_host =
+                remote_host.or_else(|| target_config.as_ref().and_then(|t| t.remote_host.clone()));
 
             let resolved_profile =
                 profile.or_else(|| target_config.as_ref().and_then(|t| t.profile.clone()));

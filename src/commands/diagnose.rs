@@ -4,19 +4,10 @@ use anyhow::Result;
 use tracing::{error, info, warn};
 
 #[allow(unused_imports)]
-use crate::{
-    auto_fix, aws::AwsManager, aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator},
-    config::Config, diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager},
-    error::NimbusError, error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager},
-    health::{DefaultHealthChecker, HealthChecker}, logging::StructuredLogger,
-    manager::{DefaultSessionManager, SessionManager},
-    preventive_check::{DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig},
-    resource::ResourceMonitor, session::{SessionConfig, SessionPriority}, user_messages::UserMessageSystem, vscode::VsCodeIntegration,
+use super::{
+    ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands,
+    VsCodeCommands,
 };
-#[allow(unused_imports)]
-use super::{ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands, VsCodeCommands};
-#[allow(unused_imports)]
-use crate::{aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui};
 #[allow(unused_imports)]
 use crate::aws_config_validator::{SuggestionCategory, SuggestionPriority};
 #[allow(unused_imports)]
@@ -31,6 +22,28 @@ use crate::resource::ResourceViolation;
 use crate::session::{Session, SessionStatus};
 #[allow(unused_imports)]
 use crate::ui::{ResourceMetrics, TerminalUi};
+#[allow(unused_imports)]
+use crate::{
+    auto_fix,
+    aws::AwsManager,
+    aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator},
+    config::Config,
+    diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager},
+    error::NimbusError,
+    error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager},
+    health::{DefaultHealthChecker, HealthChecker},
+    logging::StructuredLogger,
+    manager::{DefaultSessionManager, SessionManager},
+    preventive_check::{DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig},
+    resource::ResourceMonitor,
+    session::{SessionConfig, SessionPriority},
+    user_messages::UserMessageSystem,
+    vscode::VsCodeIntegration,
+};
+#[allow(unused_imports)]
+use crate::{
+    aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui,
+};
 
 #[cfg(feature = "performance-monitoring")]
 use crate::monitor::DefaultSessionMonitor;
@@ -256,8 +269,7 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
                             diagnostic::DiagnosticStatus::Error => {
                                 if matches!(
                                     result.severity,
-                                    diagnostic::Severity::Critical
-                                        | diagnostic::Severity::High
+                                    diagnostic::Severity::Critical | diagnostic::Severity::High
                                 ) {
                                     can_proceed = false;
                                 }
@@ -289,8 +301,13 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
                         println!(
                             "🛑 Critical issues detected. Please resolve them before connecting."
                         );
-                        println!("💡 Run: nimbus diagnose full --instance-id {} for detailed analysis", 
-                                results.first().map(|r| r.item_name.as_str()).unwrap_or("INSTANCE_ID"));
+                        println!(
+                            "💡 Run: nimbus diagnose full --instance-id {} for detailed analysis",
+                            results
+                                .first()
+                                .map(|r| r.item_name.as_str())
+                                .unwrap_or("INSTANCE_ID")
+                        );
                     }
                 }
                 Err(e) => {
@@ -414,25 +431,22 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
                     if result.should_abort_connection {
                         println!("🛑 Connection aborted due to critical issues.");
                         println!("   Please resolve the critical issues above before attempting connection.");
-                        println!("   Run 'nimbus diagnose full --instance-id {}' for detailed analysis.", instance_id);
+                        println!(
+                            "   Run 'nimbus diagnose full --instance-id {}' for detailed analysis.",
+                            instance_id
+                        );
                     } else {
                         match result.overall_status {
                             preventive_check::PreventiveCheckStatus::Ready => {
                                 println!("🚀 All checks passed! You can proceed with connection.");
-                                println!(
-                                    "   Run: nimbus connect --instance-id {}",
-                                    instance_id
-                                );
+                                println!("   Run: nimbus connect --instance-id {}", instance_id);
                             }
                             preventive_check::PreventiveCheckStatus::Warning => {
                                 println!("⚠️  Connection can proceed but with warnings.");
                                 println!(
                                     "   Consider addressing warnings for optimal performance."
                                 );
-                                println!(
-                                    "   Run: nimbus connect --instance-id {}",
-                                    instance_id
-                                );
+                                println!("   Run: nimbus connect --instance-id {}", instance_id);
                             }
                             _ => {
                                 println!("❓ Connection status unclear. Review issues above.");
@@ -557,7 +571,9 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
 
             println!();
             println!("💡 Usage examples:");
-            println!("   nimbus diagnose item --item instance_state --instance-id i-1234567890abcdef0");
+            println!(
+                "   nimbus diagnose item --item instance_state --instance-id i-1234567890abcdef0"
+            );
             println!("   nimbus diagnose item --item local_port_availability --instance-id i-1234567890abcdef0 --local-port 8080");
         }
 
@@ -688,22 +704,28 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
                             validation_result.improvement_suggestions.iter().enumerate()
                         {
                             let priority_icon = match suggestion.priority {
-                                aws_config_validator::SuggestionPriority::Critical => {
-                                    "🚨"
-                                }
+                                aws_config_validator::SuggestionPriority::Critical => "🚨",
                                 aws_config_validator::SuggestionPriority::High => "🔴",
-                                aws_config_validator::SuggestionPriority::Medium => {
-                                    "🟡"
-                                }
+                                aws_config_validator::SuggestionPriority::Medium => "🟡",
                                 aws_config_validator::SuggestionPriority::Low => "🟢",
                             };
 
                             let category_text = match suggestion.category {
-                                aws_config_validator::SuggestionCategory::Credentials => "Credentials",
-                                aws_config_validator::SuggestionCategory::IamPermissions => "IAM Permissions",
-                                aws_config_validator::SuggestionCategory::VpcConfiguration => "VPC Configuration",
-                                aws_config_validator::SuggestionCategory::SecurityGroups => "Security Groups",
-                                aws_config_validator::SuggestionCategory::NetworkConnectivity => "Network Connectivity",
+                                aws_config_validator::SuggestionCategory::Credentials => {
+                                    "Credentials"
+                                }
+                                aws_config_validator::SuggestionCategory::IamPermissions => {
+                                    "IAM Permissions"
+                                }
+                                aws_config_validator::SuggestionCategory::VpcConfiguration => {
+                                    "VPC Configuration"
+                                }
+                                aws_config_validator::SuggestionCategory::SecurityGroups => {
+                                    "Security Groups"
+                                }
+                                aws_config_validator::SuggestionCategory::NetworkConnectivity => {
+                                    "Network Connectivity"
+                                }
                                 aws_config_validator::SuggestionCategory::General => "General",
                             };
 
@@ -761,7 +783,10 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
                     println!();
                     println!("💡 Next Steps:");
                     if validation_result.overall_compliance_score >= minimum_score {
-                        println!("   • Run 'nimbus connect --instance-id {}' to test the connection", instance_id);
+                        println!(
+                            "   • Run 'nimbus connect --instance-id {}' to test the connection",
+                            instance_id
+                        );
                         println!("   • Use 'nimbus diagnose preventive --instance-id {}' for pre-connection checks", instance_id);
                     } else {
                         println!("   • Address the high-priority suggestions above");
@@ -964,22 +989,28 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
                             validation_result.improvement_suggestions.iter().enumerate()
                         {
                             let priority_icon = match suggestion.priority {
-                                aws_config_validator::SuggestionPriority::Critical => {
-                                    "🚨"
-                                }
+                                aws_config_validator::SuggestionPriority::Critical => "🚨",
                                 aws_config_validator::SuggestionPriority::High => "🔴",
-                                aws_config_validator::SuggestionPriority::Medium => {
-                                    "🟡"
-                                }
+                                aws_config_validator::SuggestionPriority::Medium => "🟡",
                                 aws_config_validator::SuggestionPriority::Low => "🟢",
                             };
 
                             let category_text = match suggestion.category {
-                                aws_config_validator::SuggestionCategory::Credentials => "Credentials",
-                                aws_config_validator::SuggestionCategory::IamPermissions => "IAM Permissions",
-                                aws_config_validator::SuggestionCategory::VpcConfiguration => "VPC Configuration",
-                                aws_config_validator::SuggestionCategory::SecurityGroups => "Security Groups",
-                                aws_config_validator::SuggestionCategory::NetworkConnectivity => "Network Connectivity",
+                                aws_config_validator::SuggestionCategory::Credentials => {
+                                    "Credentials"
+                                }
+                                aws_config_validator::SuggestionCategory::IamPermissions => {
+                                    "IAM Permissions"
+                                }
+                                aws_config_validator::SuggestionCategory::VpcConfiguration => {
+                                    "VPC Configuration"
+                                }
+                                aws_config_validator::SuggestionCategory::SecurityGroups => {
+                                    "Security Groups"
+                                }
+                                aws_config_validator::SuggestionCategory::NetworkConnectivity => {
+                                    "Network Connectivity"
+                                }
                                 aws_config_validator::SuggestionCategory::General => "General",
                             };
 
@@ -1041,7 +1072,10 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
                     println!();
                     println!("💡 Next Steps:");
                     if validation_result.overall_compliance_score >= minimum_score {
-                        println!("   • Run 'nimbus connect --instance-id {}' to test the connection", instance_id);
+                        println!(
+                            "   • Run 'nimbus connect --instance-id {}' to test the connection",
+                            instance_id
+                        );
                         println!("   • Use 'nimbus diagnose preventive --instance-id {}' for pre-connection checks", instance_id);
                         println!("   • Cache will be used for faster subsequent validations");
                     } else {
@@ -1163,18 +1197,11 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
 
                     for result in &results {
                         match result.status {
-                            diagnostic::DiagnosticStatus::Success => {
-                                success_count += 1
-                            }
-                            diagnostic::DiagnosticStatus::Warning => {
-                                warning_count += 1
-                            }
+                            diagnostic::DiagnosticStatus::Success => success_count += 1,
+                            diagnostic::DiagnosticStatus::Warning => warning_count += 1,
                             diagnostic::DiagnosticStatus::Error => {
                                 error_count += 1;
-                                if matches!(
-                                    result.severity,
-                                    diagnostic::Severity::Critical
-                                ) {
+                                if matches!(result.severity, diagnostic::Severity::Critical) {
                                     critical_count += 1;
                                 }
                             }
@@ -1211,10 +1238,7 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
                                 println!();
                                 println!("🎉 All diagnostics completed successfully!");
                                 println!("   Connection should work without issues.");
-                                println!(
-                                    "   Run: nimbus connect --instance-id {}",
-                                    instance_id
-                                );
+                                println!("   Run: nimbus connect --instance-id {}", instance_id);
                             } else {
                                 println!();
                                 println!("⚠️  Diagnostics completed with critical issues.");
@@ -1368,8 +1392,7 @@ pub async fn handle_precheck(
                             diagnostic::DiagnosticStatus::Error => {
                                 if matches!(
                                     result.severity,
-                                    diagnostic::Severity::Critical
-                                        | diagnostic::Severity::High
+                                    diagnostic::Severity::Critical | diagnostic::Severity::High
                                 ) {
                                     can_proceed = false;
                                 }
@@ -1395,8 +1418,14 @@ pub async fn handle_precheck(
                         println!(
                             "🛑 Critical issues detected. Please resolve them before connecting."
                         );
-                        println!("💡 Run: nimbus fix --instance-id {} --auto-fix for automatic fixes", instance_id);
-                        println!("💡 Run: nimbus diagnose full --instance-id {} for detailed analysis", instance_id);
+                        println!(
+                            "💡 Run: nimbus fix --instance-id {} --auto-fix for automatic fixes",
+                            instance_id
+                        );
+                        println!(
+                            "💡 Run: nimbus diagnose full --instance-id {} for detailed analysis",
+                            instance_id
+                        );
                     }
 
                     if let Some(output_path) = output {

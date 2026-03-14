@@ -4,19 +4,10 @@ use anyhow::Result;
 use tracing::{error, info, warn};
 
 #[allow(unused_imports)]
-use crate::{
-    auto_fix, aws::AwsManager, aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator},
-    config::Config, diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager},
-    error::NimbusError, error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager},
-    health::{DefaultHealthChecker, HealthChecker}, logging::StructuredLogger,
-    manager::{DefaultSessionManager, SessionManager},
-    preventive_check::{DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig},
-    resource::ResourceMonitor, session::{SessionConfig, SessionPriority}, user_messages::UserMessageSystem, vscode::VsCodeIntegration,
+use super::{
+    ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands,
+    VsCodeCommands,
 };
-#[allow(unused_imports)]
-use super::{ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands, VsCodeCommands};
-#[allow(unused_imports)]
-use crate::{aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui};
 #[allow(unused_imports)]
 use crate::aws_config_validator::{SuggestionCategory, SuggestionPriority};
 #[allow(unused_imports)]
@@ -31,6 +22,28 @@ use crate::resource::ResourceViolation;
 use crate::session::{Session, SessionStatus};
 #[allow(unused_imports)]
 use crate::ui::{ResourceMetrics, TerminalUi};
+#[allow(unused_imports)]
+use crate::{
+    auto_fix,
+    aws::AwsManager,
+    aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator},
+    config::Config,
+    diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager},
+    error::NimbusError,
+    error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager},
+    health::{DefaultHealthChecker, HealthChecker},
+    logging::StructuredLogger,
+    manager::{DefaultSessionManager, SessionManager},
+    preventive_check::{DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig},
+    resource::ResourceMonitor,
+    session::{SessionConfig, SessionPriority},
+    user_messages::UserMessageSystem,
+    vscode::VsCodeIntegration,
+};
+#[allow(unused_imports)]
+use crate::{
+    aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui,
+};
 
 #[cfg(feature = "performance-monitoring")]
 use crate::monitor::DefaultSessionMonitor;
@@ -128,9 +141,7 @@ pub async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()
                                 println!(
                                     "    • Install VS Code from https://code.visualstudio.com/"
                                 );
-                                println!(
-                                    "    • Or set NIMBUS_VSCODE_PATH environment variable"
-                                );
+                                println!("    • Or set NIMBUS_VSCODE_PATH environment variable");
                             }
                             if !status.ssh_config_writable {
                                 println!("    • Check permissions on ~/.ssh/config file");
@@ -430,11 +441,11 @@ pub async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()
                                                         if (trimmed.starts_with("Host ")
                                                             && !trimmed.contains("ec2-"))
                                                             || (trimmed.is_empty()
-                                                                && result_lines
-                                                                    .last()
-                                                                    .is_some_and(|l: &String| {
+                                                                && result_lines.last().is_some_and(
+                                                                    |l: &String| {
                                                                         l.trim().is_empty()
-                                                                    }))
+                                                                    },
+                                                                ))
                                                         {
                                                             skip_section = false;
                                                         }
