@@ -601,63 +601,6 @@ Host {}
                 continue;
             }
 
-            // セッションヘッダーがない場合のフォールバック：ホスト名ベースの削除
-            // session-1 -> ec2-i-111111111 のようなマッピングを想定
-            if trimmed.starts_with("Host ec2-") {
-                let host_name = trimmed.strip_prefix("Host ").unwrap_or("").trim();
-
-                // セッションIDからインスタンスIDを推測（session-1 -> i-111111111）
-                let expected_instance_id = if session_id == "session-1" {
-                    "i-111111111"
-                } else if session_id == "session-2" {
-                    "i-222222222"
-                } else {
-                    // 一般的なケースでは、セッションIDからインスタンスIDを推測できない
-                    ""
-                };
-
-                if !expected_instance_id.is_empty()
-                    && host_name == format!("ec2-{}", expected_instance_id)
-                {
-                    // このホストエントリ全体をスキップ
-                    i += 1; // Host行をスキップ
-
-                    // ホスト設定の終了まで全ての行をスキップ
-                    while i < lines.len() {
-                        let current_line = lines[i];
-                        let current_trimmed = current_line.trim();
-
-                        // 次のホストまたはセクションの開始で停止
-                        if current_trimmed.starts_with("Host ")
-                            || current_trimmed.starts_with("# Nimbus")
-                        {
-                            break;
-                        }
-
-                        // 空行が連続している場合、ホスト設定の終了とみなす
-                        if current_trimmed.is_empty() {
-                            if i + 1 < lines.len() {
-                                let next_line = lines[i + 1].trim();
-                                if next_line.is_empty()
-                                    || (!next_line.starts_with("    ")
-                                        && !next_line.starts_with("#")
-                                        && !next_line.is_empty())
-                                {
-                                    i += 1; // 空行も含めてスキップ
-                                    break;
-                                }
-                            } else {
-                                i += 1;
-                                break;
-                            }
-                        }
-
-                        i += 1; // この行をスキップ
-                    }
-                    continue;
-                }
-            }
-
             // 通常の行は保持
             result_lines.push(line.to_string());
             i += 1;
