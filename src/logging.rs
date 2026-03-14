@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::error::{NimbusError, ErrorSeverity};
+use crate::error::{ErrorSeverity, NimbusError};
 use crate::error_recovery::ContextualError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -67,9 +67,11 @@ impl Default for LoggingConfig {
 }
 
 /// Initialize logging system
-pub fn init_logging(config: &LoggingConfig) -> Result<Option<WorkerGuard>, Box<dyn std::error::Error>> {
-    let env_filter = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new(&config.level))?;
+pub fn init_logging(
+    config: &LoggingConfig,
+) -> Result<Option<WorkerGuard>, Box<dyn std::error::Error>> {
+    let env_filter =
+        EnvFilter::try_from_default_env().or_else(|_| EnvFilter::try_new(&config.level))?;
 
     let mut layers = Vec::new();
     let mut guard = None;
@@ -86,23 +88,23 @@ pub fn init_logging(config: &LoggingConfig) -> Result<Option<WorkerGuard>, Box<d
                 FmtSpan::NONE
             })
             .with_filter(env_filter.clone());
-        
+
         layers.push(console_layer.boxed());
     }
 
     // File layer
     if config.file_enabled {
         std::fs::create_dir_all(&config.log_dir)?;
-        
+
         let file_appender = match config.rotation.as_str() {
             "daily" => rolling::daily(&config.log_dir, &config.file_prefix),
             "hourly" => rolling::hourly(&config.log_dir, &config.file_prefix),
             _ => rolling::never(&config.log_dir, format!("{}.log", config.file_prefix)),
         };
-        
+
         let (non_blocking, worker_guard) = non_blocking(file_appender);
         guard = Some(worker_guard);
-        
+
         let file_layer = if config.json_format {
             fmt::layer()
                 .json()
@@ -125,13 +127,11 @@ pub fn init_logging(config: &LoggingConfig) -> Result<Option<WorkerGuard>, Box<d
                 .with_filter(env_filter.clone())
                 .boxed()
         };
-        
+
         layers.push(file_layer);
     }
 
-    tracing_subscriber::registry()
-        .with(layers)
-        .init();
+    tracing_subscriber::registry().with(layers).init();
 
     Ok(guard)
 }
@@ -162,7 +162,6 @@ impl ErrorLogEntry {
                 ErrorSeverity::Low => "WARN".to_string(),
                 ErrorSeverity::Medium => "ERROR".to_string(),
                 ErrorSeverity::High => "ERROR".to_string(),
-                
             },
             error_type: format!("{:?}", std::mem::discriminant(&error.error)),
             error_message: error.error.to_string(),
@@ -185,7 +184,6 @@ impl ErrorLogEntry {
                 ErrorSeverity::Low => "WARN".to_string(),
                 ErrorSeverity::Medium => "ERROR".to_string(),
                 ErrorSeverity::High => "ERROR".to_string(),
-                
             },
             error_type: format!("{:?}", std::mem::discriminant(error)),
             error_message: error.to_string(),
@@ -209,7 +207,7 @@ impl StructuredLogger {
     /// Log error with full context
     pub fn log_error(error: &ContextualError) {
         let entry = ErrorLogEntry::from_contextual_error(error);
-        
+
         match error.severity() {
             ErrorSeverity::Low => {
                 tracing::warn!(
@@ -222,7 +220,7 @@ impl StructuredLogger {
                     "{}",
                     entry.error_message
                 );
-            },
+            }
             ErrorSeverity::Medium => {
                 tracing::error!(
                     error_type = %entry.error_type,
@@ -234,7 +232,7 @@ impl StructuredLogger {
                     "{}",
                     entry.error_message
                 );
-            },
+            }
             ErrorSeverity::High => {
                 tracing::error!(
                     error_type = %entry.error_type,
@@ -248,7 +246,7 @@ impl StructuredLogger {
                     "CRITICAL ERROR: {}",
                     entry.error_message
                 );
-            },
+            }
         }
     }
 
@@ -256,7 +254,7 @@ impl StructuredLogger {
     pub fn log_session_activity(
         session_id: &str,
         activity: &str,
-        details: Option<&HashMap<String, String>>
+        details: Option<&HashMap<String, String>>,
     ) {
         tracing::info!(
             session_id = %session_id,
@@ -272,7 +270,7 @@ impl StructuredLogger {
         component: &str,
         memory_mb: f64,
         cpu_percent: f64,
-        additional_metrics: Option<&HashMap<String, f64>>
+        additional_metrics: Option<&HashMap<String, f64>>,
     ) {
         tracing::debug!(
             component = %component,
@@ -298,12 +296,12 @@ mod tests {
             reason: "test".to_string(),
             issues: vec!["issue1".to_string()],
         });
-        let context = ErrorContext::new("connect", "session_manager")
-            .with_session_id("test-session");
+        let context =
+            ErrorContext::new("connect", "session_manager").with_session_id("test-session");
         let contextual_error = ContextualError::new(error, context);
-        
+
         let log_entry = ErrorLogEntry::from_contextual_error(&contextual_error);
-        
+
         assert_eq!(log_entry.component, "session_manager");
         assert_eq!(log_entry.operation, "connect");
         assert_eq!(log_entry.session_id, Some("test-session".to_string()));

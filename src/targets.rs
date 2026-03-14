@@ -57,10 +57,7 @@ impl TargetsConfig {
     /// Return candidate paths in priority order: JSON first, then TOML.
     fn candidate_paths() -> Result<Vec<PathBuf>> {
         let base = Self::base_dir()?;
-        Ok(vec![
-            base.join("targets.json"),
-            base.join("targets.toml"),
-        ])
+        Ok(vec![base.join("targets.json"), base.join("targets.toml")])
     }
 
     pub async fn load(path: Option<&str>) -> Result<(Self, PathBuf)> {
