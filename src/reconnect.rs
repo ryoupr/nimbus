@@ -1,5 +1,4 @@
 #![allow(async_fn_in_trait)]
-#![allow(dead_code)]
 
 use crate::aws::AwsClient;
 use crate::config::ReconnectionConfig;

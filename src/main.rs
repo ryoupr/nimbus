@@ -16,20 +16,26 @@ mod instance_diagnostics;
 mod logging;
 mod manager;
 #[cfg(feature = "performance-monitoring")]
+#[allow(dead_code)]
 mod monitor;
 #[cfg(feature = "multi-session")]
+#[allow(dead_code)]
 mod multi_session;
 #[cfg(feature = "multi-session")]
+#[allow(dead_code)]
 mod multi_session_ui;
 mod network_diagnostics;
 #[cfg(feature = "performance-monitoring")]
+#[allow(dead_code)]
 mod performance;
 #[cfg(feature = "persistence")]
+#[allow(dead_code)]
 mod persistence;
 mod port_diagnostics;
 mod preventive_check;
 mod realtime_feedback;
 #[cfg(feature = "auto-reconnect")]
+#[allow(dead_code)]
 mod reconnect;
 mod resource;
 mod session;

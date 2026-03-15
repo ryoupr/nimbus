@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::error::{Result, SessionError};
 use crate::manager::{ResourceUsage, SessionManager};
 use crate::monitor::SessionMonitor;

@@ -45,6 +45,7 @@ pub enum NimbusError {
 
 /// Configuration-related errors
 #[derive(Error, Debug, Clone)]
+#[allow(dead_code)]
 pub enum ConfigError {
     #[error("Invalid configuration: {message}")]
     Invalid { message: String },
@@ -79,6 +80,7 @@ pub enum SessionError {
     LimitExceeded { max_sessions: u32 },
 
     #[error("Resource limit exceeded: {resource} ({current} >= {limit})")]
+    #[allow(dead_code)]
     ResourceLimitExceeded {
         resource: String,
         current: f64,
@@ -86,6 +88,7 @@ pub enum SessionError {
     },
 
     #[error("Reconnection failed for session {session_id} after {attempts} attempts")]
+    #[allow(dead_code)]
     ReconnectionFailed { session_id: String, attempts: u32 },
 }
 
