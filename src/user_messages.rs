@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
-use crate::error::{NimbusError, ConfigError, AwsError, SessionError, ConnectionError, ResourceError, UiError};
+use crate::error::{
+    AwsError, ConfigError, ConnectionError, NimbusError, ResourceError, SessionError, UiError,
+};
 use std::collections::HashMap;
 
 /// User-friendly error messages and help system
@@ -39,7 +41,9 @@ impl UserMessageSystem {
             NimbusError::Config(config_error) => self.handle_config_error(config_error),
             NimbusError::Aws(aws_error) => self.handle_aws_error(aws_error),
             NimbusError::Session(session_error) => self.handle_session_error(session_error),
-            NimbusError::Connection(connection_error) => self.handle_connection_error(connection_error),
+            NimbusError::Connection(connection_error) => {
+                self.handle_connection_error(connection_error)
+            }
             NimbusError::Resource(resource_error) => self.handle_resource_error(resource_error),
             NimbusError::Ui(ui_error) => self.handle_ui_error(ui_error),
             _ => UserErrorMessage {
@@ -60,9 +64,7 @@ impl UserMessageSystem {
             title: "設定エラー".to_string(),
             message: "設定に問題があります".to_string(),
             severity: "medium".to_string(),
-            solutions: vec![
-                "設定ファイルを確認してください".to_string(),
-            ],
+            solutions: vec!["設定ファイルを確認してください".to_string()],
             help_command: Some("nimbus config --help".to_string()),
         }
     }
@@ -139,7 +141,10 @@ impl UserMessageSystem {
             },
             SessionError::LimitExceeded { max_sessions } => UserErrorMessage {
                 title: "セッション数の上限に達しました".to_string(),
-                message: format!("同時セッション数の上限（{}セッション）に達しました。", max_sessions),
+                message: format!(
+                    "同時セッション数の上限（{}セッション）に達しました。",
+                    max_sessions
+                ),
                 severity: "medium".to_string(),
                 solutions: vec![
                     "不要なセッションを終了してください".to_string(),
@@ -147,6 +152,29 @@ impl UserMessageSystem {
                     "nimbus terminate <session-id> で終了".to_string(),
                 ],
                 help_command: Some("nimbus list-sessions".to_string()),
+            },
+            SessionError::ResourceLimitExceeded { resource, .. } => UserErrorMessage {
+                title: "リソース制限に達しました".to_string(),
+                message: format!("リソース '{}' が制限に達しました。", resource),
+                severity: "high".to_string(),
+                solutions: vec!["不要なセッションを終了してリソースを解放してください".to_string()],
+                help_command: Some("nimbus list-sessions".to_string()),
+            },
+            SessionError::ReconnectionFailed {
+                session_id,
+                attempts,
+            } => UserErrorMessage {
+                title: "再接続に失敗しました".to_string(),
+                message: format!(
+                    "セッション '{}' への再接続が {} 回失敗しました。",
+                    session_id, attempts
+                ),
+                severity: "high".to_string(),
+                solutions: vec![
+                    "ネットワーク接続を確認してください".to_string(),
+                    "新しいセッションを作成してください".to_string(),
+                ],
+                help_command: Some("nimbus connect".to_string()),
             },
         }
     }
@@ -263,7 +291,7 @@ impl UserErrorMessage {
     /// Format error message for display
     pub fn format_for_display(&self) -> String {
         let mut output = String::new();
-        
+
         // Title with severity indicator
         let severity_icon = match self.severity.as_str() {
             "low" => "⚠️",
@@ -272,21 +300,21 @@ impl UserErrorMessage {
             "critical" => "💥",
             _ => "❓",
         };
-        
+
         output.push_str(&format!("{} {}\n", severity_icon, self.title));
         output.push_str(&format!("\n{}\n", self.message));
-        
+
         if !self.solutions.is_empty() {
             output.push_str("\n解決方法:\n");
             for (i, solution) in self.solutions.iter().enumerate() {
                 output.push_str(&format!("  {}. {}\n", i + 1, solution));
             }
         }
-        
+
         if let Some(help_cmd) = &self.help_command {
             output.push_str(&format!("\nヘルプ: {}\n", help_cmd));
         }
-        
+
         output
     }
 
@@ -305,19 +333,18 @@ impl UserErrorMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn test_user_message_system() {
         let system = UserMessageSystem::new();
-        
+
         let error = NimbusError::Connection(ConnectionError::PreventiveCheckFailed {
             reason: "test".to_string(),
             issues: vec!["issue1".to_string()],
         });
-        
+
         let message = system.get_error_message(&error);
-        
+
         assert_eq!(message.title, "事前チェックに失敗しました");
         assert!(message.message.contains("test"));
         assert!(!message.solutions.is_empty());
@@ -341,7 +368,7 @@ mod tests {
             solutions: vec!["解決策1".to_string(), "解決策2".to_string()],
             help_command: Some("test --help".to_string()),
         };
-        
+
         let formatted = message.format_for_display();
         assert!(formatted.contains("❌ テストエラー"));
         assert!(formatted.contains("これはテストメッセージです"));
