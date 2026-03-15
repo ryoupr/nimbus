@@ -242,22 +242,23 @@ impl DefaultAutoFixManager {
         let mut fixes = Vec::new();
 
         if result.status == DiagnosticStatus::Error
-            && (result.message.contains("not registered") || result.message.contains("offline")) {
-                let instance_id = result
-                    .details
-                    .as_ref()
-                    .and_then(|d| d.get("instance_id"))
-                    .and_then(|id| id.as_str())
-                    .unwrap_or("unknown");
+            && (result.message.contains("not registered") || result.message.contains("offline"))
+        {
+            let instance_id = result
+                .details
+                .as_ref()
+                .and_then(|d| d.get("instance_id"))
+                .and_then(|id| id.as_str())
+                .unwrap_or("unknown");
 
-                let fix = FixAction::new(
-                    FixActionType::RestartSsmAgent,
-                    format!("Restart SSM agent on instance: {}", instance_id),
-                    instance_id.to_string(),
-                )
-                .with_command("sudo systemctl restart amazon-ssm-agent".to_string());
-                fixes.push(fix);
-            }
+            let fix = FixAction::new(
+                FixActionType::RestartSsmAgent,
+                format!("Restart SSM agent on instance: {}", instance_id),
+                instance_id.to_string(),
+            )
+            .with_command("sudo systemctl restart amazon-ssm-agent".to_string());
+            fixes.push(fix);
+        }
 
         fixes
     }
@@ -320,38 +321,39 @@ impl DefaultAutoFixManager {
         let mut fixes = Vec::new();
 
         if result.status == DiagnosticStatus::Error
-            && (result.message.contains("port in use") || result.message.contains("already bound")) {
-                if let Some(details) = &result.details {
-                    if let Some(process_info) = details.get("process_info") {
-                        let process_name = process_info
-                            .get("name")
-                            .and_then(|n| n.as_str())
-                            .unwrap_or("unknown");
-                        let pid = process_info
-                            .get("pid")
-                            .and_then(|p| p.as_u64())
-                            .unwrap_or(0);
+            && (result.message.contains("port in use") || result.message.contains("already bound"))
+        {
+            if let Some(details) = &result.details {
+                if let Some(process_info) = details.get("process_info") {
+                    let process_name = process_info
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("unknown");
+                    let pid = process_info
+                        .get("pid")
+                        .and_then(|p| p.as_u64())
+                        .unwrap_or(0);
 
-                        let fix = FixAction::new(
-                            FixActionType::TerminateProcess,
-                            format!(
-                                "Terminate process {} (PID: {}) that is using the port",
-                                process_name, pid
-                            ),
-                            format!("process:{}", pid),
-                        );
-                        fixes.push(fix);
-                    }
+                    let fix = FixAction::new(
+                        FixActionType::TerminateProcess,
+                        format!(
+                            "Terminate process {} (PID: {}) that is using the port",
+                            process_name, pid
+                        ),
+                        format!("process:{}", pid),
+                    );
+                    fixes.push(fix);
                 }
-
-                // Also suggest using alternative port
-                let fix = FixAction::new(
-                    FixActionType::SuggestManualFix,
-                    "Use an alternative port for the connection".to_string(),
-                    "port".to_string(),
-                );
-                fixes.push(fix);
             }
+
+            // Also suggest using alternative port
+            let fix = FixAction::new(
+                FixActionType::SuggestManualFix,
+                "Use an alternative port for the connection".to_string(),
+                "port".to_string(),
+            );
+            fixes.push(fix);
+        }
 
         fixes
     }

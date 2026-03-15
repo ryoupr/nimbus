@@ -1,7 +1,7 @@
-use crate::error::{NimbusError, ErrorSeverity, Result};
+use crate::error::{ErrorSeverity, NimbusError, Result};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
-use tracing::{error, warn, info, debug};
+use tracing::{debug, error, info, warn};
 
 /// Error recovery strategy configuration
 #[derive(Debug, Clone)]
@@ -54,23 +54,23 @@ impl ErrorRecoveryManager {
             // Recoverable network/connection errors - retry with backoff
             NimbusError::Connection(_) if error.is_recoverable() => {
                 RecoveryStrategy::Retry(self.config.clone())
-            },
+            }
             NimbusError::Aws(_) if error.is_recoverable() => {
                 RecoveryStrategy::Retry(self.config.clone())
-            },
+            }
             NimbusError::Session(_) if error.is_recoverable() => {
                 RecoveryStrategy::Retry(self.config.clone())
-            },
-            
+            }
+
             // Configuration errors - try fallback
             NimbusError::Config(_) => RecoveryStrategy::Fallback,
-            
+
             // Resource errors - graceful degradation
             NimbusError::Resource(_) => RecoveryStrategy::Degrade,
-            
+
             // UI errors - graceful degradation
             NimbusError::Ui(_) => RecoveryStrategy::Degrade,
-            
+
             // Critical errors - fail immediately
             _ => RecoveryStrategy::Fail,
         }
@@ -83,23 +83,21 @@ impl ErrorRecoveryManager {
         T: Send,
     {
         let strategy = self.get_strategy(error);
-        
+
         match strategy {
-            RecoveryStrategy::Retry(config) => {
-                self.retry_with_backoff(operation, config).await
-            },
+            RecoveryStrategy::Retry(config) => self.retry_with_backoff(operation, config).await,
             RecoveryStrategy::Fallback => {
                 warn!("Attempting fallback recovery for error: {}", error);
                 self.attempt_fallback_recovery(operation, error).await
-            },
+            }
             RecoveryStrategy::Degrade => {
                 warn!("Graceful degradation for error: {}", error);
                 self.attempt_graceful_degradation(operation, error).await
-            },
+            }
             RecoveryStrategy::Fail => {
                 error!("Non-recoverable error: {}", error);
                 Err(error.clone())
-            },
+            }
         }
     }
 
@@ -112,7 +110,10 @@ impl ErrorRecoveryManager {
         match error {
             // Configuration errors - try with default configuration
             NimbusError::Config(config_error) => {
-                info!("Attempting fallback with default configuration for: {}", config_error);
+                info!(
+                    "Attempting fallback with default configuration for: {}",
+                    config_error
+                );
 
                 // Wait a moment for any transient issues to resolve
                 sleep(Duration::from_millis(100)).await;
@@ -126,7 +127,10 @@ impl ErrorRecoveryManager {
                             return Ok(result);
                         }
                         Err(fallback_error) => {
-                            warn!("Fallback recovery attempt {} failed: {}", attempt, fallback_error);
+                            warn!(
+                                "Fallback recovery attempt {} failed: {}",
+                                attempt, fallback_error
+                            );
                             if attempt < 2 {
                                 sleep(Duration::from_millis(200)).await;
                             }
@@ -136,8 +140,8 @@ impl ErrorRecoveryManager {
 
                 // Return the original error for better context
                 Err(error.clone())
-            },
-            
+            }
+
             // For other errors, try a simple retry after a short delay
             _ => {
                 info!("Attempting simple fallback retry for: {}", error);
@@ -150,7 +154,10 @@ impl ErrorRecoveryManager {
                             return Ok(result);
                         }
                         Err(fallback_error) => {
-                            warn!("Simple fallback retry attempt {} failed: {}", attempt, fallback_error);
+                            warn!(
+                                "Simple fallback retry attempt {} failed: {}",
+                                attempt, fallback_error
+                            );
                             if attempt < 2 {
                                 sleep(Duration::from_millis(200)).await;
                             }
@@ -164,7 +171,11 @@ impl ErrorRecoveryManager {
     }
 
     /// Attempt graceful degradation
-    async fn attempt_graceful_degradation<F, T>(&self, operation: F, error: &NimbusError) -> Result<T>
+    async fn attempt_graceful_degradation<F, T>(
+        &self,
+        operation: F,
+        error: &NimbusError,
+    ) -> Result<T>
     where
         F: Fn() -> Result<T> + Send + Sync,
         T: Send,
@@ -172,7 +183,10 @@ impl ErrorRecoveryManager {
         match error {
             // Resource errors - try with reduced functionality
             NimbusError::Resource(resource_error) => {
-                info!("Attempting graceful degradation for resource error: {}", resource_error);
+                info!(
+                    "Attempting graceful degradation for resource error: {}",
+                    resource_error
+                );
 
                 // Wait for resources to potentially free up
                 sleep(Duration::from_secs(1)).await;
@@ -189,7 +203,10 @@ impl ErrorRecoveryManager {
                             return Ok(result);
                         }
                         Err(degraded_error) => {
-                            warn!("Graceful degradation attempt {} failed: {}", attempt, degraded_error);
+                            warn!(
+                                "Graceful degradation attempt {} failed: {}",
+                                attempt, degraded_error
+                            );
                             if attempt < 2 {
                                 sleep(Duration::from_millis(200)).await;
                             }
@@ -198,48 +215,51 @@ impl ErrorRecoveryManager {
                 }
 
                 Err(error.clone())
-            },
-            
+            }
+
             // UI errors - continue without UI enhancements
             NimbusError::Ui(ui_error) => {
-                info!("Graceful degradation for UI error: {} - continuing without enhanced UI", ui_error);
-                
+                info!(
+                    "Graceful degradation for UI error: {} - continuing without enhanced UI",
+                    ui_error
+                );
+
                 // For UI errors, we might want to continue with basic functionality
                 // This is a placeholder - in a real implementation, we'd set a flag
                 // to disable UI enhancements and retry
                 sleep(Duration::from_millis(100)).await;
-                
+
                 match operation() {
                     Ok(result) => {
                         info!("Continuing with basic UI functionality");
                         Ok(result)
-                    },
+                    }
                     Err(_) => {
                         warn!("Even basic functionality failed");
                         Err(error.clone())
                     }
                 }
-            },
-            
+            }
+
             // VS Code errors - continue without VS Code integration
             NimbusError::VsCode(vscode_error) => {
                 info!("Graceful degradation for VS Code error: {} - continuing without VS Code integration", vscode_error);
-                
+
                 // VS Code integration is optional, so we can continue without it
                 sleep(Duration::from_millis(100)).await;
-                
+
                 match operation() {
                     Ok(result) => {
                         info!("Continuing without VS Code integration");
                         Ok(result)
-                    },
+                    }
                     Err(_) => {
                         warn!("Core functionality failed even without VS Code integration");
                         Err(error.clone())
                     }
                 }
-            },
-            
+            }
+
             // For other errors, try a conservative retry
             _ => {
                 info!("Attempting conservative retry for: {}", error);
@@ -252,7 +272,10 @@ impl ErrorRecoveryManager {
                             return Ok(result);
                         }
                         Err(retry_error) => {
-                            warn!("Conservative retry attempt {} failed: {}", attempt, retry_error);
+                            warn!(
+                                "Conservative retry attempt {} failed: {}",
+                                attempt, retry_error
+                            );
                             if attempt < 2 {
                                 sleep(Duration::from_millis(200)).await;
                             }
@@ -273,45 +296,45 @@ impl ErrorRecoveryManager {
     {
         let start_time = Instant::now();
         let mut delay = config.base_delay;
-        
+
         for attempt in 1..=config.max_attempts {
             // Check timeout
             if start_time.elapsed() > config.timeout {
                 error!("Recovery timeout exceeded after {} attempts", attempt - 1);
-                return Err(NimbusError::System(
-                    "Recovery timeout exceeded".to_string()
-                ));
+                return Err(NimbusError::System("Recovery timeout exceeded".to_string()));
             }
 
             debug!("Recovery attempt {} of {}", attempt, config.max_attempts);
-            
+
             match operation() {
                 Ok(result) => {
                     info!("Recovery successful after {} attempts", attempt);
                     return Ok(result);
-                },
+                }
                 Err(err) => {
                     if attempt == config.max_attempts {
                         error!("Recovery failed after {} attempts: {}", attempt, err);
                         return Err(err);
                     }
-                    
-                    warn!("Recovery attempt {} failed: {}, retrying in {:?}", 
-                          attempt, err, delay);
-                    
+
+                    warn!(
+                        "Recovery attempt {} failed: {}, retrying in {:?}",
+                        attempt, err, delay
+                    );
+
                     sleep(delay).await;
-                    
+
                     // Exponential backoff with jitter
                     delay = std::cmp::min(
                         Duration::from_millis(
-                            (delay.as_millis() as f64 * config.backoff_multiplier) as u64
+                            (delay.as_millis() as f64 * config.backoff_multiplier) as u64,
                         ),
-                        config.max_delay
+                        config.max_delay,
                     );
                 }
             }
         }
-        
+
         unreachable!("Loop should have returned or broken")
     }
 }
@@ -350,7 +373,8 @@ impl ErrorContext {
     }
 
     pub fn with_info(mut self, key: &str, value: &str) -> Self {
-        self.additional_info.insert(key.to_string(), value.to_string());
+        self.additional_info
+            .insert(key.to_string(), value.to_string());
         self
     }
 }
@@ -406,17 +430,20 @@ mod tests {
     #[tokio::test]
     async fn test_recovery_strategy_selection() {
         let manager = ErrorRecoveryManager::new(RecoveryConfig::default());
-        
+
         // Recoverable errors should use retry strategy
         let connection_error = NimbusError::Connection(ConnectionError::PreventiveCheckFailed {
             reason: "test".to_string(),
             issues: vec!["issue1".to_string()],
         });
-        matches!(manager.get_strategy(&connection_error), RecoveryStrategy::Retry(_));
-        
+        matches!(
+            manager.get_strategy(&connection_error),
+            RecoveryStrategy::Retry(_)
+        );
+
         // Non-recoverable errors should fail immediately
         let session_error = NimbusError::Session(SessionError::NotFound {
-            session_id: "test".to_string()
+            session_id: "test".to_string(),
         });
         matches!(manager.get_strategy(&session_error), RecoveryStrategy::Fail);
     }
@@ -424,17 +451,17 @@ mod tests {
     #[tokio::test]
     async fn test_fallback_recovery() {
         let manager = ErrorRecoveryManager::new(RecoveryConfig::default());
-        
+
         // Test connection error fallback
         let connection_error = NimbusError::Connection(ConnectionError::PreventiveCheckFailed {
             reason: "test".to_string(),
             issues: vec!["issue1".to_string()],
         });
-        
+
         let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let call_count_clone = call_count.clone();
         let error_clone = connection_error.clone();
-        
+
         let operation = move || -> crate::error::Result<String> {
             let count = call_count_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             if count == 0 {
@@ -443,7 +470,7 @@ mod tests {
                 Ok("success".to_string())
             }
         };
-        
+
         let result = manager.recover(operation, &connection_error).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "success");
@@ -452,16 +479,16 @@ mod tests {
     #[tokio::test]
     async fn test_graceful_degradation() {
         let manager = ErrorRecoveryManager::new(RecoveryConfig::default());
-        
+
         // Test session error degradation
         let session_error = NimbusError::Session(SessionError::CreationFailed {
-            reason: "test".to_string()
+            reason: "test".to_string(),
         });
-        
+
         let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let call_count_clone = call_count.clone();
         let error_clone = session_error.clone();
-        
+
         let operation = move || -> crate::error::Result<String> {
             let count = call_count_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             if count == 0 {
@@ -470,7 +497,7 @@ mod tests {
                 Ok("degraded_success".to_string())
             }
         };
-        
+
         let result = manager.recover(operation, &session_error).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "degraded_success");
@@ -486,16 +513,16 @@ mod tests {
             timeout: Duration::from_secs(10),
         };
         let manager = ErrorRecoveryManager::new(config);
-        
+
         let connection_error = NimbusError::Connection(ConnectionError::PreventiveCheckFailed {
             reason: "test".to_string(),
             issues: vec!["issue1".to_string()],
         });
-        
+
         let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let call_count_clone = call_count.clone();
         let error_clone = connection_error.clone();
-        
+
         let operation = move || -> crate::error::Result<String> {
             let count = call_count_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             if count < 2 {
@@ -504,11 +531,11 @@ mod tests {
                 Ok("retry_success".to_string())
             }
         };
-        
+
         let start_time = std::time::Instant::now();
         let result = manager.recover(operation, &connection_error).await;
         let elapsed = start_time.elapsed();
-        
+
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "retry_success");
         // Should have some delay due to backoff
@@ -524,9 +551,9 @@ mod tests {
         let context = ErrorContext::new("connect", "session_manager")
             .with_session_id("test-session")
             .with_instance_id("i-1234567890abcdef0");
-        
+
         let contextual = ContextualError::new(error, context);
-        
+
         assert!(format!("{:?}", contextual.context).contains("session_manager"));
         assert!(format!("{:?}", contextual.context).contains("test-session"));
         assert!(format!("{:?}", contextual.context).contains("i-1234567890abcdef0"));
