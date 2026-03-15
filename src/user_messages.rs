@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::error::{
     AwsError, ConfigError, ConnectionError, NimbusError, ResourceError, SessionError, UiError,
 };

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::error::{ErrorSeverity, NimbusError};
 use crate::error_recovery::ContextualError;
 use serde::{Deserialize, Serialize};

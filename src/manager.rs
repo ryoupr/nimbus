@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::aws::{AwsManager, SsmSessionStatus};
 use crate::error::{Result, SessionError};
 use crate::session::{Session, SessionConfig, SessionStatus};
