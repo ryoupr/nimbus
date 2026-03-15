@@ -553,6 +553,10 @@ impl Config {
             &mut self.vscode.ssh_identities_only,
             "NIMBUS_SSH_IDENTITIES_ONLY",
         )?;
+        env_override(
+            &mut self.vscode.strict_host_key_checking,
+            "NIMBUS_SSH_STRICT_HOST_KEY_CHECKING",
+        )?;
         Ok(())
     }
 
@@ -871,6 +875,10 @@ impl Config {
             (
                 "NIMBUS_SSH_IDENTITIES_ONLY",
                 "Enable IdentitiesOnly for generated SSH config entry (true/false)",
+            ),
+            (
+                "NIMBUS_SSH_STRICT_HOST_KEY_CHECKING",
+                "StrictHostKeyChecking value for generated SSH config entry (default: accept-new)",
             ),
         ]
     }

@@ -28,6 +28,8 @@ pub struct VsCodeIntegration {
     ssh_identity_file: Option<String>,
     /// SSH の IdentitiesOnly を有効化
     ssh_identities_only: bool,
+    /// SSH の StrictHostKeyChecking 設定
+    strict_host_key_checking: String,
 }
 
 /// VS Code統合設定
@@ -55,6 +57,13 @@ pub struct VsCodeConfig {
     /// SSH の IdentitiesOnly を有効化
     #[serde(default)]
     pub ssh_identities_only: bool,
+    /// SSH の StrictHostKeyChecking 設定（デフォルト: "accept-new"）
+    #[serde(default = "default_strict_host_key_checking")]
+    pub strict_host_key_checking: String,
+}
+
+fn default_strict_host_key_checking() -> String {
+    "accept-new".to_string()
 }
 
 impl Default for VsCodeConfig {
@@ -70,6 +79,7 @@ impl Default for VsCodeConfig {
             ssh_user: None,
             ssh_identity_file: None,
             ssh_identities_only: false,
+            strict_host_key_checking: default_strict_host_key_checking(),
         }
     }
 }
@@ -110,6 +120,7 @@ impl VsCodeIntegration {
             ssh_user: config.ssh_user,
             ssh_identity_file: config.ssh_identity_file,
             ssh_identities_only: config.ssh_identities_only,
+            strict_host_key_checking: config.strict_host_key_checking,
         })
     }
 
@@ -336,6 +347,7 @@ impl VsCodeIntegration {
     /// SSH ホストエントリを作成
     fn create_ssh_host_entry(&self, connection_info: &ConnectionInfo) -> String {
         let ssh_user = self.ssh_user.as_deref().unwrap_or("ec2-user");
+        let strict_host_key_checking = &self.strict_host_key_checking;
 
         let mut ssh_extra = String::new();
         if let Some(identity_file) = &self.ssh_identity_file {
@@ -352,7 +364,7 @@ Host {}
     HostName localhost
     Port {}
     User {}
-{}    StrictHostKeyChecking no
+{}    StrictHostKeyChecking {}
     UserKnownHostsFile /dev/null
     LogLevel ERROR
     # Instance: {}
@@ -365,6 +377,7 @@ Host {}
             connection_info.local_port,
             ssh_user,
             ssh_extra,
+            strict_host_key_checking,
             connection_info.instance_id,
             connection_info.remote_port,
             chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
