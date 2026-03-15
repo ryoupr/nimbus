@@ -297,52 +297,17 @@ impl DefaultSsmAgentDiagnostics {
         }
     }
 
-    /// Get latest available SSM Agent version (mock implementation)
-    async fn get_latest_agent_version(&self, platform: &str) -> Result<String> {
-        // In a real implementation, this would query AWS Systems Manager
-        // or AWS documentation API for the latest agent version
-        match platform.to_lowercase().as_str() {
-            "windows" => Ok("3.2.2086.0".to_string()),
-            "linux" | "amazon linux" => Ok("3.2.2086.0".to_string()),
-            "ubuntu" => Ok("3.2.2086.0".to_string()),
-            _ => Ok("3.2.2086.0".to_string()), // Default latest version
-        }
+    /// Get latest available SSM Agent version.
+    /// Returns None because there is no reliable API to query the latest version at runtime.
+    async fn get_latest_agent_version(&self, _platform: &str) -> Result<Option<String>> {
+        Ok(None)
     }
 
-    /// Check for security vulnerabilities in agent version
-    fn check_version_vulnerabilities(version: &str) -> Vec<VulnerabilityInfo> {
-        let mut vulnerabilities = Vec::new();
-
-        // Parse version to check against known vulnerabilities
-        let parts: Vec<&str> = version.split('.').collect();
-        if parts.len() >= 3 {
-            if let (Ok(major), Ok(minor), Ok(_patch)) = (
-                parts[0].parse::<u32>(),
-                parts[1].parse::<u32>(),
-                parts[2].parse::<u32>(),
-            ) {
-                // Check for known vulnerabilities (example data)
-                if major < 3 || (major == 3 && minor < 1) {
-                    vulnerabilities.push(VulnerabilityInfo {
-                        cve_id: Some("CVE-2023-1234".to_string()),
-                        severity: "High".to_string(),
-                        description: "Privilege escalation vulnerability in SSM Agent".to_string(),
-                        fixed_in_version: "3.1.0.0".to_string(),
-                    });
-                }
-
-                if major < 3 || (major == 3 && minor < 2) {
-                    vulnerabilities.push(VulnerabilityInfo {
-                        cve_id: Some("CVE-2023-5678".to_string()),
-                        severity: "Medium".to_string(),
-                        description: "Information disclosure in agent logging".to_string(),
-                        fixed_in_version: "3.2.0.0".to_string(),
-                    });
-                }
-            }
-        }
-
-        vulnerabilities
+    /// Check for known security vulnerabilities in agent version.
+    /// Returns an empty list because we have no real-time vulnerability database.
+    /// Update urgency is determined by version comparison alone.
+    fn check_version_vulnerabilities(_version: &str) -> Vec<VulnerabilityInfo> {
+        Vec::new()
     }
 
     /// Calculate update urgency based on version comparison and vulnerabilities
@@ -1241,20 +1206,18 @@ impl SsmAgentDiagnostics for DefaultSsmAgentDiagnostics {
                     let platform = agent_info.platform_name.as_deref().unwrap_or("linux");
 
                     // Get latest available version
-                    let latest_version = self
-                        .get_latest_agent_version(platform)
-                        .await
-                        .unwrap_or_else(|_| "unknown".to_string());
+                    let latest_version =
+                        self.get_latest_agent_version(platform).await.ok().flatten();
 
                     // Check for vulnerabilities
                     let vulnerabilities = Self::check_version_vulnerabilities(current_version);
 
                     // Calculate update urgency
-                    let update_urgency = Self::calculate_update_urgency(
-                        current_version,
-                        &latest_version,
-                        &vulnerabilities,
-                    );
+                    let update_urgency = if let Some(ref latest) = latest_version {
+                        Self::calculate_update_urgency(current_version, latest, &vulnerabilities)
+                    } else {
+                        UpdateUrgency::None
+                    };
 
                     // Calculate version age (mock implementation)
                     let version_age_days =
@@ -1267,13 +1230,14 @@ impl SsmAgentDiagnostics for DefaultSsmAgentDiagnostics {
 
                     let enhanced_info = EnhancedAgentVersionInfo {
                         current_version: current_version.clone(),
-                        latest_available_version: Some(latest_version.clone()),
-                        is_current: current_version == &latest_version,
+                        latest_available_version: latest_version.clone(),
+                        is_current: latest_version
+                            .as_deref()
+                            .is_some_and(|v| current_version == v),
                         is_security_update_required: !vulnerabilities.is_empty(),
-                        platform_specific_recommendation: Some(format!(
-                            "Recommended version for {}: {}",
-                            platform, latest_version
-                        )),
+                        platform_specific_recommendation: latest_version
+                            .as_ref()
+                            .map(|v| format!("Recommended version for {}: {}", platform, v)),
                         version_age_days,
                         update_urgency,
                         vulnerability_info: vulnerabilities,
