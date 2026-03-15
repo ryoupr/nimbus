@@ -1,15 +1,15 @@
 #![allow(dead_code)]
 
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::TcpListener;
 use std::process::Command;
-use std::time::{Duration, SystemTime};
 use std::sync::{Arc, Mutex};
-use sysinfo::{System, Pid};
+use std::time::{Duration, SystemTime};
+use sysinfo::{Pid, System};
 use tokio::time::Instant;
-use tracing::{info, warn, error, debug};
-use async_trait::async_trait;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::diagnostic::{DiagnosticResult, Severity};
@@ -74,7 +74,7 @@ impl ProcessInfo {
     pub fn new(pid: u32, name: String, user: String, command_line: String) -> Self {
         // Determine if the process can be safely terminated
         let can_terminate = !Self::is_system_critical(&name);
-        
+
         Self {
             pid,
             name,
@@ -87,16 +87,33 @@ impl ProcessInfo {
     /// Check if a process is system-critical and should not be terminated
     pub fn is_system_critical(process_name: &str) -> bool {
         let critical_processes = [
-            "kernel", "init", "systemd", "kthreadd", "ksoftirqd", "migration",
-            "rcu_", "watchdog", "sshd", "systemd-", "dbus", "NetworkManager",
-            "explorer.exe", "winlogon.exe", "csrss.exe", "smss.exe", "wininit.exe",
-            "services.exe", "lsass.exe", "dwm.exe", "conhost.exe",
+            "kernel",
+            "init",
+            "systemd",
+            "kthreadd",
+            "ksoftirqd",
+            "migration",
+            "rcu_",
+            "watchdog",
+            "sshd",
+            "systemd-",
+            "dbus",
+            "NetworkManager",
+            "explorer.exe",
+            "winlogon.exe",
+            "csrss.exe",
+            "smss.exe",
+            "wininit.exe",
+            "services.exe",
+            "lsass.exe",
+            "dwm.exe",
+            "conhost.exe",
         ];
 
         let name_lower = process_name.to_lowercase();
-        critical_processes.iter().any(|&critical| {
-            name_lower.contains(critical) || name_lower.starts_with(critical)
-        })
+        critical_processes
+            .iter()
+            .any(|&critical| name_lower.contains(critical) || name_lower.starts_with(critical))
     }
 }
 
@@ -158,20 +175,36 @@ impl Clone for PortReservation {
 #[async_trait]
 pub trait PortDiagnostics {
     /// Check if a specific port is available
-    async fn check_port_availability(&self, port: u16) -> Result<PortInfo, Box<dyn std::error::Error>>;
-    
+    async fn check_port_availability(
+        &self,
+        port: u16,
+    ) -> Result<PortInfo, Box<dyn std::error::Error>>;
+
     /// Find the process using a specific port
-    async fn find_process_using_port(&self, port: u16) -> Result<Option<ProcessInfo>, Box<dyn std::error::Error>>;
-    
+    async fn find_process_using_port(
+        &self,
+        port: u16,
+    ) -> Result<Option<ProcessInfo>, Box<dyn std::error::Error>>;
+
     /// Suggest alternative ports within a range
-    async fn suggest_alternative_ports(&self, port: u16, range: u16) -> Result<PortSuggestion, Box<dyn std::error::Error>>;
-    
+    async fn suggest_alternative_ports(
+        &self,
+        port: u16,
+        range: u16,
+    ) -> Result<PortSuggestion, Box<dyn std::error::Error>>;
+
     /// Reserve a port to prevent conflicts
-    async fn reserve_port(&mut self, port: u16) -> Result<PortReservation, Box<dyn std::error::Error>>;
-    
+    async fn reserve_port(
+        &mut self,
+        port: u16,
+    ) -> Result<PortReservation, Box<dyn std::error::Error>>;
+
     /// Release a port reservation
-    async fn release_port(&mut self, reservation: PortReservation) -> Result<(), Box<dyn std::error::Error>>;
-    
+    async fn release_port(
+        &mut self,
+        reservation: PortReservation,
+    ) -> Result<(), Box<dyn std::error::Error>>;
+
     /// Run comprehensive port diagnostics
     async fn diagnose_port(&self, port: u16) -> DiagnosticResult;
 }
@@ -186,7 +219,7 @@ impl DefaultPortDiagnostics {
     pub fn new() -> Self {
         let mut system = System::new_all();
         system.refresh_all();
-        
+
         Self {
             system: Arc::new(Mutex::new(system)),
             reservations: Arc::new(Mutex::new(HashMap::new())),
@@ -202,7 +235,7 @@ impl DefaultPortDiagnostics {
     fn get_process_info_by_port(&self, port: u16) -> Option<ProcessInfo> {
         if let Ok(mut system) = self.system.lock() {
             system.refresh_processes();
-            
+
             // Try to find the process using netstat-like functionality
             if let Some(process_info) = self.find_process_by_port_system_specific(port) {
                 return Some(process_info);
@@ -212,7 +245,10 @@ impl DefaultPortDiagnostics {
             for (pid, process) in system.processes() {
                 let pid_u32 = pid.as_u32();
                 let name = process.name().to_string();
-                let user = process.user_id().map(|u| u.to_string()).unwrap_or_else(|| "unknown".to_string());
+                let user = process
+                    .user_id()
+                    .map(|u| u.to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
                 let cmd = process.cmd().join(" ");
 
                 // This is a simplified approach - in a real implementation,
@@ -244,9 +280,7 @@ impl DefaultPortDiagnostics {
         }
 
         // Fallback to netstat
-        let output = Command::new("netstat")
-            .args(["-tlnp"])
-            .output();
+        let output = Command::new("netstat").args(["-tlnp"]).output();
 
         if let Ok(output) = output {
             if output.status.success() {
@@ -273,9 +307,7 @@ impl DefaultPortDiagnostics {
     #[cfg(windows)]
     fn find_process_by_port_system_specific(&self, port: u16) -> Option<ProcessInfo> {
         // Use netstat on Windows
-        let output = Command::new("netstat")
-            .args(&["-ano"])
-            .output();
+        let output = Command::new("netstat").args(&["-ano"]).output();
 
         if let Ok(output) = output {
             if output.status.success() {
@@ -300,12 +332,15 @@ impl DefaultPortDiagnostics {
     fn get_process_info_by_pid(&self, pid: u32) -> Option<ProcessInfo> {
         if let Ok(mut system) = self.system.lock() {
             system.refresh_processes();
-            
+
             if let Some(process) = system.process(Pid::from(pid as usize)) {
                 let name = process.name().to_string();
-                let user = process.user_id().map(|u| u.to_string()).unwrap_or_else(|| "unknown".to_string());
+                let user = process
+                    .user_id()
+                    .map(|u| u.to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
                 let cmd = process.cmd().join(" ");
-                
+
                 Some(ProcessInfo::new(pid, name, user, cmd))
             } else {
                 None
@@ -319,7 +354,7 @@ impl DefaultPortDiagnostics {
     fn process_likely_uses_port(&self, process: &sysinfo::Process, port: u16) -> bool {
         let name = process.name().to_lowercase();
         let cmd = process.cmd().join(" ").to_lowercase();
-        
+
         // Check if the port number appears in the command line
         cmd.contains(&port.to_string()) ||
         // Check for common server processes
@@ -334,20 +369,18 @@ impl DefaultPortDiagnostics {
     fn find_available_ports_in_range(&self, center_port: u16, range: u16) -> Vec<u16> {
         let start_port = center_port.saturating_sub(range);
         let end_port = center_port.saturating_add(range);
-        
+
         let mut available_ports = Vec::new();
-        
+
         for port in start_port..=end_port {
             if port != center_port && self.is_port_available(port) {
                 available_ports.push(port);
             }
         }
-        
+
         // Sort by proximity to the original port
-        available_ports.sort_by_key(|&port| {
-            (port as i32 - center_port as i32).abs()
-        });
-        
+        available_ports.sort_by_key(|&port| (port as i32 - center_port as i32).abs());
+
         // Return up to 5 suggestions
         available_ports.truncate(5);
         available_ports
@@ -356,7 +389,7 @@ impl DefaultPortDiagnostics {
     /// Clean up expired reservations
     fn cleanup_expired_reservations(&self) {
         let expiry_duration = Duration::from_secs(300); // 5 minutes
-        
+
         if let Ok(mut reservations) = self.reservations.lock() {
             reservations.retain(|_port, reservation| {
                 reservation.reserved_at.elapsed().unwrap_or(Duration::ZERO) < expiry_duration
@@ -367,9 +400,12 @@ impl DefaultPortDiagnostics {
 
 #[async_trait]
 impl PortDiagnostics for DefaultPortDiagnostics {
-    async fn check_port_availability(&self, port: u16) -> Result<PortInfo, Box<dyn std::error::Error>> {
+    async fn check_port_availability(
+        &self,
+        port: u16,
+    ) -> Result<PortInfo, Box<dyn std::error::Error>> {
         debug!("Checking availability of port {}", port);
-        
+
         if self.is_port_available(port) {
             info!("Port {} is available", port);
             Ok(PortInfo::available(port))
@@ -381,55 +417,85 @@ impl PortDiagnostics for DefaultPortDiagnostics {
         }
     }
 
-    async fn find_process_using_port(&self, port: u16) -> Result<Option<ProcessInfo>, Box<dyn std::error::Error>> {
+    async fn find_process_using_port(
+        &self,
+        port: u16,
+    ) -> Result<Option<ProcessInfo>, Box<dyn std::error::Error>> {
         debug!("Finding process using port {}", port);
-        
+
         let process_info = self.get_process_info_by_port(port);
-        
+
         if let Some(ref info) = process_info {
-            info!("Found process using port {}: {} (PID: {})", port, info.name, info.pid);
+            info!(
+                "Found process using port {}: {} (PID: {})",
+                port, info.name, info.pid
+            );
         } else {
             debug!("No process found using port {}", port);
         }
-        
+
         Ok(process_info)
     }
 
-    async fn suggest_alternative_ports(&self, port: u16, range: u16) -> Result<PortSuggestion, Box<dyn std::error::Error>> {
-        debug!("Suggesting alternative ports for {} within range ±{}", port, range);
-        
+    async fn suggest_alternative_ports(
+        &self,
+        port: u16,
+        range: u16,
+    ) -> Result<PortSuggestion, Box<dyn std::error::Error>> {
+        debug!(
+            "Suggesting alternative ports for {} within range ±{}",
+            port, range
+        );
+
         let available_ports = self.find_available_ports_in_range(port, range);
-        
+
         let reason = if available_ports.is_empty() {
-            format!("No available ports found within ±{} range of port {}", range, port)
+            format!(
+                "No available ports found within ±{} range of port {}",
+                range, port
+            )
         } else {
-            format!("Found {} alternative port(s) within ±{} range", available_ports.len(), range)
+            format!(
+                "Found {} alternative port(s) within ±{} range",
+                available_ports.len(),
+                range
+            )
         };
-        
-        info!("Port suggestion for {}: {} alternatives found", port, available_ports.len());
-        
+
+        info!(
+            "Port suggestion for {}: {} alternatives found",
+            port,
+            available_ports.len()
+        );
+
         Ok(PortSuggestion::new(port, available_ports, reason))
     }
 
-    async fn reserve_port(&mut self, port: u16) -> Result<PortReservation, Box<dyn std::error::Error>> {
+    async fn reserve_port(
+        &mut self,
+        port: u16,
+    ) -> Result<PortReservation, Box<dyn std::error::Error>> {
         debug!("Attempting to reserve port {}", port);
-        
+
         // Clean up expired reservations first
         self.cleanup_expired_reservations();
-        
+
         // Check if port is already reserved
         if let Ok(reservations) = self.reservations.lock() {
             if reservations.contains_key(&port) {
                 return Err(format!("Port {} is already reserved", port).into());
             }
         }
-        
+
         // Try to bind to the port
         match TcpListener::bind(format!("127.0.0.1:{}", port)) {
             Ok(listener) => {
                 let reservation = PortReservation::new(port, listener);
-                info!("Successfully reserved port {} with ID {}", port, reservation.reservation_id);
-                
+                info!(
+                    "Successfully reserved port {} with ID {}",
+                    port, reservation.reservation_id
+                );
+
                 if let Ok(mut reservations) = self.reservations.lock() {
                     reservations.insert(port, reservation.clone());
                 }
@@ -442,13 +508,19 @@ impl PortDiagnostics for DefaultPortDiagnostics {
         }
     }
 
-    async fn release_port(&mut self, reservation: PortReservation) -> Result<(), Box<dyn std::error::Error>> {
+    async fn release_port(
+        &mut self,
+        reservation: PortReservation,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         debug!("Releasing port reservation for port {}", reservation.port);
-        
+
         if let Ok(mut reservations) = self.reservations.lock() {
             if let Some(removed_reservation) = reservations.remove(&reservation.port) {
                 if removed_reservation.reservation_id == reservation.reservation_id {
-                    info!("Successfully released port reservation for port {}", reservation.port);
+                    info!(
+                        "Successfully released port reservation for port {}",
+                        reservation.port
+                    );
                     // The TcpListener will be dropped automatically, releasing the port
                     Ok(())
                 } else {
@@ -467,7 +539,7 @@ impl PortDiagnostics for DefaultPortDiagnostics {
     async fn diagnose_port(&self, port: u16) -> DiagnosticResult {
         let start_time = Instant::now();
         info!("Running comprehensive port diagnostics for port {}", port);
-        
+
         // Check port availability
         let port_info = match self.check_port_availability(port).await {
             Ok(info) => info,
@@ -489,7 +561,8 @@ impl PortDiagnostics for DefaultPortDiagnostics {
                 "local_port_availability".to_string(),
                 format!("Port {} is available for use", port),
                 start_time.elapsed(),
-            ).with_details(serde_json::to_value(&port_info).unwrap_or_default())
+            )
+            .with_details(serde_json::to_value(&port_info).unwrap_or_default())
         } else {
             // Port is occupied - provide detailed information
             let mut message = format!("Port {} is currently in use", port);
@@ -498,11 +571,11 @@ impl PortDiagnostics for DefaultPortDiagnostics {
 
             if let Some(ref process_name) = port_info.process_name {
                 message.push_str(&format!(" by process: {}", process_name));
-                
+
                 if let Some(pid) = port_info.process_id {
                     message.push_str(&format!(" (PID: {})", pid));
                 }
-                
+
                 // Check if the process can be safely terminated
                 if !ProcessInfo::is_system_critical(process_name) {
                     auto_fixable = true;
@@ -520,7 +593,9 @@ impl PortDiagnostics for DefaultPortDiagnostics {
                     if !suggestion.suggested_ports.is_empty() {
                         message.push_str(&format!(
                             ". Alternative ports available: {}",
-                            suggestion.suggested_ports.iter()
+                            suggestion
+                                .suggested_ports
+                                .iter()
                                 .take(3)
                                 .map(|p| p.to_string())
                                 .collect::<Vec<_>>()
@@ -533,7 +608,10 @@ impl PortDiagnostics for DefaultPortDiagnostics {
                 }
             }
 
-            warn!("Port {} diagnostic completed with issues: {}", port, message);
+            warn!(
+                "Port {} diagnostic completed with issues: {}",
+                port, message
+            );
             DiagnosticResult::warning(
                 "local_port_availability".to_string(),
                 message,
@@ -587,12 +665,9 @@ mod tests {
 
     #[test]
     fn test_port_suggestion() {
-        let suggestion = PortSuggestion::new(
-            8080,
-            vec![8081, 8082, 8083],
-            "Test suggestion".to_string(),
-        );
-        
+        let suggestion =
+            PortSuggestion::new(8080, vec![8081, 8082, 8083], "Test suggestion".to_string());
+
         assert_eq!(suggestion.original_port, 8080);
         assert_eq!(suggestion.suggested_ports.len(), 3);
         assert_eq!(suggestion.suggested_ports[0], 8081);
@@ -601,7 +676,7 @@ mod tests {
     #[tokio::test]
     async fn test_port_diagnostics_creation() {
         let diagnostics = DefaultPortDiagnostics::new();
-        
+
         // Test that we can create the diagnostics instance
         assert!(diagnostics.reservations.lock().unwrap().is_empty());
     }
@@ -609,11 +684,11 @@ mod tests {
     #[tokio::test]
     async fn test_port_availability_check() {
         let diagnostics = DefaultPortDiagnostics::new();
-        
+
         // Test with a likely available port (high port number)
         let result = diagnostics.check_port_availability(65432).await;
         assert!(result.is_ok());
-        
+
         let port_info = result.unwrap();
         assert_eq!(port_info.port, 65432);
         // Note: We can't guarantee the port is available, so we just check the structure
@@ -622,10 +697,10 @@ mod tests {
     #[tokio::test]
     async fn test_alternative_port_suggestion() {
         let diagnostics = DefaultPortDiagnostics::new();
-        
+
         let result = diagnostics.suggest_alternative_ports(8080, 5).await;
         assert!(result.is_ok());
-        
+
         let suggestion = result.unwrap();
         assert_eq!(suggestion.original_port, 8080);
         // The suggested ports list may be empty if all ports in range are occupied
@@ -634,15 +709,15 @@ mod tests {
     #[tokio::test]
     async fn test_port_reservation() {
         let mut diagnostics = DefaultPortDiagnostics::new();
-        
+
         // Try to reserve a high port number that's likely available
         let result = diagnostics.reserve_port(65431).await;
-        
+
         if result.is_ok() {
             let reservation = result.unwrap();
             assert_eq!(reservation.port, 65431);
             assert!(!reservation.reservation_id.is_empty());
-            
+
             // Test releasing the reservation
             let release_result = diagnostics.release_port(reservation).await;
             assert!(release_result.is_ok());
@@ -653,10 +728,10 @@ mod tests {
     #[tokio::test]
     async fn test_port_diagnostics() {
         let diagnostics = DefaultPortDiagnostics::new();
-        
+
         // Test diagnostics on a high port number
         let result = diagnostics.diagnose_port(65430).await;
-        
+
         assert_eq!(result.item_name, "local_port_availability");
         assert!(result.duration > Duration::ZERO);
         // The status depends on whether the port is actually available
