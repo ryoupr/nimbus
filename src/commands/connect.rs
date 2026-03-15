@@ -623,13 +623,17 @@ pub async fn handle_connect(
     Ok(())
 }
 
-pub async fn handle_list(_config: &Config) -> Result<()> {
+pub async fn handle_list(config: &Config) -> Result<()> {
     info!("Listing active sessions");
 
     println!("📋 Active Sessions:");
 
     // Create AWS manager to list sessions
-    let aws_manager = AwsManager::default().await?;
+    let aws_manager = AwsManager::new(
+        Some(config.aws.default_region.clone()),
+        config.aws.default_profile.clone(),
+    )
+    .await?;
 
     match aws_manager.list_active_sessions().await {
         Ok(sessions) => {
@@ -658,13 +662,17 @@ pub async fn handle_list(_config: &Config) -> Result<()> {
     Ok(())
 }
 
-pub async fn handle_terminate(session_id: String, _config: &Config) -> Result<()> {
+pub async fn handle_terminate(session_id: String, config: &Config) -> Result<()> {
     info!("Terminating session: {}", session_id);
 
     println!("🛑 Terminating session: {}", session_id);
 
     // Create AWS manager to terminate session
-    let aws_manager = AwsManager::default().await?;
+    let aws_manager = AwsManager::new(
+        Some(config.aws.default_region.clone()),
+        config.aws.default_profile.clone(),
+    )
+    .await?;
 
     match aws_manager.terminate_ssm_session(&session_id).await {
         Ok(_) => {
@@ -680,8 +688,12 @@ pub async fn handle_terminate(session_id: String, _config: &Config) -> Result<()
     Ok(())
 }
 
-pub async fn handle_status(session_id: Option<String>, _config: &Config) -> Result<()> {
-    let aws_manager = AwsManager::default().await?;
+pub async fn handle_status(session_id: Option<String>, config: &Config) -> Result<()> {
+    let aws_manager = AwsManager::new(
+        Some(config.aws.default_region.clone()),
+        config.aws.default_profile.clone(),
+    )
+    .await?;
 
     match session_id {
         Some(id) => {
