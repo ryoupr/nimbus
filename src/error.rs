@@ -15,12 +15,6 @@ pub enum NimbusError {
     #[error("Connection error: {0}")]
     Connection(ConnectionError),
 
-    #[error("Resource error: {0}")]
-    Resource(ResourceError),
-
-    #[error("UI error: {0}")]
-    Ui(UiError),
-
     #[error("VS Code integration error: {0}")]
     VsCode(VsCodeError),
 
@@ -96,14 +90,6 @@ pub enum ConnectionError {
     PreventiveCheckFailed { reason: String, issues: Vec<String> },
 }
 
-/// Resource management errors
-#[derive(Error, Debug, Clone)]
-pub enum ResourceError {}
-
-/// UI-related errors
-#[derive(Error, Debug, Clone)]
-pub enum UiError {}
-
 /// VS Code integration errors
 #[derive(Error, Debug, Clone)]
 pub enum VsCodeError {
@@ -142,18 +128,6 @@ impl From<SessionError> for NimbusError {
 impl From<ConnectionError> for NimbusError {
     fn from(err: ConnectionError) -> Self {
         NimbusError::Connection(err)
-    }
-}
-
-impl From<ResourceError> for NimbusError {
-    fn from(err: ResourceError) -> Self {
-        NimbusError::Resource(err)
-    }
-}
-
-impl From<UiError> for NimbusError {
-    fn from(err: UiError) -> Self {
-        NimbusError::Ui(err)
     }
 }
 
@@ -209,10 +183,8 @@ impl NimbusError {
         match self {
             NimbusError::Config(_) => ErrorSeverity::High,
             NimbusError::Aws(AwsError::AuthenticationFailed { .. }) => ErrorSeverity::High,
-            NimbusError::Resource(_) => ErrorSeverity::High,
             NimbusError::Connection(_) => ErrorSeverity::Medium,
             NimbusError::Session(_) => ErrorSeverity::Medium,
-            NimbusError::Ui(_) => ErrorSeverity::Low,
             _ => ErrorSeverity::Medium,
         }
     }
@@ -240,7 +212,6 @@ impl NimbusError {
 /// Error severity levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorSeverity {
-    Low,
     Medium,
     High,
 }
@@ -248,7 +219,6 @@ pub enum ErrorSeverity {
 impl ErrorSeverity {
     pub fn as_str(&self) -> &'static str {
         match self {
-            ErrorSeverity::Low => "LOW",
             ErrorSeverity::Medium => "MEDIUM",
             ErrorSeverity::High => "HIGH",
         }
