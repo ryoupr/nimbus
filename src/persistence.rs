@@ -677,8 +677,8 @@ impl PersistenceManager for SqlitePersistenceManager {
                  ORDER BY timestamp DESC
                  LIMIT ?"
             )?;
-            stmt.query_map(params![session_id, limit], Self::row_to_performance_metrics)?
-                .collect::<rusqlite::Result<Vec<_>>>()
+            let rows = stmt.query_map(params![session_id, limit], Self::row_to_performance_metrics)?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
                 .map_err(Into::into)
         } else {
             let mut stmt = conn.prepare(
@@ -688,8 +688,8 @@ impl PersistenceManager for SqlitePersistenceManager {
                  WHERE session_id = ?
                  ORDER BY timestamp DESC"
             )?;
-            stmt.query_map(params![session_id], Self::row_to_performance_metrics)?
-                .collect::<rusqlite::Result<Vec<_>>>()
+            let rows = stmt.query_map(params![session_id], Self::row_to_performance_metrics)?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
                 .map_err(Into::into)
         };
         
