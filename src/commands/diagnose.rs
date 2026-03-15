@@ -1222,35 +1222,7 @@ pub async fn handle_diagnose(action: DiagnosticCommands, _config: &Config) -> Re
                     }
 
                     // Final status
-                    let feedback_status = diagnostic_manager.get_feedback_status();
-                    match feedback_status {
-                        Some(realtime_feedback::FeedbackStatus::Completed) => {
-                            if critical_count == 0 {
-                                println!();
-                                println!("🎉 All diagnostics completed successfully!");
-                                println!("   Connection should work without issues.");
-                                println!("   Run: nimbus connect --instance-id {}", instance_id);
-                            } else {
-                                println!();
-                                println!("⚠️  Diagnostics completed with critical issues.");
-                                println!("   Please resolve critical issues before connecting.");
-                            }
-                        }
-                        Some(realtime_feedback::FeedbackStatus::Interrupted) => {
-                            println!();
-                            println!("⏸️  Diagnostics were interrupted by user.");
-                            println!("   Run the command again to resume or use 'nimbus diagnose full' for non-interactive mode.");
-                        }
-                        Some(realtime_feedback::FeedbackStatus::Failed) => {
-                            println!();
-                            println!("❌ Diagnostics failed due to critical issues.");
-                            println!("   User chose to abort due to critical problems.");
-                        }
-                        _ => {
-                            println!();
-                            println!("❓ Diagnostics completed with unknown status.");
-                        }
-                    }
+                    let _feedback_status = diagnostic_manager.get_feedback_status();
 
                     // Cleanup
                     diagnostic_manager.stop_realtime_feedback();

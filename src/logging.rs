@@ -1,4 +1,4 @@
-use crate::error::{ErrorSeverity, NimbusError};
+use crate::error::ErrorSeverity;
 use crate::error_recovery::ContextualError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -174,28 +174,6 @@ impl ErrorLogEntry {
             stack_trace: None, // Could be enhanced with backtrace
         }
     }
-
-    pub fn from_error(error: &NimbusError, component: &str, operation: &str) -> Self {
-        Self {
-            timestamp: SystemTime::now(),
-            level: match error.severity() {
-                ErrorSeverity::Low => "WARN".to_string(),
-                ErrorSeverity::Medium => "ERROR".to_string(),
-                ErrorSeverity::High => "ERROR".to_string(),
-            },
-            error_type: format!("{:?}", std::mem::discriminant(error)),
-            error_message: error.to_string(),
-            user_message: error.user_message(),
-            severity: error.severity().as_str().to_string(),
-            component: component.to_string(),
-            operation: operation.to_string(),
-            session_id: None,
-            instance_id: None,
-            recoverable: error.is_recoverable(),
-            context: HashMap::new(),
-            stack_trace: None,
-        }
-    }
 }
 
 /// Logger utility for structured logging
@@ -262,30 +240,12 @@ impl StructuredLogger {
             activity
         );
     }
-
-    /// Log system resource usage
-    pub fn log_resource_usage(
-        component: &str,
-        memory_mb: f64,
-        cpu_percent: f64,
-        additional_metrics: Option<&HashMap<String, f64>>,
-    ) {
-        tracing::debug!(
-            component = %component,
-            memory_mb = %memory_mb,
-            cpu_percent = %cpu_percent,
-            additional_metrics = ?additional_metrics,
-            "Resource usage: Memory: {:.2}MB, CPU: {:.2}%",
-            memory_mb,
-            cpu_percent
-        );
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::ConnectionError;
+    use crate::error::{ConnectionError, NimbusError};
     use crate::error_recovery::ErrorContext;
 
     #[test]

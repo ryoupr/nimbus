@@ -207,6 +207,5 @@ pub enum SessionEvent {
     ConnectionLost,
     ProcessTerminated,
     HeartbeatFailed,
-    NetworkActivityDetected,
     SessionIdle,
 }

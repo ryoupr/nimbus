@@ -99,7 +99,6 @@ pub enum MonitorEvent {
     ProcessTerminated,
     HeartbeatFailed,
     HeartbeatSuccess,
-    NetworkActivityDetected,
     NetworkActivityStopped,
     SessionIdle,
     SessionActive,
@@ -119,7 +118,6 @@ impl MonitorEvent {
             SessionEvent::ConnectionLost => MonitorEvent::ConnectionLost,
             SessionEvent::ProcessTerminated => MonitorEvent::ProcessTerminated,
             SessionEvent::HeartbeatFailed => MonitorEvent::HeartbeatFailed,
-            SessionEvent::NetworkActivityDetected => MonitorEvent::NetworkActivityDetected,
             SessionEvent::SessionIdle => MonitorEvent::SessionIdle,
         }
     }

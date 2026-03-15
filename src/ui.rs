@@ -31,20 +31,13 @@ pub enum UiEvent {
 
 /// Progress information for operations
 #[derive(Debug, Clone)]
-pub struct ProgressInfo {
-    pub operation: String,
-    pub progress: f64,
-    pub message: String,
-    pub started_at: Instant,
-}
+pub struct ProgressInfo {}
 
 /// System resource metrics
 #[derive(Debug, Clone)]
 pub struct ResourceMetrics {
     pub memory_usage_mb: f64,
     pub cpu_usage_percent: f64,
-    pub active_sessions: u32,
-    pub total_connections: u32,
     pub uptime_seconds: u64,
 }
 
@@ -53,8 +46,6 @@ impl Default for ResourceMetrics {
         Self {
             memory_usage_mb: 0.0,
             cpu_usage_percent: 0.0,
-            active_sessions: 0,
-            total_connections: 0,
             uptime_seconds: 0,
         }
     }
@@ -128,13 +119,8 @@ impl TerminalUi {
     }
 
     /// Set progress information
-    pub fn set_progress(&mut self, operation: String, progress: f64, message: String) {
-        self.state.progress = Some(ProgressInfo {
-            operation,
-            progress,
-            message,
-            started_at: Instant::now(),
-        });
+    pub fn set_progress(&mut self, _operation: String, _progress: f64, _message: String) {
+        self.state.progress = Some(ProgressInfo {});
     }
 
     /// Clear progress information

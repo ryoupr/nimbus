@@ -98,8 +98,6 @@ pub async fn handle_tui(_config: &Config) -> Result<()> {
     let sample_metrics = ui::ResourceMetrics {
         memory_usage_mb: 8.5,
         cpu_usage_percent: 0.3,
-        active_sessions: 2,
-        total_connections: 5,
         uptime_seconds: 3600,
     };
     terminal_ui.update_metrics(sample_metrics);

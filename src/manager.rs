@@ -1,4 +1,4 @@
-use crate::aws::{AwsManager, SsmSessionStatus};
+use crate::aws::AwsManager;
 use crate::error::{Result, SessionError};
 use crate::session::{Session, SessionConfig, SessionStatus};
 use anyhow::Context;
@@ -18,20 +18,6 @@ pub struct ResourceUsage {
     pub cpu_percent: f64,
     pub active_sessions: u32,
 }
-
-/// Session statistics for monitoring and reporting
-#[derive(Debug, Clone)]
-pub struct SessionStatistics {
-    pub total_sessions: u32,
-    pub active_sessions: u32,
-    pub inactive_sessions: u32,
-    pub terminated_sessions: u32,
-    pub sessions_by_instance: std::collections::HashMap<String, u32>,
-    pub average_session_age_seconds: f64,
-    pub average_idle_time_seconds: f64,
-    pub resource_usage: ResourceUsage,
-}
-
 /// Session manager trait for managing multiple sessions
 pub trait SessionManager {
     fn create_session(
@@ -50,15 +36,10 @@ pub trait SessionManager {
     fn monitor_resource_usage(
         &self,
     ) -> impl std::future::Future<Output = Result<ResourceUsage>> + Send;
-    fn enforce_limits(&mut self) -> impl std::future::Future<Output = Result<()>> + Send;
     fn get_session(
         &self,
         session_id: &str,
     ) -> impl std::future::Future<Output = Result<Session>> + Send;
-    fn update_session(
-        &mut self,
-        session: Session,
-    ) -> impl std::future::Future<Output = Result<()>> + Send;
     fn terminate_session(
         &mut self,
         session_id: &str,
@@ -66,9 +47,6 @@ pub trait SessionManager {
     fn list_sessions(&self) -> impl std::future::Future<Output = Result<Vec<Session>>> + Send;
 
     // 新しいメソッド - セッション管理最適化のため
-    fn list_active_sessions(
-        &self,
-    ) -> impl std::future::Future<Output = Result<Vec<Session>>> + Send;
     fn list_sessions_by_instance(
         &self,
         instance_id: &str,
@@ -76,9 +54,6 @@ pub trait SessionManager {
     fn cleanup_inactive_sessions(
         &mut self,
     ) -> impl std::future::Future<Output = Result<u32>> + Send;
-    fn get_session_statistics(
-        &self,
-    ) -> impl std::future::Future<Output = Result<SessionStatistics>> + Send;
 }
 
 /// Default implementation of session manager with AWS integration
@@ -180,18 +155,6 @@ impl DefaultSessionManager {
         }
         .into())
     }
-
-    async fn wait_for_local_port_listen(port: u16, timeout: Duration) -> bool {
-        let start = std::time::Instant::now();
-        while start.elapsed() < timeout {
-            if TcpStream::connect(("127.0.0.1", port)).await.is_ok() {
-                return true;
-            }
-            sleep(Duration::from_millis(150)).await;
-        }
-        false
-    }
-
     async fn start_port_forwarding_via_aws_cli(&self, config: &SessionConfig) -> Result<u32> {
         // AWS CLI requires the Session Manager plugin to actually open the local listener.
         let plugin_dir = Self::ensure_session_manager_plugin_available()?;
@@ -382,53 +345,6 @@ impl DefaultSessionManager {
 
         Ok(count)
     }
-
-    /// Sync session status with AWS SSM
-    pub async fn sync_session_status(&mut self, session_id: &str) -> Result<()> {
-        if let Some(ssm_session_id) = self.aws_sessions.get(session_id) {
-            match self.aws_manager.get_session_status(ssm_session_id).await {
-                Ok(ssm_status) => {
-                    if let Some(session) = self.sessions.get_mut(session_id) {
-                        let new_status = match ssm_status {
-                            SsmSessionStatus::Connected => SessionStatus::Active,
-                            SsmSessionStatus::Connecting => SessionStatus::Connecting,
-                            SsmSessionStatus::Disconnected => SessionStatus::Inactive,
-                            SsmSessionStatus::Failed => SessionStatus::Terminated,
-                            SsmSessionStatus::Terminated => SessionStatus::Terminated,
-                            SsmSessionStatus::Terminating => SessionStatus::Terminated,
-                        };
-
-                        if session.status != new_status {
-                            debug!(
-                                "Session {} status changed from {:?} to {:?}",
-                                session_id, session.status, new_status
-                            );
-                            session.status = new_status;
-                        }
-                    }
-                }
-                Err(e) => {
-                    warn!("Failed to get SSM session status for {}: {}", session_id, e);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Sync all session statuses with AWS SSM
-    pub async fn sync_all_sessions(&mut self) -> Result<()> {
-        let session_ids: Vec<String> = self.sessions.keys().cloned().collect();
-
-        for session_id in session_ids {
-            if let Err(e) = self.sync_session_status(&session_id).await {
-                warn!("Failed to sync session {}: {}", session_id, e);
-            }
-        }
-
-        Ok(())
-    }
-
     /// Get AWS manager reference
     pub fn aws_manager(&self) -> &AwsManager {
         &self.aws_manager
@@ -619,53 +535,6 @@ impl SessionManager for DefaultSessionManager {
         Ok(usage)
     }
 
-    async fn enforce_limits(&mut self) -> Result<()> {
-        let usage = self.monitor_resource_usage().await?;
-
-        // リソース制限の確認と警告
-        if usage.memory_mb > 10.0 {
-            warn!(
-                "Memory usage exceeds limit: {:.1}MB > 10.0MB",
-                usage.memory_mb
-            );
-
-            // 非アクティブセッションのクリーンアップを試行
-            let cleaned_count = self.cleanup_inactive_sessions().await?;
-            if cleaned_count > 0 {
-                info!(
-                    "Cleaned up {} inactive sessions to reduce memory usage",
-                    cleaned_count
-                );
-            }
-        }
-
-        if usage.cpu_percent > 0.5 {
-            warn!("CPU usage exceeds limit: {:.1}% > 0.5%", usage.cpu_percent);
-        }
-
-        // インスタンスごとのセッション制限確認
-        let mut instances_over_limit = Vec::new();
-        let mut instance_counts = std::collections::HashMap::new();
-
-        for session in self.sessions.values() {
-            if session.is_active() {
-                *instance_counts.entry(&session.instance_id).or_insert(0) += 1;
-            }
-        }
-
-        for (instance_id, count) in instance_counts {
-            if count > self.max_sessions_per_instance {
-                instances_over_limit.push((instance_id.clone(), count));
-            }
-        }
-
-        if !instances_over_limit.is_empty() {
-            warn!("Instances over session limit: {:?}", instances_over_limit);
-        }
-
-        Ok(())
-    }
-
     async fn get_session(&self, session_id: &str) -> Result<Session> {
         self.sessions.get(session_id).cloned().ok_or_else(|| {
             SessionError::NotFound {
@@ -673,12 +542,6 @@ impl SessionManager for DefaultSessionManager {
             }
             .into()
         })
-    }
-
-    async fn update_session(&mut self, session: Session) -> Result<()> {
-        let session_id = session.id.clone();
-        self.sessions.insert(session_id, session);
-        Ok(())
     }
 
     async fn terminate_session(&mut self, session_id: &str) -> Result<()> {
@@ -715,15 +578,6 @@ impl SessionManager for DefaultSessionManager {
         Ok(self.sessions.values().cloned().collect())
     }
 
-    async fn list_active_sessions(&self) -> Result<Vec<Session>> {
-        Ok(self
-            .sessions
-            .values()
-            .filter(|s| s.is_active())
-            .cloned()
-            .collect())
-    }
-
     async fn list_sessions_by_instance(&self, instance_id: &str) -> Result<Vec<Session>> {
         Ok(self
             .sessions
@@ -746,65 +600,5 @@ impl SessionManager for DefaultSessionManager {
         }
 
         Ok(count)
-    }
-
-    async fn get_session_statistics(&self) -> Result<SessionStatistics> {
-        let all_sessions: Vec<&Session> = self.sessions.values().collect();
-        let total_sessions = all_sessions.len() as u32;
-
-        let active_sessions = all_sessions.iter().filter(|s| s.is_active()).count() as u32;
-
-        let inactive_sessions = all_sessions
-            .iter()
-            .filter(|s| self.is_session_inactive(s))
-            .count() as u32;
-
-        let terminated_sessions = all_sessions
-            .iter()
-            .filter(|s| matches!(s.status, SessionStatus::Terminated))
-            .count() as u32;
-
-        // インスタンスごとのセッション数
-        let mut sessions_by_instance = std::collections::HashMap::new();
-        for session in &all_sessions {
-            *sessions_by_instance
-                .entry(session.instance_id.clone())
-                .or_insert(0) += 1;
-        }
-
-        // 平均セッション年齢
-        let average_session_age_seconds = if total_sessions > 0 {
-            all_sessions
-                .iter()
-                .map(|s| s.age_seconds() as f64)
-                .sum::<f64>()
-                / total_sessions as f64
-        } else {
-            0.0
-        };
-
-        // 平均アイドル時間
-        let average_idle_time_seconds = if total_sessions > 0 {
-            all_sessions
-                .iter()
-                .map(|s| s.idle_seconds() as f64)
-                .sum::<f64>()
-                / total_sessions as f64
-        } else {
-            0.0
-        };
-
-        let resource_usage = self.monitor_resource_usage().await?;
-
-        Ok(SessionStatistics {
-            total_sessions,
-            active_sessions,
-            inactive_sessions,
-            terminated_sessions,
-            sessions_by_instance,
-            average_session_age_seconds,
-            average_idle_time_seconds,
-            resource_usage,
-        })
     }
 }
