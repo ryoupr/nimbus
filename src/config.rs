@@ -410,7 +410,16 @@ impl Config {
 
     /// Apply environment variable overrides to configuration
     pub fn apply_env_overrides(&mut self) -> Result<()> {
-        // AWS configuration overrides
+        self.apply_aws_env_overrides()?;
+        self.apply_session_env_overrides()?;
+        self.apply_performance_env_overrides()?;
+        self.apply_ui_env_overrides()?;
+        self.apply_logging_env_overrides()?;
+        self.apply_vscode_env_overrides()?;
+        Ok(())
+    }
+
+    fn apply_aws_env_overrides(&mut self) -> Result<()> {
         env_override_opt_string(&mut self.aws.default_profile, "NIMBUS_AWS_PROFILE");
         env_override(&mut self.aws.default_region, "NIMBUS_AWS_REGION")?;
         env_override(
@@ -418,8 +427,10 @@ impl Config {
             "NIMBUS_CONNECTION_TIMEOUT",
         )?;
         env_override(&mut self.aws.request_timeout, "NIMBUS_REQUEST_TIMEOUT")?;
+        Ok(())
+    }
 
-        // Session configuration overrides
+    fn apply_session_env_overrides(&mut self) -> Result<()> {
         env_override(
             &mut self.session.max_sessions_per_instance,
             "NIMBUS_MAX_SESSIONS",
@@ -432,8 +443,6 @@ impl Config {
             &mut self.session.inactive_timeout,
             "NIMBUS_INACTIVE_TIMEOUT",
         )?;
-
-        // Reconnection policy overrides
         env_override(
             &mut self.session.reconnection.enabled,
             "NIMBUS_RECONNECTION_ENABLED",
@@ -462,8 +471,10 @@ impl Config {
             &mut self.session.reconnection.aggressive_interval_ms,
             "NIMBUS_AGGRESSIVE_INTERVAL_MS",
         )?;
+        Ok(())
+    }
 
-        // Performance configuration overrides
+    fn apply_performance_env_overrides(&mut self) -> Result<()> {
         env_override(
             &mut self.performance.monitoring_enabled,
             "NIMBUS_PERFORMANCE_MONITORING",
@@ -476,24 +487,26 @@ impl Config {
             &mut self.performance.optimization_enabled,
             "NIMBUS_OPTIMIZATION_ENABLED",
         )?;
-
-        // Resource configuration overrides
         env_override(&mut self.resources.max_memory_mb, "NIMBUS_MAX_MEMORY_MB")?;
         env_override(
             &mut self.resources.max_cpu_percent,
             "NIMBUS_MAX_CPU_PERCENT",
         )?;
         env_override(&mut self.resources.low_power_mode, "NIMBUS_LOW_POWER_MODE")?;
+        Ok(())
+    }
 
-        // UI configuration overrides
+    fn apply_ui_env_overrides(&mut self) -> Result<()> {
         env_override(&mut self.ui.rich_ui, "NIMBUS_RICH_UI")?;
         env_override(
             &mut self.ui.update_interval_ms,
             "NIMBUS_UI_UPDATE_INTERVAL_MS",
         )?;
         env_override(&mut self.ui.notifications, "NIMBUS_NOTIFICATIONS")?;
+        Ok(())
+    }
 
-        // Logging configuration overrides
+    fn apply_logging_env_overrides(&mut self) -> Result<()> {
         if let Ok(level) = env::var("NIMBUS_LOG_LEVEL") {
             let valid_levels = ["trace", "debug", "info", "warn", "error"];
             if !valid_levels.contains(&level.to_lowercase().as_str()) {
@@ -509,8 +522,10 @@ impl Config {
             self.logging.log_file = Some(PathBuf::from(log_file));
         }
         env_override(&mut self.logging.json_format, "NIMBUS_JSON_LOGGING")?;
+        Ok(())
+    }
 
-        // VS Code integration overrides
+    fn apply_vscode_env_overrides(&mut self) -> Result<()> {
         env_override_opt_string(&mut self.vscode.vscode_path, "NIMBUS_VSCODE_PATH");
         env_override_opt_string(&mut self.vscode.ssh_config_path, "NIMBUS_SSH_CONFIG_PATH");
         env_override(
@@ -529,8 +544,6 @@ impl Config {
             &mut self.vscode.auto_update_ssh_config,
             "NIMBUS_VSCODE_AUTO_UPDATE_SSH",
         )?;
-
-        // SSH configuration overrides
         env_override_opt_string(&mut self.vscode.ssh_user, "NIMBUS_SSH_USER");
         env_override_opt_string(
             &mut self.vscode.ssh_identity_file,
@@ -540,7 +553,6 @@ impl Config {
             &mut self.vscode.ssh_identities_only,
             "NIMBUS_SSH_IDENTITIES_ONLY",
         )?;
-
         Ok(())
     }
 
