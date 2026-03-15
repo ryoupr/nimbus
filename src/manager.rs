@@ -47,10 +47,12 @@ pub trait SessionManager {
     fn list_sessions(&self) -> impl std::future::Future<Output = Result<Vec<Session>>> + Send;
 
     // 新しいメソッド - セッション管理最適化のため
+    #[allow(dead_code)]
     fn list_sessions_by_instance(
         &self,
         instance_id: &str,
     ) -> impl std::future::Future<Output = Result<Vec<Session>>> + Send;
+    #[allow(dead_code)]
     fn cleanup_inactive_sessions(
         &mut self,
     ) -> impl std::future::Future<Output = Result<u32>> + Send;
