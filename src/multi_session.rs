@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use crate::error::{Result, SessionError};
-use crate::manager::{ResourceUsage, SessionManager, SessionStatistics};
+use crate::manager::{ResourceUsage, SessionManager};
 use crate::monitor::SessionMonitor;
 use crate::session::{Session, SessionConfig, SessionPriority};
 use serde::{Deserialize, Serialize};
@@ -656,18 +656,5 @@ impl<M: SessionManager + Send + Sync, Mon: SessionMonitor + Send + Sync>
             optimized_count
         );
         Ok(optimized_count)
-    }
-
-    /// Get comprehensive session statistics
-    pub async fn get_comprehensive_statistics(&self) -> Result<SessionStatistics> {
-        let base_stats = self
-            .session_manager
-            .lock()
-            .await
-            .get_session_statistics()
-            .await?;
-
-        // 追加の統計情報を含める
-        Ok(base_stats)
     }
 }

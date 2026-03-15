@@ -12,9 +12,7 @@ use crate::iam_diagnostics::{DefaultIamDiagnostics, IamDiagnostics};
 use crate::instance_diagnostics::{DefaultInstanceDiagnostics, InstanceDiagnostics};
 use crate::network_diagnostics::{DefaultNetworkDiagnostics, NetworkDiagnostics};
 use crate::port_diagnostics::{DefaultPortDiagnostics, PortDiagnostics};
-use crate::realtime_feedback::{
-    create_progress_callback, FeedbackConfig, FeedbackStatus, RealtimeFeedbackManager,
-};
+use crate::realtime_feedback::{FeedbackConfig, FeedbackStatus, RealtimeFeedbackManager};
 use crate::ssm_agent_diagnostics::{DefaultSsmAgentDiagnostics, SsmAgentDiagnostics};
 
 /// Diagnostic configuration for SSM connection diagnostics
@@ -299,7 +297,11 @@ impl DefaultDiagnosticManager {
         let feedback_manager = std::sync::Arc::new(RealtimeFeedbackManager::new(config));
 
         // Register callbacks
-        let progress_callback = create_progress_callback(feedback_manager.clone());
+        let fm = feedback_manager.clone();
+        let progress_callback: Box<dyn Fn(DiagnosticProgress) + Send + Sync> =
+            Box::new(move |progress| {
+                fm.update_progress(progress);
+            });
 
         self.progress_callback = Some(std::sync::Arc::new(std::sync::Mutex::new(
             progress_callback,

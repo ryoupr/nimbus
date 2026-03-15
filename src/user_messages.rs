@@ -9,21 +9,7 @@ pub struct UserMessageSystem {
 }
 
 #[derive(Debug, Clone)]
-pub struct HelpMessage {
-    pub title: String,
-    pub description: String,
-    pub solutions: Vec<Solution>,
-    pub related_docs: Vec<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Solution {
-    pub step: u32,
-    pub description: String,
-    pub command: Option<String>,
-    pub example: Option<String>,
-}
-
+pub struct HelpMessage {}
 impl UserMessageSystem {
     pub fn new() -> Self {
         let mut system = Self {
@@ -211,68 +197,12 @@ impl UserMessageSystem {
 
     fn initialize_help_messages(&mut self) {
         // AWS認証のヘルプ
-        self.help_messages.insert(
-            "aws_auth".to_string(),
-            HelpMessage {
-                title: "AWS認証の設定".to_string(),
-                description: "Nimbusを使用するには、適切なAWS認証情報が必要です。".to_string(),
-                solutions: vec![
-                    Solution {
-                        step: 1,
-                        description: "AWS CLIをインストール".to_string(),
-                        command: Some("curl \"https://awscli.amazonaws.com/AWSCLIV2.pkg\" -o \"AWSCLIV2.pkg\"".to_string()),
-                        example: None,
-                    },
-                    Solution {
-                        step: 2,
-                        description: "AWS認証情報を設定".to_string(),
-                        command: Some("aws configure".to_string()),
-                        example: Some("Access Key ID, Secret Access Key, Region, Output formatを入力".to_string()),
-                    },
-                    Solution {
-                        step: 3,
-                        description: "認証情報を確認".to_string(),
-                        command: Some("aws sts get-caller-identity".to_string()),
-                        example: None,
-                    },
-                ],
-                related_docs: vec![
-                    "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html".to_string(),
-                ],
-            },
-        );
+        self.help_messages
+            .insert("aws_auth".to_string(), HelpMessage {});
 
         // セッション管理のヘルプ
-        self.help_messages.insert(
-            "session_management".to_string(),
-            HelpMessage {
-                title: "セッション管理".to_string(),
-                description: "EC2インスタンスへのSSMセッションを効率的に管理する方法。".to_string(),
-                solutions: vec![
-                    Solution {
-                        step: 1,
-                        description: "アクティブなセッションを確認".to_string(),
-                        command: Some("nimbus list-sessions".to_string()),
-                        example: None,
-                    },
-                    Solution {
-                        step: 2,
-                        description: "新しいセッションを作成".to_string(),
-                        command: Some("nimbus connect <instance-id>".to_string()),
-                        example: Some("nimbus connect i-1234567890abcdef0".to_string()),
-                    },
-                    Solution {
-                        step: 3,
-                        description: "セッションを終了".to_string(),
-                        command: Some("nimbus terminate <session-id>".to_string()),
-                        example: None,
-                    },
-                ],
-                related_docs: vec![
-                    "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html".to_string(),
-                ],
-            },
-        );
+        self.help_messages
+            .insert("session_management".to_string(), HelpMessage {});
     }
 }
 
@@ -314,17 +244,6 @@ impl UserErrorMessage {
         }
 
         output
-    }
-
-    /// Format error message for JSON output
-    pub fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "title": self.title,
-            "message": self.message,
-            "severity": self.severity,
-            "solutions": self.solutions,
-            "help_command": self.help_command
-        })
     }
 }
 

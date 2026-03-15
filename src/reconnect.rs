@@ -538,7 +538,6 @@ impl AutoReconnector for DefaultAutoReconnector {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::config::ReconnectionConfig;
     use std::time::Duration;
 

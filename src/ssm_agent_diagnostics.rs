@@ -179,10 +179,6 @@ pub trait SsmAgentDiagnostics {
         &self,
         instance_id: &str,
     ) -> Result<DiagnosticResult>;
-
-    /// Check the SSM Agent version
-    async fn check_agent_version(&self, instance_id: &str) -> Result<DiagnosticResult>;
-
     /// Check the last communication time with SSM service
     async fn check_last_communication(&self, instance_id: &str) -> Result<DiagnosticResult>;
 
@@ -266,47 +262,10 @@ impl DefaultSsmAgentDiagnostics {
         .context("Failed to create AWS manager")?;
         Ok(Self::new(aws_manager))
     }
-
-    /// Create SSM Agent diagnostics with specific AWS profile
-    pub async fn with_profile(profile: &str) -> Result<Self> {
-        let aws_manager = AwsManager::with_profile(profile)
-            .await
-            .context("Failed to create AWS manager with profile")?;
-        Ok(Self::new(aws_manager))
-    }
-
-    /// Create SSM Agent diagnostics with specific AWS region
-    pub async fn with_region(region: &str) -> Result<Self> {
-        let aws_manager = AwsManager::with_region(region)
-            .await
-            .context("Failed to create AWS manager with region")?;
-        Ok(Self::new(aws_manager))
-    }
-
     /// Get SSM client from AWS manager
     fn get_ssm_client(&self) -> &aws_sdk_ssm::Client {
         &self.aws_manager.ssm_client
     }
-
-    /// Check if agent version is up to date
-    fn is_agent_version_current(version: &str) -> bool {
-        // Parse version string (format: major.minor.patch.build)
-        let parts: Vec<&str> = version.split('.').collect();
-        if parts.len() < 3 {
-            return false; // Invalid version format
-        }
-
-        // Parse major, minor, patch versions
-        let major: u32 = parts[0].parse().unwrap_or(0);
-        let minor: u32 = parts[1].parse().unwrap_or(0);
-        let _patch: u32 = parts[2].parse().unwrap_or(0);
-
-        // Consider versions 3.0.0 and above as current
-        // This is a simplified check - in production, you might want to check against
-        // the latest available version from AWS
-        major >= 3 || (major == 2 && minor >= 3)
-    }
-
     /// Calculate time since last ping
     fn calculate_time_since_ping(last_ping: chrono::DateTime<chrono::Utc>) -> Duration {
         let now = chrono::Utc::now();
@@ -436,102 +395,6 @@ impl DefaultSsmAgentDiagnostics {
 
         UpdateUrgency::None
     }
-
-    /// Calculate registration quality score
-    fn calculate_registration_quality_score(
-        agent_info: &SsmAgentInfo,
-        ping_status: &PingStatus,
-        time_since_ping: Duration,
-    ) -> f64 {
-        let mut score: f64 = 100.0;
-
-        // Deduct points based on ping status
-        match ping_status {
-            PingStatus::Online => {
-                if time_since_ping > Duration::from_secs(300) {
-                    score -= 10.0; // Recent communication issue
-                }
-            }
-            PingStatus::ConnectionLost => {
-                score -= 30.0;
-                if time_since_ping > Duration::from_secs(3600) {
-                    score -= 20.0; // Extended connection loss
-                }
-            }
-            PingStatus::Inactive => score -= 50.0,
-            PingStatus::Unknown => score -= 20.0,
-        }
-
-        // Deduct points for missing information
-        if agent_info.agent_version.is_none() {
-            score -= 15.0;
-        }
-        if agent_info.platform_type.is_none() {
-            score -= 10.0;
-        }
-        if agent_info.iam_role.is_none() {
-            score -= 25.0; // IAM role is critical
-        }
-
-        // Ensure score is between 0 and 100
-        score.clamp(0.0, 100.0)
-    }
-
-    /// Calculate agent health metrics
-    fn calculate_agent_health_metrics(
-        agent_info: &SsmAgentInfo,
-        ping_status: &PingStatus,
-        time_since_ping: Duration,
-    ) -> AgentHealthMetrics {
-        let communication_health = match ping_status {
-            PingStatus::Online => {
-                if time_since_ping < Duration::from_secs(60) {
-                    100.0
-                } else if time_since_ping < Duration::from_secs(300) {
-                    85.0
-                } else {
-                    70.0
-                }
-            }
-            PingStatus::ConnectionLost => 40.0,
-            PingStatus::Inactive => 10.0,
-            PingStatus::Unknown => 50.0,
-        };
-
-        let performance_health = if agent_info.agent_version.is_some() {
-            90.0 // Assume good performance if version is available
-        } else {
-            60.0
-        };
-
-        let error_rate = match ping_status {
-            PingStatus::Online => 2.0,
-            PingStatus::ConnectionLost => 15.0,
-            PingStatus::Inactive => 50.0,
-            PingStatus::Unknown => 25.0,
-        };
-
-        let overall_health_score = (communication_health + performance_health) / 2.0;
-
-        let health_trend = if overall_health_score > 80.0 {
-            HealthTrend::Stable
-        } else if overall_health_score > 60.0 {
-            HealthTrend::Declining
-        } else {
-            HealthTrend::Critical
-        };
-
-        AgentHealthMetrics {
-            overall_health_score,
-            communication_health,
-            performance_health,
-            error_rate,
-            average_response_time_ms: Some(150.0), // Mock value
-            uptime_percentage: communication_health,
-            last_24h_ping_success_rate: communication_health,
-            health_trend,
-        }
-    }
 }
 
 #[async_trait]
@@ -618,80 +481,6 @@ impl SsmAgentDiagnostics for DefaultSsmAgentDiagnostics {
             }
         }
     }
-
-    async fn check_agent_version(&self, instance_id: &str) -> Result<DiagnosticResult> {
-        let start_time = Instant::now();
-        info!("Checking SSM Agent version: {}", instance_id);
-
-        match self.get_agent_info(instance_id).await {
-            Ok(Some(agent_info)) => {
-                if let Some(ref version) = agent_info.agent_version {
-                    let is_current = Self::is_agent_version_current(version);
-
-                    let version_details = serde_json::json!({
-                        "instance_id": instance_id,
-                        "agent_version": version,
-                        "is_current": is_current,
-                        "platform": agent_info.platform_name
-                    });
-
-                    if is_current {
-                        debug!("SSM Agent version is current: {}", version);
-                        Ok(DiagnosticResult::success(
-                            "agent_version".to_string(),
-                            format!("SSM Agent version {} is current", version),
-                            start_time.elapsed(),
-                        )
-                        .with_details(version_details))
-                    } else {
-                        warn!("SSM Agent version may be outdated: {}", version);
-                        Ok(DiagnosticResult::warning(
-                            "agent_version".to_string(),
-                            format!("SSM Agent version {} may be outdated. Consider updating to the latest version", version),
-                            start_time.elapsed(),
-                            Severity::Medium,
-                        ).with_details(version_details).with_auto_fixable(true))
-                    }
-                } else {
-                    warn!(
-                        "SSM Agent version information not available: {}",
-                        instance_id
-                    );
-                    Ok(DiagnosticResult::warning(
-                        "agent_version".to_string(),
-                        format!(
-                            "SSM Agent version information not available for {}",
-                            instance_id
-                        ),
-                        start_time.elapsed(),
-                        Severity::Low,
-                    ))
-                }
-            }
-            Ok(None) => {
-                error!("Instance not found or not registered: {}", instance_id);
-                Ok(DiagnosticResult::error(
-                    "agent_version".to_string(),
-                    format!(
-                        "Instance {} not found or not registered as managed instance",
-                        instance_id
-                    ),
-                    start_time.elapsed(),
-                    Severity::Critical,
-                ))
-            }
-            Err(e) => {
-                error!("Failed to check SSM Agent version: {}", e);
-                Ok(DiagnosticResult::error(
-                    "agent_version".to_string(),
-                    format!("Failed to check SSM Agent version: {}", e),
-                    start_time.elapsed(),
-                    Severity::High,
-                ))
-            }
-        }
-    }
-
     async fn check_last_communication(&self, instance_id: &str) -> Result<DiagnosticResult> {
         let start_time = Instant::now();
         info!("Checking last communication time: {}", instance_id);
@@ -1784,37 +1573,6 @@ mod tests {
         );
         assert_eq!(PingStatus::from("Inactive"), PingStatus::Inactive);
         assert_eq!(PingStatus::from("Unknown Status"), PingStatus::Unknown);
-    }
-
-    #[test]
-    fn test_agent_version_check() {
-        // Current versions
-        assert!(DefaultSsmAgentDiagnostics::is_agent_version_current(
-            "3.0.0.123"
-        ));
-        assert!(DefaultSsmAgentDiagnostics::is_agent_version_current(
-            "3.1.2.456"
-        ));
-        assert!(DefaultSsmAgentDiagnostics::is_agent_version_current(
-            "2.3.5.789"
-        ));
-
-        // Outdated versions
-        assert!(!DefaultSsmAgentDiagnostics::is_agent_version_current(
-            "2.2.9.123"
-        ));
-        assert!(!DefaultSsmAgentDiagnostics::is_agent_version_current(
-            "1.9.9.999"
-        ));
-        assert!(!DefaultSsmAgentDiagnostics::is_agent_version_current(
-            "2.0.0.100"
-        ));
-
-        // Invalid versions
-        assert!(!DefaultSsmAgentDiagnostics::is_agent_version_current(
-            "invalid"
-        ));
-        assert!(!DefaultSsmAgentDiagnostics::is_agent_version_current("3.0"));
     }
 
     #[test]
