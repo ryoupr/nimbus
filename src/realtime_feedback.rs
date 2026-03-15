@@ -1,7 +1,4 @@
 
-use std::io::{self, Write};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
@@ -10,6 +7,9 @@ use crossterm::{
     terminal::{self, ClearType},
 };
 use serde::{Deserialize, Serialize};
+use std::io::{self, Write};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, error, info, warn};
 
@@ -113,7 +113,9 @@ impl RealtimeFeedbackManager {
                         &completed_results,
                         &critical_issues,
                         &config,
-                    ).await {
+                    )
+                    .await
+                    {
                         error!("Failed to update display: {}", e);
                     }
                     last_update = Instant::now();
@@ -122,7 +124,8 @@ impl RealtimeFeedbackManager {
                 // Check for keyboard input
                 if event::poll(Duration::from_millis(50))? {
                     if let Event::Key(key_event) = event::read()? {
-                        if Self::handle_keyboard_input(key_event, &status, &critical_issues).await? {
+                        if Self::handle_keyboard_input(key_event, &status, &critical_issues).await?
+                        {
                             break;
                         }
                     }
@@ -134,7 +137,10 @@ impl RealtimeFeedbackManager {
                     status_guard.clone()
                 };
 
-                if matches!(current_status, FeedbackStatus::Completed | FeedbackStatus::Failed) {
+                if matches!(
+                    current_status,
+                    FeedbackStatus::Completed | FeedbackStatus::Failed
+                ) {
                     // Final display update
                     let _ = Self::update_display(
                         &mut stdout,
@@ -143,7 +149,8 @@ impl RealtimeFeedbackManager {
                         &completed_results,
                         &critical_issues,
                         &config,
-                    ).await;
+                    )
+                    .await;
                     break;
                 }
 
@@ -153,7 +160,7 @@ impl RealtimeFeedbackManager {
             // Cleanup
             let _ = terminal::disable_raw_mode();
             let _ = execute!(stdout, ResetColor, cursor::Show);
-            
+
             Ok::<(), anyhow::Error>(())
         });
 
@@ -174,7 +181,11 @@ impl RealtimeFeedbackManager {
         config: &FeedbackConfig,
     ) -> Result<(), anyhow::Error> {
         // Clear screen and move cursor to top
-        execute!(stdout, terminal::Clear(ClearType::All), cursor::MoveTo(0, 0))?;
+        execute!(
+            stdout,
+            terminal::Clear(ClearType::All),
+            cursor::MoveTo(0, 0)
+        )?;
 
         // Display header
         Self::display_header(stdout, config)?;
@@ -203,12 +214,20 @@ impl RealtimeFeedbackManager {
     }
 
     /// Display the header section
-    fn display_header(stdout: &mut io::Stdout, config: &FeedbackConfig) -> Result<(), anyhow::Error> {
+    fn display_header(
+        stdout: &mut io::Stdout,
+        config: &FeedbackConfig,
+    ) -> Result<(), anyhow::Error> {
         if config.enable_colors {
             execute!(stdout, SetForegroundColor(Color::Cyan))?;
         }
         execute!(stdout, Print("╔══════════════════════════════════════════════════════════════════════════════╗\n"))?;
-        execute!(stdout, Print("║                          SSM Connection Diagnostics                         ║\n"))?;
+        execute!(
+            stdout,
+            Print(
+                "║                          SSM Connection Diagnostics                         ║\n"
+            )
+        )?;
         execute!(stdout, Print("╚══════════════════════════════════════════════════════════════════════════════╝\n"))?;
         if config.enable_colors {
             execute!(stdout, ResetColor)?;
@@ -228,12 +247,12 @@ impl RealtimeFeedbackManager {
             let progress_percentage = progress.progress_percentage();
             let bar_width = 50;
             let filled_width = (progress_percentage / 100.0 * bar_width as f64) as usize;
-            
+
             if config.enable_colors {
                 execute!(stdout, SetForegroundColor(Color::Green))?;
             }
             execute!(stdout, Print("Progress: ["))?;
-            
+
             for i in 0..bar_width {
                 if i < filled_width {
                     execute!(stdout, Print("█"))?;
@@ -241,7 +260,7 @@ impl RealtimeFeedbackManager {
                     execute!(stdout, Print("░"))?;
                 }
             }
-            
+
             execute!(stdout, Print(format!("] {:.1}%\n", progress_percentage)))?;
             if config.enable_colors {
                 execute!(stdout, ResetColor)?;
@@ -250,18 +269,22 @@ impl RealtimeFeedbackManager {
 
         // Current item and timing information
         if config.show_detailed_status {
-            execute!(stdout, Print(format!(
-                "Current: {} ({}/{})\n",
-                progress.current_item,
-                progress.completed,
-                progress.total
-            )))?;
+            execute!(
+                stdout,
+                Print(format!(
+                    "Current: {} ({}/{})\n",
+                    progress.current_item, progress.completed, progress.total
+                ))
+            )?;
 
             if let Some(remaining) = progress.estimated_remaining {
-                execute!(stdout, Print(format!(
-                    "Estimated remaining: {:.1}s",
-                    remaining.as_secs_f64()
-                )))?;
+                execute!(
+                    stdout,
+                    Print(format!(
+                        "Estimated remaining: {:.1}s",
+                        remaining.as_secs_f64()
+                    ))
+                )?;
             }
             execute!(stdout, Print("\n\n"))?;
         }
@@ -280,7 +303,12 @@ impl RealtimeFeedbackManager {
         }
 
         execute!(stdout, Print("Diagnostic Results:\n"))?;
-        execute!(stdout, Print("─────────────────────────────────────────────────────────────────────────────\n"))?;
+        execute!(
+            stdout,
+            Print(
+                "─────────────────────────────────────────────────────────────────────────────\n"
+            )
+        )?;
 
         for result in results {
             // Status icon and color
@@ -295,20 +323,26 @@ impl RealtimeFeedbackManager {
                 execute!(stdout, SetForegroundColor(color))?;
             }
 
-            execute!(stdout, Print(format!(
-                "{} {} ({:.2}s): {}\n",
-                icon,
-                result.item_name,
-                result.duration.as_secs_f64(),
-                result.message
-            )))?;
+            execute!(
+                stdout,
+                Print(format!(
+                    "{} {} ({:.2}s): {}\n",
+                    icon,
+                    result.item_name,
+                    result.duration.as_secs_f64(),
+                    result.message
+                ))
+            )?;
 
             if config.enable_colors {
                 execute!(stdout, ResetColor)?;
             }
 
             // Show severity for warnings and errors
-            if matches!(result.status, DiagnosticStatus::Warning | DiagnosticStatus::Error) {
+            if matches!(
+                result.status,
+                DiagnosticStatus::Warning | DiagnosticStatus::Error
+            ) {
                 let severity_color = match result.severity {
                     Severity::Critical => Color::Red,
                     Severity::High => Color::Magenta,
@@ -345,7 +379,12 @@ impl RealtimeFeedbackManager {
             execute!(stdout, SetForegroundColor(Color::Red))?;
         }
         execute!(stdout, Print("⚠️  CRITICAL ISSUES DETECTED ⚠️\n"))?;
-        execute!(stdout, Print("═════════════════════════════════════════════════════════════════════════════\n"))?;
+        execute!(
+            stdout,
+            Print(
+                "═════════════════════════════════════════════════════════════════════════════\n"
+            )
+        )?;
         if config.enable_colors {
             execute!(stdout, ResetColor)?;
         }
@@ -354,7 +393,15 @@ impl RealtimeFeedbackManager {
             if config.enable_colors {
                 execute!(stdout, SetForegroundColor(Color::Yellow))?;
             }
-            execute!(stdout, Print(format!("{}. {}: {}\n", index + 1, issue.item_name, issue.message)))?;
+            execute!(
+                stdout,
+                Print(format!(
+                    "{}. {}: {}\n",
+                    index + 1,
+                    issue.item_name,
+                    issue.message
+                ))
+            )?;
             if config.enable_colors {
                 execute!(stdout, ResetColor)?;
             }
@@ -380,7 +427,12 @@ impl RealtimeFeedbackManager {
         status: &FeedbackStatus,
         config: &FeedbackConfig,
     ) -> Result<(), anyhow::Error> {
-        execute!(stdout, Print("─────────────────────────────────────────────────────────────────────────────\n"))?;
+        execute!(
+            stdout,
+            Print(
+                "─────────────────────────────────────────────────────────────────────────────\n"
+            )
+        )?;
 
         // Status
         let (status_text, status_color) = match status {
@@ -404,10 +456,16 @@ impl RealtimeFeedbackManager {
         // Controls
         match status {
             FeedbackStatus::Running => {
-                execute!(stdout, Print("Controls: [Ctrl+C] Interrupt | [P] Pause | [Q] Quit\n"))?;
+                execute!(
+                    stdout,
+                    Print("Controls: [Ctrl+C] Interrupt | [P] Pause | [Q] Quit\n")
+                )?;
             }
             FeedbackStatus::Paused => {
-                execute!(stdout, Print("Controls: [R] Resume | [Ctrl+C] Interrupt | [Q] Quit\n"))?;
+                execute!(
+                    stdout,
+                    Print("Controls: [R] Resume | [Ctrl+C] Interrupt | [Q] Quit\n")
+                )?;
             }
             FeedbackStatus::Interrupted => {
                 execute!(stdout, Print("Controls: [R] Resume | [Q] Quit\n"))?;
@@ -459,7 +517,10 @@ impl RealtimeFeedbackManager {
                 ..
             } => {
                 let mut status_guard = status.lock().await;
-                if matches!(*status_guard, FeedbackStatus::Paused | FeedbackStatus::Interrupted) {
+                if matches!(
+                    *status_guard,
+                    FeedbackStatus::Paused | FeedbackStatus::Interrupted
+                ) {
                     *status_guard = FeedbackStatus::Running;
                     info!("Diagnostic resumed by user");
                 }
@@ -520,10 +581,14 @@ impl RealtimeFeedbackManager {
     /// Add a completed diagnostic result
     pub fn add_result(&self, result: DiagnosticResult) {
         // Check for critical issues
-        if matches!(result.severity, Severity::Critical | Severity::High) && 
-           matches!(result.status, DiagnosticStatus::Error) {
+        if matches!(result.severity, Severity::Critical | Severity::High)
+            && matches!(result.status, DiagnosticStatus::Error)
+        {
             self.critical_issues.blocking_lock().push(result.clone());
-            warn!("Critical issue detected: {} - {}", result.item_name, result.message);
+            warn!(
+                "Critical issue detected: {} - {}",
+                result.item_name, result.message
+            );
         }
 
         self.completed_results.blocking_lock().push(result);
@@ -595,7 +660,7 @@ mod tests {
     fn test_realtime_feedback_manager_creation() {
         let config = FeedbackConfig::default();
         let manager = RealtimeFeedbackManager::new(config);
-        
+
         assert_eq!(manager.get_status(), FeedbackStatus::Running);
         assert!(!manager.has_critical_issues());
     }
@@ -604,17 +669,17 @@ mod tests {
     fn test_critical_issue_detection() {
         let config = FeedbackConfig::default();
         let manager = RealtimeFeedbackManager::new(config);
-        
+
         let critical_result = DiagnosticResult::error(
             "test_item".to_string(),
             "Critical error occurred".to_string(),
             Duration::from_millis(100),
             Severity::Critical,
         );
-        
+
         manager.add_result(critical_result);
         assert!(manager.has_critical_issues());
-        
+
         let issues = manager.get_critical_issues();
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].item_name, "test_item");
@@ -625,12 +690,12 @@ mod tests {
     fn test_status_management() {
         let config = FeedbackConfig::default();
         let manager = RealtimeFeedbackManager::new(config);
-        
+
         assert_eq!(manager.get_status(), FeedbackStatus::Running);
-        
+
         manager.set_status(FeedbackStatus::Paused);
         assert_eq!(manager.get_status(), FeedbackStatus::Paused);
-        
+
         manager.set_status(FeedbackStatus::Completed);
         assert_eq!(manager.get_status(), FeedbackStatus::Completed);
     }

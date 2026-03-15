@@ -5,40 +5,40 @@ use thiserror::Error;
 pub enum NimbusError {
     #[error("Configuration error: {0}")]
     Config(ConfigError),
-    
+
     #[error("AWS error: {0}")]
     Aws(AwsError),
-    
+
     #[error("Session error: {0}")]
     Session(SessionError),
-    
+
     #[error("Connection error: {0}")]
     Connection(ConnectionError),
-    
+
     #[error("Resource error: {0}")]
     Resource(ResourceError),
-    
+
     #[error("UI error: {0}")]
     Ui(UiError),
-    
+
     #[error("VS Code integration error: {0}")]
     VsCode(VsCodeError),
-    
+
     #[error("IO error: {0}")]
     Io(String),
-    
+
     #[error("JSON error: {0}")]
     Json(String),
-    
+
     #[error("TOML error: {0}")]
     Toml(String),
-    
+
     #[error("Database error: {0}")]
     Database(String),
-    
+
     #[error("Anyhow error: {0}")]
     Anyhow(String),
-    
+
     #[error("System error: {0}")]
     System(String),
 }
@@ -46,6 +46,8 @@ pub enum NimbusError {
 /// Configuration-related errors
 #[derive(Error, Debug, Clone)]
 pub enum ConfigError {
+    #[error("Invalid configuration: {message}")]
+    Invalid { message: String },
 }
 
 /// AWS-related errors
@@ -53,13 +55,13 @@ pub enum ConfigError {
 pub enum AwsError {
     #[error("Authentication failed: {message}")]
     AuthenticationFailed { message: String },
-    
+
     #[error("SSM service error: {message}")]
     SsmServiceError { message: String },
-    
+
     #[error("EC2 service error: {message}")]
     Ec2ServiceError { message: String },
-    
+
     #[error("Timeout: {operation}")]
     Timeout { operation: String },
 }
@@ -69,12 +71,22 @@ pub enum AwsError {
 pub enum SessionError {
     #[error("Session not found: {session_id}")]
     NotFound { session_id: String },
-    
+
     #[error("Session creation failed: {reason}")]
     CreationFailed { reason: String },
-    
+
     #[error("Session limit exceeded: max {max_sessions}")]
     LimitExceeded { max_sessions: u32 },
+
+    #[error("Resource limit exceeded: {resource} ({current} >= {limit})")]
+    ResourceLimitExceeded {
+        resource: String,
+        current: f64,
+        limit: f64,
+    },
+
+    #[error("Reconnection failed for session {session_id} after {attempts} attempts")]
+    ReconnectionFailed { session_id: String, attempts: u32 },
 }
 
 /// Connection-related errors
@@ -86,23 +98,21 @@ pub enum ConnectionError {
 
 /// Resource management errors
 #[derive(Error, Debug, Clone)]
-pub enum ResourceError {
-}
+pub enum ResourceError {}
 
 /// UI-related errors
 #[derive(Error, Debug, Clone)]
-pub enum UiError {
-}
+pub enum UiError {}
 
 /// VS Code integration errors
 #[derive(Error, Debug, Clone)]
 pub enum VsCodeError {
     #[error("VS Code not found: {message}")]
     NotFound { message: String },
-    
+
     #[error("VS Code launch failed: {message}")]
     LaunchFailed { message: String },
-    
+
     #[error("Configuration error: {message}")]
     ConfigurationError { message: String },
 }
@@ -186,9 +196,14 @@ impl From<anyhow::Error> for NimbusError {
 impl NimbusError {
     /// Check if error is recoverable
     pub fn is_recoverable(&self) -> bool {
-        matches!(self, NimbusError::Connection(ConnectionError::PreventiveCheckFailed { .. }) | NimbusError::Session(SessionError::CreationFailed { .. }) | NimbusError::Io(_))
+        matches!(
+            self,
+            NimbusError::Connection(ConnectionError::PreventiveCheckFailed { .. })
+                | NimbusError::Session(SessionError::CreationFailed { .. })
+                | NimbusError::Io(_)
+        )
     }
-    
+
     /// Get error severity level
     pub fn severity(&self) -> ErrorSeverity {
         match self {
@@ -201,7 +216,7 @@ impl NimbusError {
             _ => ErrorSeverity::Medium,
         }
     }
-    
+
     /// Get user-friendly error message
     pub fn user_message(&self) -> String {
         match self {

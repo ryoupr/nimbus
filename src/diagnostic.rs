@@ -1,17 +1,21 @@
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::Instant;
-use tracing::{info, warn, error, debug};
-use async_trait::async_trait;
+use tracing::{debug, error, info, warn};
 
 // Import diagnostic modules at the top level
-use crate::instance_diagnostics::{InstanceDiagnostics, DefaultInstanceDiagnostics};
-use crate::port_diagnostics::{PortDiagnostics, DefaultPortDiagnostics};
-use crate::ssm_agent_diagnostics::{SsmAgentDiagnostics, DefaultSsmAgentDiagnostics};
-use crate::iam_diagnostics::{IamDiagnostics, DefaultIamDiagnostics};
-use crate::network_diagnostics::{NetworkDiagnostics, DefaultNetworkDiagnostics};
-use crate::aws_config_validator::{DefaultAwsConfigValidator, AwsConfigValidationConfig, AwsConfigValidationResult};
-use crate::realtime_feedback::{RealtimeFeedbackManager, FeedbackConfig, FeedbackStatus, create_progress_callback};
+use crate::aws_config_validator::{
+    AwsConfigValidationConfig, AwsConfigValidationResult, DefaultAwsConfigValidator,
+};
+use crate::iam_diagnostics::{DefaultIamDiagnostics, IamDiagnostics};
+use crate::instance_diagnostics::{DefaultInstanceDiagnostics, InstanceDiagnostics};
+use crate::network_diagnostics::{DefaultNetworkDiagnostics, NetworkDiagnostics};
+use crate::port_diagnostics::{DefaultPortDiagnostics, PortDiagnostics};
+use crate::realtime_feedback::{
+    create_progress_callback, FeedbackConfig, FeedbackStatus, RealtimeFeedbackManager,
+};
+use crate::ssm_agent_diagnostics::{DefaultSsmAgentDiagnostics, SsmAgentDiagnostics};
 
 /// Diagnostic configuration for SSM connection diagnostics
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,7 +109,12 @@ impl DiagnosticResult {
         }
     }
 
-    pub fn warning(item_name: String, message: String, duration: Duration, severity: Severity) -> Self {
+    pub fn warning(
+        item_name: String,
+        message: String,
+        duration: Duration,
+        severity: Severity,
+    ) -> Self {
         Self {
             item_name,
             status: DiagnosticStatus::Warning,
@@ -117,7 +126,12 @@ impl DiagnosticResult {
         }
     }
 
-    pub fn error(item_name: String, message: String, duration: Duration, severity: Severity) -> Self {
+    pub fn error(
+        item_name: String,
+        message: String,
+        duration: Duration,
+        severity: Severity,
+    ) -> Self {
         Self {
             item_name,
             status: DiagnosticStatus::Error,
@@ -154,7 +168,9 @@ impl DiagnosticProgress {
         let estimated_remaining = if completed > 0 {
             let avg_time_per_item = elapsed.as_secs_f64() / completed as f64;
             let remaining_items = total.saturating_sub(completed);
-            Some(Duration::from_secs_f64(avg_time_per_item * remaining_items as f64))
+            Some(Duration::from_secs_f64(
+                avg_time_per_item * remaining_items as f64,
+            ))
         } else {
             None
         };
@@ -180,22 +196,39 @@ impl DiagnosticProgress {
 #[async_trait]
 pub trait DiagnosticManager {
     /// Run comprehensive diagnostics for SSM connection
-    async fn run_full_diagnostics(&mut self, config: DiagnosticConfig) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>>;
-    
+    async fn run_full_diagnostics(
+        &mut self,
+        config: DiagnosticConfig,
+    ) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>>;
+
     /// Run pre-connection checks
-    async fn run_precheck(&mut self, config: DiagnosticConfig) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>>;
-    
+    async fn run_precheck(
+        &mut self,
+        config: DiagnosticConfig,
+    ) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>>;
+
     /// Run a specific diagnostic item
-    async fn run_specific_diagnostic(&mut self, item: &str, config: DiagnosticConfig) -> Result<DiagnosticResult, Box<dyn std::error::Error>>;
-    
+    async fn run_specific_diagnostic(
+        &mut self,
+        item: &str,
+        config: DiagnosticConfig,
+    ) -> Result<DiagnosticResult, Box<dyn std::error::Error>>;
+
     /// Run comprehensive AWS configuration validation
-    async fn run_aws_config_validation(&mut self, config: DiagnosticConfig) -> Result<AwsConfigValidationResult, Box<dyn std::error::Error>>;
-    
+    async fn run_aws_config_validation(
+        &mut self,
+        config: DiagnosticConfig,
+    ) -> Result<AwsConfigValidationResult, Box<dyn std::error::Error>>;
+
     /// Register a progress callback function
-    fn register_progress_callback(&mut self, callback: Box<dyn Fn(DiagnosticProgress) + Send + Sync>);
+    fn register_progress_callback(
+        &mut self,
+        callback: Box<dyn Fn(DiagnosticProgress) + Send + Sync>,
+    );
 }
 
-type ProgressCallback = std::sync::Arc<std::sync::Mutex<Box<dyn Fn(DiagnosticProgress) + Send + Sync>>>;
+type ProgressCallback =
+    std::sync::Arc<std::sync::Mutex<Box<dyn Fn(DiagnosticProgress) + Send + Sync>>>;
 
 /// Default implementation of the diagnostic manager
 pub struct DefaultDiagnosticManager {
@@ -264,13 +297,15 @@ impl DefaultDiagnosticManager {
     pub fn enable_realtime_feedback(&mut self, config: FeedbackConfig) -> anyhow::Result<()> {
         info!("Enabling real-time diagnostic feedback display");
         let feedback_manager = std::sync::Arc::new(RealtimeFeedbackManager::new(config));
-        
+
         // Register callbacks
         let progress_callback = create_progress_callback(feedback_manager.clone());
-        
-        self.progress_callback = Some(std::sync::Arc::new(std::sync::Mutex::new(progress_callback)));
+
+        self.progress_callback = Some(std::sync::Arc::new(std::sync::Mutex::new(
+            progress_callback,
+        )));
         self.realtime_feedback = Some(feedback_manager);
-        
+
         info!("Real-time feedback system enabled");
         Ok(())
     }
@@ -312,7 +347,11 @@ impl DefaultDiagnosticManager {
     }
 
     /// Execute a single diagnostic item with timing
-    async fn execute_diagnostic_item(&self, item: &str, config: &DiagnosticConfig) -> DiagnosticResult {
+    async fn execute_diagnostic_item(
+        &self,
+        item: &str,
+        config: &DiagnosticConfig,
+    ) -> DiagnosticResult {
         let start_time = Instant::now();
         debug!("Starting diagnostic item: {}", item);
 
@@ -335,26 +374,34 @@ impl DefaultDiagnosticManager {
             }
         };
 
-        debug!("Completed diagnostic item: {} in {:?}", item, result.duration);
-        
+        debug!(
+            "Completed diagnostic item: {} in {:?}",
+            item, result.duration
+        );
+
         // Report result to feedback system
         self.report_result(&result);
-        
+
         result
     }
 
     /// Check EC2 instance state
     async fn check_instance_state(&self, config: &DiagnosticConfig) -> DiagnosticResult {
         let start_time = Instant::now();
-        
+
         info!("Checking instance state for: {}", config.instance_id);
-        
+
         match DefaultInstanceDiagnostics::with_aws_config(
             config.region.as_deref(),
             config.profile.as_deref(),
-        ).await {
+        )
+        .await
+        {
             Ok(instance_diagnostics) => {
-                match instance_diagnostics.check_instance_state(&config.instance_id).await {
+                match instance_diagnostics
+                    .check_instance_state(&config.instance_id)
+                    .await
+                {
                     Ok(result) => result,
                     Err(e) => {
                         error!("Instance state check failed: {}", e);
@@ -382,16 +429,24 @@ impl DefaultDiagnosticManager {
     /// Check SSM agent status with enhanced diagnostics
     async fn check_ssm_agent(&self, config: &DiagnosticConfig) -> DiagnosticResult {
         let start_time = Instant::now();
-        
-        info!("Running enhanced SSM agent diagnostics for: {}", config.instance_id);
-        
+
+        info!(
+            "Running enhanced SSM agent diagnostics for: {}",
+            config.instance_id
+        );
+
         match DefaultSsmAgentDiagnostics::with_aws_config(
             config.region.as_deref(),
             config.profile.as_deref(),
-        ).await {
+        )
+        .await
+        {
             Ok(ssm_diagnostics) => {
                 // Run comprehensive SSM agent diagnostics including enhanced features for Task 25.2
-                match ssm_diagnostics.run_ssm_agent_diagnostics(&config.instance_id).await {
+                match ssm_diagnostics
+                    .run_ssm_agent_diagnostics(&config.instance_id)
+                    .await
+                {
                     Ok(results) => {
                         // Combine all results into a single comprehensive result
                         let mut success_count = 0;
@@ -400,35 +455,35 @@ impl DefaultDiagnosticManager {
                         let mut all_details = serde_json::Map::new();
                         let mut all_messages = Vec::new();
                         let mut highest_severity = Severity::Info;
-                        
+
                         for result in &results {
                             match result.status {
                                 DiagnosticStatus::Success => success_count += 1,
                                 DiagnosticStatus::Warning => warning_count += 1,
                                 DiagnosticStatus::Error => error_count += 1,
-                                DiagnosticStatus::Skipped => {},
+                                DiagnosticStatus::Skipped => {}
                             }
-                            
+
                             // Track highest severity
                             if result.severity > highest_severity {
                                 highest_severity = result.severity.clone();
                             }
-                            
+
                             // Collect messages
                             all_messages.push(format!("{}: {}", result.item_name, result.message));
-                            
+
                             // Collect details
                             if let Some(details) = &result.details {
                                 all_details.insert(result.item_name.clone(), details.clone());
                             }
                         }
-                        
+
                         let total_checks = results.len();
                         let summary_message = format!(
                             "Enhanced SSM Agent diagnostics completed: {} checks ({} success, {} warnings, {} errors)",
                             total_checks, success_count, warning_count, error_count
                         );
-                        
+
                         // Determine overall status based on results
                         let overall_status = if error_count > 0 {
                             DiagnosticStatus::Error
@@ -437,7 +492,7 @@ impl DefaultDiagnosticManager {
                         } else {
                             DiagnosticStatus::Success
                         };
-                        
+
                         let mut result = DiagnosticResult {
                             item_name: "ssm_agent_enhanced".to_string(),
                             status: overall_status,
@@ -447,21 +502,22 @@ impl DefaultDiagnosticManager {
                             severity: highest_severity,
                             auto_fixable: error_count > 0 || warning_count > 0,
                         };
-                        
+
                         // Add detailed messages as additional context
                         if let Some(details) = result.details.as_mut() {
                             if let Some(details_obj) = details.as_object_mut() {
                                 details_obj.insert(
                                     "detailed_messages".to_string(),
                                     serde_json::Value::Array(
-                                        all_messages.into_iter()
+                                        all_messages
+                                            .into_iter()
                                             .map(serde_json::Value::String)
-                                            .collect()
-                                    )
+                                            .collect(),
+                                    ),
                                 );
                             }
                         }
-                        
+
                         result
                     }
                     Err(e) => {
@@ -490,16 +546,21 @@ impl DefaultDiagnosticManager {
     /// Check IAM permissions
     async fn check_iam_permissions(&self, config: &DiagnosticConfig) -> DiagnosticResult {
         let start_time = Instant::now();
-        
+
         info!("Checking IAM permissions for: {}", config.instance_id);
-        
+
         match DefaultIamDiagnostics::with_aws_config(
             config.region.as_deref(),
             config.profile.as_deref(),
-        ).await {
+        )
+        .await
+        {
             Ok(iam_diagnostics) => {
                 // Run comprehensive IAM diagnostics including enhanced Task 25.3 features
-                match iam_diagnostics.diagnose_iam_configuration(&config.instance_id).await {
+                match iam_diagnostics
+                    .diagnose_iam_configuration(&config.instance_id)
+                    .await
+                {
                     Ok(results) => {
                         // Combine all results into a single comprehensive result
                         let mut success_count = 0;
@@ -508,35 +569,35 @@ impl DefaultDiagnosticManager {
                         let mut all_details = serde_json::Map::new();
                         let mut all_messages = Vec::new();
                         let mut highest_severity = Severity::Info;
-                        
+
                         for result in &results {
                             match result.status {
                                 DiagnosticStatus::Success => success_count += 1,
                                 DiagnosticStatus::Warning => warning_count += 1,
                                 DiagnosticStatus::Error => error_count += 1,
-                                DiagnosticStatus::Skipped => {},
+                                DiagnosticStatus::Skipped => {}
                             }
-                            
+
                             // Track highest severity
                             if result.severity > highest_severity {
                                 highest_severity = result.severity.clone();
                             }
-                            
+
                             // Collect messages
                             all_messages.push(format!("{}: {}", result.item_name, result.message));
-                            
+
                             // Collect details
                             if let Some(details) = &result.details {
                                 all_details.insert(result.item_name.clone(), details.clone());
                             }
                         }
-                        
+
                         let total_checks = results.len();
                         let summary_message = format!(
                             "Comprehensive IAM diagnostics completed: {} checks ({} success, {} warnings, {} errors)",
                             total_checks, success_count, warning_count, error_count
                         );
-                        
+
                         // Determine overall status based on results
                         let overall_status = if error_count > 0 {
                             DiagnosticStatus::Error
@@ -545,7 +606,7 @@ impl DefaultDiagnosticManager {
                         } else {
                             DiagnosticStatus::Success
                         };
-                        
+
                         let mut result = DiagnosticResult {
                             item_name: "iam_permissions".to_string(),
                             status: overall_status,
@@ -555,21 +616,22 @@ impl DefaultDiagnosticManager {
                             severity: highest_severity,
                             auto_fixable: error_count > 0 || warning_count > 0,
                         };
-                        
+
                         // Add detailed messages as additional context
                         if let Some(details) = result.details.as_mut() {
                             if let Some(details_obj) = details.as_object_mut() {
                                 details_obj.insert(
                                     "detailed_messages".to_string(),
                                     serde_json::Value::Array(
-                                        all_messages.into_iter()
+                                        all_messages
+                                            .into_iter()
                                             .map(serde_json::Value::String)
-                                            .collect()
-                                    )
+                                            .collect(),
+                                    ),
                                 );
                             }
                         }
-                        
+
                         result
                     }
                     Err(e) => {
@@ -598,16 +660,21 @@ impl DefaultDiagnosticManager {
     /// Check VPC endpoints
     async fn check_vpc_endpoints(&self, config: &DiagnosticConfig) -> DiagnosticResult {
         let start_time = Instant::now();
-        
+
         info!("Checking VPC endpoints for: {}", config.instance_id);
-        
+
         match DefaultNetworkDiagnostics::with_aws_config(
             config.region.as_deref(),
             config.profile.as_deref(),
-        ).await {
+        )
+        .await
+        {
             Ok(network_diagnostics) => {
                 // Run comprehensive VPC endpoint analysis including enhanced Task 25.3 features
-                match network_diagnostics.detailed_vpc_endpoint_analysis(&config.instance_id).await {
+                match network_diagnostics
+                    .detailed_vpc_endpoint_analysis(&config.instance_id)
+                    .await
+                {
                     Ok(results) => {
                         // Combine all results into a single comprehensive result
                         let mut success_count = 0;
@@ -616,29 +683,29 @@ impl DefaultDiagnosticManager {
                         let mut all_details = serde_json::Map::new();
                         let mut all_messages = Vec::new();
                         let mut highest_severity = Severity::Info;
-                        
+
                         for result in &results {
                             match result.status {
                                 DiagnosticStatus::Success => success_count += 1,
                                 DiagnosticStatus::Warning => warning_count += 1,
                                 DiagnosticStatus::Error => error_count += 1,
-                                DiagnosticStatus::Skipped => {},
+                                DiagnosticStatus::Skipped => {}
                             }
-                            
+
                             // Track highest severity
                             if result.severity > highest_severity {
                                 highest_severity = result.severity.clone();
                             }
-                            
+
                             // Collect messages
                             all_messages.push(format!("{}: {}", result.item_name, result.message));
-                            
+
                             // Collect details
                             if let Some(details) = &result.details {
                                 all_details.insert(result.item_name.clone(), details.clone());
                             }
                         }
-                        
+
                         let total_checks = results.len();
                         let summary_message = if total_checks > 0 {
                             format!(
@@ -646,9 +713,10 @@ impl DefaultDiagnosticManager {
                                 total_checks, success_count, warning_count, error_count
                             )
                         } else {
-                            "No VPC endpoints found - SSM will use internet gateway if available".to_string()
+                            "No VPC endpoints found - SSM will use internet gateway if available"
+                                .to_string()
                         };
-                        
+
                         // Determine overall status based on results
                         let overall_status = if error_count > 0 {
                             DiagnosticStatus::Error
@@ -659,13 +727,13 @@ impl DefaultDiagnosticManager {
                         } else {
                             DiagnosticStatus::Warning // No endpoints found
                         };
-                        
+
                         let severity = if total_checks == 0 {
                             Severity::Medium // No VPC endpoints is a medium concern
                         } else {
                             highest_severity
                         };
-                        
+
                         let mut result = DiagnosticResult {
                             item_name: "vpc_endpoints".to_string(),
                             status: overall_status,
@@ -675,21 +743,22 @@ impl DefaultDiagnosticManager {
                             severity,
                             auto_fixable: error_count > 0 || warning_count > 0,
                         };
-                        
+
                         // Add detailed messages as additional context
                         if let Some(details) = result.details.as_mut() {
                             if let Some(details_obj) = details.as_object_mut() {
                                 details_obj.insert(
                                     "detailed_messages".to_string(),
                                     serde_json::Value::Array(
-                                        all_messages.into_iter()
+                                        all_messages
+                                            .into_iter()
                                             .map(serde_json::Value::String)
-                                            .collect()
-                                    )
+                                            .collect(),
+                                    ),
                                 );
                             }
                         }
-                        
+
                         result
                     }
                     Err(e) => {
@@ -718,16 +787,21 @@ impl DefaultDiagnosticManager {
     /// Check security groups
     async fn check_security_groups(&self, config: &DiagnosticConfig) -> DiagnosticResult {
         let start_time = Instant::now();
-        
+
         info!("Checking security groups for: {}", config.instance_id);
-        
+
         match DefaultNetworkDiagnostics::with_aws_config(
             config.region.as_deref(),
             config.profile.as_deref(),
-        ).await {
+        )
+        .await
+        {
             Ok(network_diagnostics) => {
                 // Run comprehensive security group analysis including enhanced Task 25.3 features
-                match network_diagnostics.detailed_security_group_analysis(&config.instance_id).await {
+                match network_diagnostics
+                    .detailed_security_group_analysis(&config.instance_id)
+                    .await
+                {
                     Ok(results) => {
                         // Combine all results into a single comprehensive result
                         let mut success_count = 0;
@@ -736,35 +810,35 @@ impl DefaultDiagnosticManager {
                         let mut all_details = serde_json::Map::new();
                         let mut all_messages = Vec::new();
                         let mut highest_severity = Severity::Info;
-                        
+
                         for result in &results {
                             match result.status {
                                 DiagnosticStatus::Success => success_count += 1,
                                 DiagnosticStatus::Warning => warning_count += 1,
                                 DiagnosticStatus::Error => error_count += 1,
-                                DiagnosticStatus::Skipped => {},
+                                DiagnosticStatus::Skipped => {}
                             }
-                            
+
                             // Track highest severity
                             if result.severity > highest_severity {
                                 highest_severity = result.severity.clone();
                             }
-                            
+
                             // Collect messages
                             all_messages.push(format!("{}: {}", result.item_name, result.message));
-                            
+
                             // Collect details
                             if let Some(details) = &result.details {
                                 all_details.insert(result.item_name.clone(), details.clone());
                             }
                         }
-                        
+
                         let total_checks = results.len();
                         let summary_message = format!(
                             "Detailed security group analysis completed: {} groups ({} success, {} warnings, {} errors)",
                             total_checks, success_count, warning_count, error_count
                         );
-                        
+
                         // Determine overall status based on results
                         let overall_status = if error_count > 0 {
                             DiagnosticStatus::Error
@@ -773,7 +847,7 @@ impl DefaultDiagnosticManager {
                         } else {
                             DiagnosticStatus::Success
                         };
-                        
+
                         let mut result = DiagnosticResult {
                             item_name: "security_groups".to_string(),
                             status: overall_status,
@@ -783,21 +857,22 @@ impl DefaultDiagnosticManager {
                             severity: highest_severity,
                             auto_fixable: error_count > 0 || warning_count > 0,
                         };
-                        
+
                         // Add detailed messages as additional context
                         if let Some(details) = result.details.as_mut() {
                             if let Some(details_obj) = details.as_object_mut() {
                                 details_obj.insert(
                                     "detailed_messages".to_string(),
                                     serde_json::Value::Array(
-                                        all_messages.into_iter()
+                                        all_messages
+                                            .into_iter()
                                             .map(serde_json::Value::String)
-                                            .collect()
-                                    )
+                                            .collect(),
+                                    ),
                                 );
                             }
                         }
-                        
+
                         result
                     }
                     Err(e) => {
@@ -826,15 +901,20 @@ impl DefaultDiagnosticManager {
     /// Check network connectivity
     async fn check_network_connectivity(&self, config: &DiagnosticConfig) -> DiagnosticResult {
         let start_time = Instant::now();
-        
+
         info!("Checking network connectivity for: {}", config.instance_id);
-        
+
         match DefaultNetworkDiagnostics::with_aws_config(
             config.region.as_deref(),
             config.profile.as_deref(),
-        ).await {
+        )
+        .await
+        {
             Ok(network_diagnostics) => {
-                match network_diagnostics.test_network_connectivity(&config.instance_id).await {
+                match network_diagnostics
+                    .test_network_connectivity(&config.instance_id)
+                    .await
+                {
                     Ok(result) => result,
                     Err(e) => {
                         error!("Network connectivity check failed: {}", e);
@@ -862,10 +942,10 @@ impl DefaultDiagnosticManager {
     /// Check local port availability
     async fn check_local_port_availability(&self, config: &DiagnosticConfig) -> DiagnosticResult {
         let start_time = Instant::now();
-        
+
         if let Some(port) = config.local_port {
             info!("Checking local port availability: {}", port);
-            
+
             let port_diagnostics = DefaultPortDiagnostics::new();
             port_diagnostics.diagnose_port(port).await
         } else {
@@ -881,22 +961,28 @@ impl DefaultDiagnosticManager {
 
 #[async_trait]
 impl DiagnosticManager for DefaultDiagnosticManager {
-    async fn run_full_diagnostics(&mut self, config: DiagnosticConfig) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>> {
-        info!("Starting full diagnostics for instance: {}", config.instance_id);
+    async fn run_full_diagnostics(
+        &mut self,
+        config: DiagnosticConfig,
+    ) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>> {
+        info!(
+            "Starting full diagnostics for instance: {}",
+            config.instance_id
+        );
         let start_time = Instant::now();
-        
+
         let total_items = self.diagnostic_items.len();
         let mut results = Vec::with_capacity(total_items);
-        
+
         if config.parallel_execution {
             // Run diagnostics in parallel
             info!("Running diagnostics in parallel mode");
-            
+
             let mut tasks = Vec::new();
             for (index, item) in self.diagnostic_items.iter().enumerate() {
                 let item_clone = item.clone();
                 let config_clone = config.clone();
-                
+
                 // Create a future for each diagnostic item
                 let task = async move {
                     let start_time = Instant::now();
@@ -905,13 +991,18 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                     let result = match item_clone.as_str() {
                         "instance_state" => {
                             info!("Checking instance state for: {}", config_clone.instance_id);
-                            
+
                             match DefaultInstanceDiagnostics::with_aws_config(
                                 config_clone.region.as_deref(),
                                 config_clone.profile.as_deref(),
-                            ).await {
+                            )
+                            .await
+                            {
                                 Ok(temp_instance_diagnostics) => {
-                                    match temp_instance_diagnostics.check_instance_state(&config_clone.instance_id).await {
+                                    match temp_instance_diagnostics
+                                        .check_instance_state(&config_clone.instance_id)
+                                        .await
+                                    {
                                         Ok(result) => result,
                                         Err(e) => {
                                             error!("Instance state check failed: {}", e);
@@ -934,16 +1025,24 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                                     )
                                 }
                             }
-                        },
+                        }
                         "ssm_agent_enhanced" => {
-                            info!("Running enhanced SSM agent diagnostics for: {}", config_clone.instance_id);
-                            
+                            info!(
+                                "Running enhanced SSM agent diagnostics for: {}",
+                                config_clone.instance_id
+                            );
+
                             match DefaultSsmAgentDiagnostics::with_aws_config(
                                 config_clone.region.as_deref(),
                                 config_clone.profile.as_deref(),
-                            ).await {
+                            )
+                            .await
+                            {
                                 Ok(temp_ssm_diagnostics) => {
-                                    match temp_ssm_diagnostics.run_ssm_agent_diagnostics(&config_clone.instance_id).await {
+                                    match temp_ssm_diagnostics
+                                        .run_ssm_agent_diagnostics(&config_clone.instance_id)
+                                        .await
+                                    {
                                         Ok(results) => {
                                             // Combine all results into a single comprehensive result
                                             let mut success_count = 0;
@@ -952,35 +1051,41 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                                             let mut all_details = serde_json::Map::new();
                                             let mut all_messages = Vec::new();
                                             let mut highest_severity = Severity::Info;
-                                            
+
                                             for result in &results {
                                                 match result.status {
                                                     DiagnosticStatus::Success => success_count += 1,
                                                     DiagnosticStatus::Warning => warning_count += 1,
                                                     DiagnosticStatus::Error => error_count += 1,
-                                                    DiagnosticStatus::Skipped => {},
+                                                    DiagnosticStatus::Skipped => {}
                                                 }
-                                                
+
                                                 // Track highest severity
                                                 if result.severity > highest_severity {
                                                     highest_severity = result.severity.clone();
                                                 }
-                                                
+
                                                 // Collect messages
-                                                all_messages.push(format!("{}: {}", result.item_name, result.message));
-                                                
+                                                all_messages.push(format!(
+                                                    "{}: {}",
+                                                    result.item_name, result.message
+                                                ));
+
                                                 // Collect details
                                                 if let Some(details) = &result.details {
-                                                    all_details.insert(result.item_name.clone(), details.clone());
+                                                    all_details.insert(
+                                                        result.item_name.clone(),
+                                                        details.clone(),
+                                                    );
                                                 }
                                             }
-                                            
+
                                             let total_checks = results.len();
                                             let summary_message = format!(
                                                 "Enhanced SSM Agent diagnostics completed: {} checks ({} success, {} warnings, {} errors)",
                                                 total_checks, success_count, warning_count, error_count
                                             );
-                                            
+
                                             // Determine overall status based on results
                                             let overall_status = if error_count > 0 {
                                                 DiagnosticStatus::Error
@@ -989,38 +1094,44 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                                             } else {
                                                 DiagnosticStatus::Success
                                             };
-                                            
+
                                             let mut result = DiagnosticResult {
                                                 item_name: "ssm_agent_enhanced".to_string(),
                                                 status: overall_status,
                                                 message: summary_message,
-                                                details: Some(serde_json::Value::Object(all_details)),
+                                                details: Some(serde_json::Value::Object(
+                                                    all_details,
+                                                )),
                                                 duration: start_time.elapsed(),
                                                 severity: highest_severity,
                                                 auto_fixable: error_count > 0 || warning_count > 0,
                                             };
-                                            
+
                                             // Add detailed messages as additional context
                                             if let Some(details) = result.details.as_mut() {
                                                 if let Some(details_obj) = details.as_object_mut() {
                                                     details_obj.insert(
                                                         "detailed_messages".to_string(),
                                                         serde_json::Value::Array(
-                                                            all_messages.into_iter()
+                                                            all_messages
+                                                                .into_iter()
                                                                 .map(serde_json::Value::String)
-                                                                .collect()
-                                                        )
+                                                                .collect(),
+                                                        ),
                                                     );
                                                 }
                                             }
-                                            
+
                                             result
                                         }
                                         Err(e) => {
                                             error!("Enhanced SSM agent diagnostics failed: {}", e);
                                             DiagnosticResult::error(
                                                 "ssm_agent_enhanced".to_string(),
-                                                format!("Enhanced SSM agent diagnostics failed: {}", e),
+                                                format!(
+                                                    "Enhanced SSM agent diagnostics failed: {}",
+                                                    e
+                                                ),
                                                 start_time.elapsed(),
                                                 Severity::High,
                                             )
@@ -1037,41 +1148,58 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                                     )
                                 }
                             }
-                        },
+                        }
                         "iam_permissions" => {
                             info!("Checking IAM permissions for: {}", config_clone.instance_id);
-                            
+
                             match DefaultIamDiagnostics::with_aws_config(
                                 config_clone.region.as_deref(),
                                 config_clone.profile.as_deref(),
-                            ).await {
+                            )
+                            .await
+                            {
                                 Ok(iam_diagnostics) => {
-                                    match iam_diagnostics.diagnose_iam_configuration(&config_clone.instance_id).await {
+                                    match iam_diagnostics
+                                        .diagnose_iam_configuration(&config_clone.instance_id)
+                                        .await
+                                    {
                                         Ok(results) => {
                                             // Aggregate results into a single diagnostic result
                                             let mut has_errors = false;
                                             let mut has_warnings = false;
                                             let mut messages = Vec::new();
-                                            
+
                                             for result in &results {
                                                 match result.status {
                                                     DiagnosticStatus::Error => {
                                                         has_errors = true;
-                                                        messages.push(format!("❌ {}: {}", result.item_name, result.message));
+                                                        messages.push(format!(
+                                                            "❌ {}: {}",
+                                                            result.item_name, result.message
+                                                        ));
                                                     }
                                                     DiagnosticStatus::Warning => {
                                                         has_warnings = true;
-                                                        messages.push(format!("⚠️ {}: {}", result.item_name, result.message));
+                                                        messages.push(format!(
+                                                            "⚠️ {}: {}",
+                                                            result.item_name, result.message
+                                                        ));
                                                     }
                                                     DiagnosticStatus::Success => {
-                                                        messages.push(format!("✅ {}: {}", result.item_name, result.message));
+                                                        messages.push(format!(
+                                                            "✅ {}: {}",
+                                                            result.item_name, result.message
+                                                        ));
                                                     }
                                                     DiagnosticStatus::Skipped => {
-                                                        messages.push(format!("⏭️ {}: {}", result.item_name, result.message));
+                                                        messages.push(format!(
+                                                            "⏭️ {}: {}",
+                                                            result.item_name, result.message
+                                                        ));
                                                     }
                                                 }
                                             }
-                                            
+
                                             let combined_message = messages.join("\n");
                                             let details = serde_json::json!({
                                                 "individual_results": results,
@@ -1082,27 +1210,39 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                                                     "successes": results.iter().filter(|r| r.status == DiagnosticStatus::Success).count(),
                                                 }
                                             });
-                                            
+
                                             if has_errors {
                                                 DiagnosticResult::error(
                                                     "iam_permissions".to_string(),
-                                                    format!("IAM configuration issues detected:\n{}", combined_message),
+                                                    format!(
+                                                        "IAM configuration issues detected:\n{}",
+                                                        combined_message
+                                                    ),
                                                     start_time.elapsed(),
                                                     Severity::Critical,
-                                                ).with_details(details)
+                                                )
+                                                .with_details(details)
                                             } else if has_warnings {
                                                 DiagnosticResult::warning(
                                                     "iam_permissions".to_string(),
-                                                    format!("IAM configuration warnings:\n{}", combined_message),
+                                                    format!(
+                                                        "IAM configuration warnings:\n{}",
+                                                        combined_message
+                                                    ),
                                                     start_time.elapsed(),
                                                     Severity::Medium,
-                                                ).with_details(details)
+                                                )
+                                                .with_details(details)
                                             } else {
                                                 DiagnosticResult::success(
                                                     "iam_permissions".to_string(),
-                                                    format!("IAM configuration verified:\n{}", combined_message),
+                                                    format!(
+                                                        "IAM configuration verified:\n{}",
+                                                        combined_message
+                                                    ),
                                                     start_time.elapsed(),
-                                                ).with_details(details)
+                                                )
+                                                .with_details(details)
                                             }
                                         }
                                         Err(e) => {
@@ -1126,16 +1266,21 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                                     )
                                 }
                             }
-                        },
+                        }
                         "vpc_endpoints" => {
                             info!("Checking VPC endpoints for: {}", config_clone.instance_id);
-                            
+
                             match DefaultNetworkDiagnostics::with_aws_config(
                                 config_clone.region.as_deref(),
                                 config_clone.profile.as_deref(),
-                            ).await {
+                            )
+                            .await
+                            {
                                 Ok(network_diagnostics) => {
-                                    match network_diagnostics.check_vpc_endpoints(&config_clone.instance_id).await {
+                                    match network_diagnostics
+                                        .check_vpc_endpoints(&config_clone.instance_id)
+                                        .await
+                                    {
                                         Ok(result) => result,
                                         Err(e) => {
                                             error!("VPC endpoints check failed: {}", e);
@@ -1158,16 +1303,21 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                                     )
                                 }
                             }
-                        },
+                        }
                         "security_groups" => {
                             info!("Checking security groups for: {}", config_clone.instance_id);
-                            
+
                             match DefaultNetworkDiagnostics::with_aws_config(
                                 config_clone.region.as_deref(),
                                 config_clone.profile.as_deref(),
-                            ).await {
+                            )
+                            .await
+                            {
                                 Ok(network_diagnostics) => {
-                                    match network_diagnostics.check_security_group_rules(&config_clone.instance_id).await {
+                                    match network_diagnostics
+                                        .check_security_group_rules(&config_clone.instance_id)
+                                        .await
+                                    {
                                         Ok(result) => result,
                                         Err(e) => {
                                             error!("Security groups check failed: {}", e);
@@ -1190,16 +1340,24 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                                     )
                                 }
                             }
-                        },
+                        }
                         "network_connectivity" => {
-                            info!("Checking network connectivity for: {}", config_clone.instance_id);
-                            
+                            info!(
+                                "Checking network connectivity for: {}",
+                                config_clone.instance_id
+                            );
+
                             match DefaultNetworkDiagnostics::with_aws_config(
                                 config_clone.region.as_deref(),
                                 config_clone.profile.as_deref(),
-                            ).await {
+                            )
+                            .await
+                            {
                                 Ok(network_diagnostics) => {
-                                    match network_diagnostics.test_network_connectivity(&config_clone.instance_id).await {
+                                    match network_diagnostics
+                                        .test_network_connectivity(&config_clone.instance_id)
+                                        .await
+                                    {
                                         Ok(result) => result,
                                         Err(e) => {
                                             error!("Network connectivity check failed: {}", e);
@@ -1222,22 +1380,23 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                                     )
                                 }
                             }
-                        },
+                        }
                         "local_port_availability" => {
                             if let Some(port) = config_clone.local_port {
                                 info!("Checking local port availability: {}", port);
-                                
+
                                 let port_diagnostics = DefaultPortDiagnostics::new();
                                 port_diagnostics.diagnose_port(port).await
                             } else {
                                 info!("Skipping local port check - no port specified");
                                 DiagnosticResult::success(
                                     "local_port_availability".to_string(),
-                                    "No local port specified - skipping port availability check".to_string(),
+                                    "No local port specified - skipping port availability check"
+                                        .to_string(),
                                     start_time.elapsed(),
                                 )
                             }
-                        },
+                        }
                         _ => {
                             warn!("Unknown diagnostic item: {}", item_clone);
                             DiagnosticResult::error(
@@ -1249,29 +1408,34 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                         }
                     };
 
-                    debug!("Completed diagnostic item: {} in {:?}", item_clone, result.duration);
+                    debug!(
+                        "Completed diagnostic item: {} in {:?}",
+                        item_clone, result.duration
+                    );
                     (index, result)
                 };
-                
+
                 tasks.push(task);
             }
-            
+
             // Execute all tasks concurrently
             let task_results = futures::future::join_all(tasks).await;
-            
+
             // Sort by index to maintain order
             let mut indexed_results: Vec<_> = task_results.into_iter().collect();
             indexed_results.sort_by_key(|(index, _)| *index);
-            results = indexed_results.into_iter().map(|(_, result)| {
-                // Report each result to feedback system
-                self.report_result(&result);
-                result
-            }).collect();
-            
+            results = indexed_results
+                .into_iter()
+                .map(|(_, result)| {
+                    // Report each result to feedback system
+                    self.report_result(&result);
+                    result
+                })
+                .collect();
         } else {
             // Run diagnostics sequentially
             info!("Running diagnostics in sequential mode");
-            
+
             for (completed, item) in self.diagnostic_items.iter().enumerate() {
                 // Report progress
                 let progress = DiagnosticProgress::new(
@@ -1281,13 +1445,13 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                     start_time.elapsed(),
                 );
                 self.report_progress(progress);
-                
+
                 // Execute diagnostic
                 let result = self.execute_diagnostic_item(item, &config).await;
                 results.push(result);
             }
         }
-        
+
         // Report final progress
         let final_progress = DiagnosticProgress::new(
             "Completed".to_string(),
@@ -1296,22 +1460,30 @@ impl DiagnosticManager for DefaultDiagnosticManager {
             start_time.elapsed(),
         );
         self.report_progress(final_progress);
-        
+
         info!("Full diagnostics completed in {:?}", start_time.elapsed());
         Ok(results)
     }
 
-    async fn run_precheck(&mut self, config: DiagnosticConfig) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>> {
-        info!("Starting precheck diagnostics for instance: {}", config.instance_id);
-        
+    async fn run_precheck(
+        &mut self,
+        config: DiagnosticConfig,
+    ) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>> {
+        info!(
+            "Starting precheck diagnostics for instance: {}",
+            config.instance_id
+        );
+
         // For precheck, run only essential items
-        let precheck_items = ["instance_state",
+        let precheck_items = [
+            "instance_state",
             "local_port_availability",
-            "iam_permissions"];
-        
+            "iam_permissions",
+        ];
+
         let start_time = Instant::now();
         let mut results = Vec::new();
-        
+
         for (completed, item) in precheck_items.iter().enumerate() {
             // Report progress
             let progress = DiagnosticProgress::new(
@@ -1321,12 +1493,12 @@ impl DiagnosticManager for DefaultDiagnosticManager {
                 start_time.elapsed(),
             );
             self.report_progress(progress);
-            
+
             // Execute diagnostic
             let result = self.execute_diagnostic_item(item, &config).await;
             results.push(result);
         }
-        
+
         // Report final progress
         let final_progress = DiagnosticProgress::new(
             "Precheck Completed".to_string(),
@@ -1335,32 +1507,54 @@ impl DiagnosticManager for DefaultDiagnosticManager {
             start_time.elapsed(),
         );
         self.report_progress(final_progress);
-        
-        info!("Precheck diagnostics completed in {:?}", start_time.elapsed());
+
+        info!(
+            "Precheck diagnostics completed in {:?}",
+            start_time.elapsed()
+        );
         Ok(results)
     }
 
-    async fn run_specific_diagnostic(&mut self, item: &str, config: DiagnosticConfig) -> Result<DiagnosticResult, Box<dyn std::error::Error>> {
-        info!("Running specific diagnostic: {} for instance: {}", item, config.instance_id);
-        
+    async fn run_specific_diagnostic(
+        &mut self,
+        item: &str,
+        config: DiagnosticConfig,
+    ) -> Result<DiagnosticResult, Box<dyn std::error::Error>> {
+        info!(
+            "Running specific diagnostic: {} for instance: {}",
+            item, config.instance_id
+        );
+
         if !self.diagnostic_items.contains(&item.to_string()) {
             return Err(format!("Unknown diagnostic item: {}", item).into());
         }
-        
+
         let result = self.execute_diagnostic_item(item, &config).await;
-        
-        info!("Specific diagnostic {} completed in {:?}", item, result.duration);
+
+        info!(
+            "Specific diagnostic {} completed in {:?}",
+            item, result.duration
+        );
         Ok(result)
     }
 
-    fn register_progress_callback(&mut self, callback: Box<dyn Fn(DiagnosticProgress) + Send + Sync>) {
+    fn register_progress_callback(
+        &mut self,
+        callback: Box<dyn Fn(DiagnosticProgress) + Send + Sync>,
+    ) {
         info!("Registering progress callback");
         self.progress_callback = Some(std::sync::Arc::new(std::sync::Mutex::new(callback)));
     }
 
-    async fn run_aws_config_validation(&mut self, config: DiagnosticConfig) -> Result<AwsConfigValidationResult, Box<dyn std::error::Error>> {
-        info!("Starting integrated AWS configuration validation for instance: {}", config.instance_id);
-        
+    async fn run_aws_config_validation(
+        &mut self,
+        config: DiagnosticConfig,
+    ) -> Result<AwsConfigValidationResult, Box<dyn std::error::Error>> {
+        info!(
+            "Starting integrated AWS configuration validation for instance: {}",
+            config.instance_id
+        );
+
         // Create AWS configuration validation config from diagnostic config
         let validation_config = AwsConfigValidationConfig::new(config.instance_id.clone())
             .with_aws_config(config.region.clone(), config.profile.clone())
@@ -1369,16 +1563,21 @@ impl DiagnosticManager for DefaultDiagnosticManager {
 
         // Create AWS config validator
         let validator = if let (Some(region), Some(profile)) = (&config.region, &config.profile) {
-            DefaultAwsConfigValidator::with_aws_config(Some(region.clone()), Some(profile.clone())).await?
+            DefaultAwsConfigValidator::with_aws_config(Some(region.clone()), Some(profile.clone()))
+                .await?
         } else {
             DefaultAwsConfigValidator::new().await?
         };
 
         // Run integrated AWS configuration validation with enhanced cross-validation
-        let validation_result = validator.validate_integrated_aws_configuration(validation_config).await?;
+        let validation_result = validator
+            .validate_integrated_aws_configuration(validation_config)
+            .await?;
 
-        info!("Integrated AWS configuration validation completed with compliance score: {:.1}%", 
-              validation_result.overall_compliance_score);
+        info!(
+            "Integrated AWS configuration validation completed with compliance score: {:.1}%",
+            validation_result.overall_compliance_score
+        );
 
         Ok(validation_result)
     }
@@ -1422,12 +1621,8 @@ mod tests {
 
     #[test]
     fn test_diagnostic_progress() {
-        let progress = DiagnosticProgress::new(
-            "test_item".to_string(),
-            3,
-            10,
-            Duration::from_secs(30),
-        );
+        let progress =
+            DiagnosticProgress::new("test_item".to_string(), 3, 10, Duration::from_secs(30));
 
         assert_eq!(progress.current_item, "test_item");
         assert_eq!(progress.completed, 3);
@@ -1438,9 +1633,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_diagnostic_manager_creation() {
-        let manager = DefaultDiagnosticManager::new().await.expect("Failed to create diagnostic manager");
+        let manager = DefaultDiagnosticManager::new()
+            .await
+            .expect("Failed to create diagnostic manager");
         let items = manager.get_diagnostic_items();
-        
+
         assert!(!items.is_empty());
         assert!(items.contains(&"instance_state".to_string()));
         assert!(items.contains(&"ssm_agent_enhanced".to_string()));

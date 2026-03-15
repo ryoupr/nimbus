@@ -1,8 +1,8 @@
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::time::SystemTime;
 use uuid::Uuid;
-use std::fmt;
 
 /// Session status enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,8 +27,9 @@ impl fmt::Display for SessionStatus {
 }
 
 /// Session priority for resource management
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default,
+)]
 pub enum SessionPriority {
     Low = 0,
     #[default]
@@ -36,7 +37,6 @@ pub enum SessionPriority {
     High = 2,
     Critical = 3,
 }
-
 
 impl fmt::Display for SessionPriority {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -96,7 +96,7 @@ impl Session {
             tags: std::collections::HashMap::new(),
         }
     }
-    
+
     pub fn with_priority(
         instance_id: String,
         local_port: u16,
@@ -109,37 +109,37 @@ impl Session {
         session.priority = priority;
         session
     }
-    
+
     pub fn add_tag(&mut self, key: String, value: String) {
         self.tags.insert(key, value);
     }
-    
+
     pub fn is_active(&self) -> bool {
         matches!(self.status, SessionStatus::Active)
     }
-    
+
     pub fn is_healthy(&self) -> bool {
-        matches!(self.status, SessionStatus::Active | SessionStatus::Connecting)
+        matches!(
+            self.status,
+            SessionStatus::Active | SessionStatus::Connecting
+        )
     }
-    
+
     pub fn update_activity(&mut self) {
         self.last_activity = SystemTime::now();
     }
-    
+
     pub fn age_seconds(&self) -> u64 {
-        self.created_at
-            .elapsed()
-            .map(|d| d.as_secs())
-            .unwrap_or(0)
+        self.created_at.elapsed().map(|d| d.as_secs()).unwrap_or(0)
     }
-    
+
     pub fn idle_seconds(&self) -> u64 {
         self.last_activity
             .elapsed()
             .map(|d| d.as_secs())
             .unwrap_or(0)
     }
-    
+
     pub fn resource_weight(&self) -> f64 {
         let base_weight = match self.priority {
             SessionPriority::Critical => 4.0,
@@ -147,7 +147,11 @@ impl Session {
             SessionPriority::Normal => 1.0,
             SessionPriority::Low => 0.5,
         };
-        if self.is_active() { base_weight * 1.5 } else { base_weight }
+        if self.is_active() {
+            base_weight * 1.5
+        } else {
+            base_weight
+        }
     }
 }
 
@@ -183,12 +187,12 @@ impl SessionConfig {
             tags: std::collections::HashMap::new(),
         }
     }
-    
+
     pub fn with_remote_host(mut self, host: Option<String>) -> Self {
         self.remote_host = host;
         self
     }
-    
+
     pub fn with_priority(mut self, priority: SessionPriority) -> Self {
         self.priority = priority;
         self

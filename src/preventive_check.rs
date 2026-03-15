@@ -1,15 +1,15 @@
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::Instant;
-use tracing::{info, warn, error};
-use async_trait::async_trait;
+use tracing::{error, info, warn};
 
 use crate::diagnostic::{DiagnosticConfig, DiagnosticResult, DiagnosticStatus, Severity};
-use crate::instance_diagnostics::{InstanceDiagnostics, DefaultInstanceDiagnostics};
-use crate::port_diagnostics::{PortDiagnostics, DefaultPortDiagnostics};
-use crate::ssm_agent_diagnostics::{SsmAgentDiagnostics, DefaultSsmAgentDiagnostics};
-use crate::iam_diagnostics::{IamDiagnostics, DefaultIamDiagnostics};
-use crate::network_diagnostics::{NetworkDiagnostics, DefaultNetworkDiagnostics};
+use crate::iam_diagnostics::{DefaultIamDiagnostics, IamDiagnostics};
+use crate::instance_diagnostics::{DefaultInstanceDiagnostics, InstanceDiagnostics};
+use crate::network_diagnostics::{DefaultNetworkDiagnostics, NetworkDiagnostics};
+use crate::port_diagnostics::{DefaultPortDiagnostics, PortDiagnostics};
+use crate::ssm_agent_diagnostics::{DefaultSsmAgentDiagnostics, SsmAgentDiagnostics};
 
 /// Configuration for preventive checks
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,22 +127,39 @@ impl ConnectionLikelihood {
 #[async_trait]
 pub trait PreventiveCheck {
     /// Run comprehensive preventive checks before connection attempt
-    async fn run_preventive_checks(&self, config: PreventiveCheckConfig) -> Result<PreventiveCheckResult, Box<dyn std::error::Error>>;
-    
+    async fn run_preventive_checks(
+        &self,
+        config: PreventiveCheckConfig,
+    ) -> Result<PreventiveCheckResult, Box<dyn std::error::Error>>;
+
     /// Check basic instance state
-    async fn check_basic_state(&self, config: &PreventiveCheckConfig) -> Result<DiagnosticResult, Box<dyn std::error::Error>>;
-    
+    async fn check_basic_state(
+        &self,
+        config: &PreventiveCheckConfig,
+    ) -> Result<DiagnosticResult, Box<dyn std::error::Error>>;
+
     /// Verify SSM prerequisites
-    async fn verify_ssm_prerequisites(&self, config: &PreventiveCheckConfig) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>>;
-    
+    async fn verify_ssm_prerequisites(
+        &self,
+        config: &PreventiveCheckConfig,
+    ) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>>;
+
     /// Display warnings for detected issues
-    async fn display_warnings(&self, issues: &[DiagnosticResult]) -> Result<(), Box<dyn std::error::Error>>;
-    
+    async fn display_warnings(
+        &self,
+        issues: &[DiagnosticResult],
+    ) -> Result<(), Box<dyn std::error::Error>>;
+
     /// Calculate connection success likelihood
-    fn calculate_connection_likelihood(&self, results: &[DiagnosticResult]) -> ConnectionLikelihood;
-    
+    fn calculate_connection_likelihood(&self, results: &[DiagnosticResult])
+        -> ConnectionLikelihood;
+
     /// Determine if connection should be aborted
-    fn should_abort_connection(&self, results: &[DiagnosticResult], config: &PreventiveCheckConfig) -> bool;
+    fn should_abort_connection(
+        &self,
+        results: &[DiagnosticResult],
+        config: &PreventiveCheckConfig,
+    ) -> bool;
 }
 
 /// Default implementation of preventive checks
@@ -165,10 +182,14 @@ impl DefaultPreventiveCheck {
         })
     }
 
-    pub async fn with_aws_config(region: Option<String>, profile: Option<String>) -> anyhow::Result<Self> {
-        let aws_manager = crate::aws::AwsManager::new(region, profile).await
+    pub async fn with_aws_config(
+        region: Option<String>,
+        profile: Option<String>,
+    ) -> anyhow::Result<Self> {
+        let aws_manager = crate::aws::AwsManager::new(region, profile)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to create AWS manager: {}", e))?;
-        
+
         Ok(Self {
             instance_diagnostics: DefaultInstanceDiagnostics::new(aws_manager.clone()),
             port_diagnostics: DefaultPortDiagnostics::new(),
@@ -187,37 +208,50 @@ impl DefaultPreventiveCheck {
                 (DiagnosticStatus::Error, Severity::Critical) => {
                     match result.item_name.as_str() {
                         "instance_state" => {
-                            recommendations.push("インスタンスを起動してから接続を再試行してください".to_string());
+                            recommendations.push(
+                                "インスタンスを起動してから接続を再試行してください".to_string(),
+                            );
                         }
                         "ssm_agent" => {
                             recommendations.push("SSMエージェントの設定を確認し、必要に応じて再インストールしてください".to_string());
                         }
                         "iam_permissions" => {
-                            recommendations.push("IAMロールとポリシーの設定を確認してください".to_string());
+                            recommendations
+                                .push("IAMロールとポリシーの設定を確認してください".to_string());
                         }
                         "vpc_endpoints" => {
                             recommendations.push("VPCエンドポイントの設定を確認するか、インターネットゲートウェイを設定してください".to_string());
                         }
                         "security_groups" => {
-                            recommendations.push("セキュリティグループのアウトバウンドルールを確認してください".to_string());
+                            recommendations.push(
+                                "セキュリティグループのアウトバウンドルールを確認してください"
+                                    .to_string(),
+                            );
                         }
                         "local_port" => {
                             recommendations.push("ローカルポートの使用状況を確認し、必要に応じて代替ポートを使用してください".to_string());
                         }
                         _ => {
-                            recommendations.push(format!("{}の問題を解決してから接続を再試行してください", result.item_name));
+                            recommendations.push(format!(
+                                "{}の問題を解決してから接続を再試行してください",
+                                result.item_name
+                            ));
                         }
                     }
                 }
                 (DiagnosticStatus::Warning, _) => {
-                    recommendations.push(format!("{}の警告を確認することをお勧めします", result.item_name));
+                    recommendations.push(format!(
+                        "{}の警告を確認することをお勧めします",
+                        result.item_name
+                    ));
                 }
                 _ => {}
             }
         }
 
         if recommendations.is_empty() {
-            recommendations.push("すべての前提条件が満たされています。接続を開始できます".to_string());
+            recommendations
+                .push("すべての前提条件が満たされています。接続を開始できます".to_string());
         }
 
         recommendations
@@ -226,18 +260,27 @@ impl DefaultPreventiveCheck {
 
 #[async_trait]
 impl PreventiveCheck for DefaultPreventiveCheck {
-    async fn run_preventive_checks(&self, config: PreventiveCheckConfig) -> Result<PreventiveCheckResult, Box<dyn std::error::Error>> {
-        info!("Starting preventive checks for instance: {}", config.instance_id);
+    async fn run_preventive_checks(
+        &self,
+        config: PreventiveCheckConfig,
+    ) -> Result<PreventiveCheckResult, Box<dyn std::error::Error>> {
+        info!(
+            "Starting preventive checks for instance: {}",
+            config.instance_id
+        );
         let start_time = Instant::now();
 
         // Step 1: Check basic instance state
         info!("Step 1: Checking basic instance state");
         let basic_state_result = self.check_basic_state(&config).await?;
-        
+
         // If instance is not in a good state, abort early
-        if basic_state_result.status == DiagnosticStatus::Error && basic_state_result.severity == Severity::Critical {
+        if basic_state_result.status == DiagnosticStatus::Error
+            && basic_state_result.severity == Severity::Critical
+        {
             warn!("Critical instance state issue detected, aborting preventive checks");
-            let recommendations = self.generate_recommendations(std::slice::from_ref(&basic_state_result));
+            let recommendations =
+                self.generate_recommendations(std::slice::from_ref(&basic_state_result));
             return Ok(PreventiveCheckResult {
                 overall_status: PreventiveCheckStatus::Critical,
                 connection_likelihood: ConnectionLikelihood::VeryLow,
@@ -264,25 +307,35 @@ impl PreventiveCheck for DefaultPreventiveCheck {
 
         let warnings: Vec<DiagnosticResult> = prerequisite_results
             .iter()
-            .filter(|r| r.status == DiagnosticStatus::Warning || 
-                     (r.status == DiagnosticStatus::Error && r.severity != Severity::Critical))
+            .filter(|r| {
+                r.status == DiagnosticStatus::Warning
+                    || (r.status == DiagnosticStatus::Error && r.severity != Severity::Critical)
+            })
             .cloned()
             .collect();
 
         // Step 4: Display warnings if any issues detected
         if !critical_issues.is_empty() || !warnings.is_empty() {
             info!("Step 4: Displaying warnings for detected issues");
-            let all_issues: Vec<DiagnosticResult> = critical_issues.iter().chain(warnings.iter()).cloned().collect();
+            let all_issues: Vec<DiagnosticResult> = critical_issues
+                .iter()
+                .chain(warnings.iter())
+                .cloned()
+                .collect();
             self.display_warnings(&all_issues).await?;
         }
 
         // Step 5: Calculate connection likelihood
         let connection_likelihood = self.calculate_connection_likelihood(&prerequisite_results);
-        info!("Connection likelihood: {:?} ({}%)", connection_likelihood, connection_likelihood.as_percentage());
+        info!(
+            "Connection likelihood: {:?} ({}%)",
+            connection_likelihood,
+            connection_likelihood.as_percentage()
+        );
 
         // Step 6: Determine if connection should be aborted
         let should_abort = self.should_abort_connection(&prerequisite_results, &config);
-        
+
         let overall_status = if should_abort {
             PreventiveCheckStatus::Aborted
         } else if !critical_issues.is_empty() {
@@ -309,21 +362,30 @@ impl PreventiveCheck for DefaultPreventiveCheck {
         Ok(result)
     }
 
-    async fn check_basic_state(&self, config: &PreventiveCheckConfig) -> Result<DiagnosticResult, Box<dyn std::error::Error>> {
+    async fn check_basic_state(
+        &self,
+        config: &PreventiveCheckConfig,
+    ) -> Result<DiagnosticResult, Box<dyn std::error::Error>> {
         info!("Checking basic instance state for: {}", config.instance_id);
-        
+
         // Check instance state
-        let instance_result = self.instance_diagnostics.check_instance_state(&config.instance_id).await?;
-        
+        let instance_result = self
+            .instance_diagnostics
+            .check_instance_state(&config.instance_id)
+            .await?;
+
         // Check local port if specified
         if let Some(port) = config.local_port {
             let port_result = self.port_diagnostics.diagnose_port(port).await;
-            
+
             // If port check fails, it's not critical for basic state but should be noted
             if port_result.status == DiagnosticStatus::Error {
                 return Ok(DiagnosticResult::warning(
                     "basic_state".to_string(),
-                    format!("Instance is ready but local port {} has issues: {}", port, port_result.message),
+                    format!(
+                        "Instance is ready but local port {} has issues: {}",
+                        port, port_result.message
+                    ),
                     instance_result.duration + port_result.duration,
                     Severity::Medium,
                 ));
@@ -342,13 +404,20 @@ impl PreventiveCheck for DefaultPreventiveCheck {
         })
     }
 
-    async fn verify_ssm_prerequisites(&self, config: &PreventiveCheckConfig) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>> {
+    async fn verify_ssm_prerequisites(
+        &self,
+        config: &PreventiveCheckConfig,
+    ) -> Result<Vec<DiagnosticResult>, Box<dyn std::error::Error>> {
         info!("Verifying SSM prerequisites for: {}", config.instance_id);
         let mut results = Vec::new();
 
         // Check SSM agent registration
         info!("Checking SSM agent registration");
-        match self.ssm_diagnostics.check_managed_instance_registration(&config.instance_id).await {
+        match self
+            .ssm_diagnostics
+            .check_managed_instance_registration(&config.instance_id)
+            .await
+        {
             Ok(result) => results.push(result),
             Err(e) => {
                 error!("SSM agent check failed: {}", e);
@@ -363,18 +432,27 @@ impl PreventiveCheck for DefaultPreventiveCheck {
 
         // Check IAM permissions
         info!("Checking IAM permissions");
-        match self.iam_diagnostics.diagnose_iam_configuration(&config.instance_id).await {
+        match self
+            .iam_diagnostics
+            .diagnose_iam_configuration(&config.instance_id)
+            .await
+        {
             Ok(iam_results) => {
                 // Aggregate IAM results
                 let critical_iam_issues: Vec<_> = iam_results
                     .iter()
-                    .filter(|r| r.status == DiagnosticStatus::Error && r.severity == Severity::Critical)
+                    .filter(|r| {
+                        r.status == DiagnosticStatus::Error && r.severity == Severity::Critical
+                    })
                     .collect();
 
                 if !critical_iam_issues.is_empty() {
                     results.push(DiagnosticResult::error(
                         "iam_prerequisites".to_string(),
-                        format!("Critical IAM issues detected: {} issues", critical_iam_issues.len()),
+                        format!(
+                            "Critical IAM issues detected: {} issues",
+                            critical_iam_issues.len()
+                        ),
                         Duration::from_millis(100),
                         Severity::Critical,
                     ));
@@ -383,7 +461,7 @@ impl PreventiveCheck for DefaultPreventiveCheck {
                         .iter()
                         .filter(|r| r.status == DiagnosticStatus::Warning)
                         .count();
-                    
+
                     if warning_count > 0 {
                         results.push(DiagnosticResult::warning(
                             "iam_prerequisites".to_string(),
@@ -413,7 +491,11 @@ impl PreventiveCheck for DefaultPreventiveCheck {
 
         // Check VPC endpoints
         info!("Checking VPC endpoints");
-        match self.network_diagnostics.check_vpc_endpoints(&config.instance_id).await {
+        match self
+            .network_diagnostics
+            .check_vpc_endpoints(&config.instance_id)
+            .await
+        {
             Ok(result) => results.push(result),
             Err(e) => {
                 error!("VPC endpoints check failed: {}", e);
@@ -428,7 +510,11 @@ impl PreventiveCheck for DefaultPreventiveCheck {
 
         // Check security groups
         info!("Checking security groups");
-        match self.network_diagnostics.check_security_group_rules(&config.instance_id).await {
+        match self
+            .network_diagnostics
+            .check_security_group_rules(&config.instance_id)
+            .await
+        {
             Ok(result) => results.push(result),
             Err(e) => {
                 error!("Security groups check failed: {}", e);
@@ -441,11 +527,17 @@ impl PreventiveCheck for DefaultPreventiveCheck {
             }
         }
 
-        info!("SSM prerequisites verification completed with {} results", results.len());
+        info!(
+            "SSM prerequisites verification completed with {} results",
+            results.len()
+        );
         Ok(results)
     }
 
-    async fn display_warnings(&self, issues: &[DiagnosticResult]) -> Result<(), Box<dyn std::error::Error>> {
+    async fn display_warnings(
+        &self,
+        issues: &[DiagnosticResult],
+    ) -> Result<(), Box<dyn std::error::Error>> {
         info!("Displaying warnings for {} detected issues", issues.len());
 
         for issue in issues {
@@ -468,7 +560,10 @@ impl PreventiveCheck for DefaultPreventiveCheck {
         Ok(())
     }
 
-    fn calculate_connection_likelihood(&self, results: &[DiagnosticResult]) -> ConnectionLikelihood {
+    fn calculate_connection_likelihood(
+        &self,
+        results: &[DiagnosticResult],
+    ) -> ConnectionLikelihood {
         let critical_count = results
             .iter()
             .filter(|r| r.status == DiagnosticStatus::Error && r.severity == Severity::Critical)
@@ -503,7 +598,11 @@ impl PreventiveCheck for DefaultPreventiveCheck {
         }
     }
 
-    fn should_abort_connection(&self, results: &[DiagnosticResult], config: &PreventiveCheckConfig) -> bool {
+    fn should_abort_connection(
+        &self,
+        results: &[DiagnosticResult],
+        config: &PreventiveCheckConfig,
+    ) -> bool {
         if !config.abort_on_critical {
             return false;
         }
@@ -515,7 +614,10 @@ impl PreventiveCheck for DefaultPreventiveCheck {
             .count();
 
         if critical_issues > 0 {
-            warn!("Aborting connection due to {} critical issues", critical_issues);
+            warn!(
+                "Aborting connection due to {} critical issues",
+                critical_issues
+            );
             return true;
         }
 
@@ -526,7 +628,10 @@ impl PreventiveCheck for DefaultPreventiveCheck {
             .count();
 
         if high_error_count >= 3 {
-            warn!("Aborting connection due to {} high-severity errors", high_error_count);
+            warn!(
+                "Aborting connection due to {} high-severity errors",
+                high_error_count
+            );
             return true;
         }
 
@@ -563,7 +668,9 @@ mod tests {
         assert_eq!(ConnectionLikelihood::VeryLow.as_percentage(), 10);
 
         assert!(ConnectionLikelihood::High.as_description().contains("高い"));
-        assert!(ConnectionLikelihood::VeryLow.as_description().contains("非常に低い"));
+        assert!(ConnectionLikelihood::VeryLow
+            .as_description()
+            .contains("非常に低い"));
     }
 
     #[test]

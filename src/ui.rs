@@ -1,6 +1,6 @@
 
-use crate::session::Session;
 use crate::error::Result;
+use crate::session::Session;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
@@ -10,7 +10,8 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Paragraph, Tabs}, Terminal,
+    widgets::{Block, Borders, Paragraph, Tabs},
+    Terminal,
 };
 use std::{io, time::Instant};
 use tokio::sync::mpsc;
@@ -103,9 +104,9 @@ impl TerminalUi {
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
-        
+
         let (event_sender, event_receiver) = mpsc::unbounded_channel();
-        
+
         Ok(Self {
             terminal,
             state: UiState::default(),
@@ -114,19 +115,19 @@ impl TerminalUi {
             start_time: Instant::now(),
         })
     }
-    
+
     /// Update session data
     pub fn update_sessions(&mut self, sessions: Vec<Session>) {
         self.state.sessions = sessions;
         self.state.last_update = Instant::now();
     }
-    
+
     /// Update resource metrics
     pub fn update_metrics(&mut self, metrics: ResourceMetrics) {
         self.state.metrics = metrics;
         self.state.metrics.uptime_seconds = self.start_time.elapsed().as_secs();
     }
-    
+
     /// Set progress information
     pub fn set_progress(&mut self, operation: String, progress: f64, message: String) {
         self.state.progress = Some(ProgressInfo {
@@ -136,12 +137,12 @@ impl TerminalUi {
             started_at: Instant::now(),
         });
     }
-    
+
     /// Clear progress information
     pub fn clear_progress(&mut self) {
         self.state.progress = None;
     }
-    
+
     /// Add warning message
     pub fn add_warning(&mut self, warning: String) {
         self.state.warnings.push(warning);
@@ -150,53 +151,51 @@ impl TerminalUi {
             self.state.warnings.remove(0);
         }
     }
-    
+
     /// Run the terminal UI
     pub async fn run(&mut self) -> Result<()> {
         info!("Starting Terminal UI");
-        
+
         // Spawn input handler
         let sender = self.event_sender.clone();
         tokio::spawn(async move {
             loop {
                 if let Ok(event) = event::read() {
                     match event {
-                        Event::Key(key) if key.kind == KeyEventKind::Press => {
-                            match key.code {
-                                KeyCode::Char('q') | KeyCode::Esc => {
-                                    let _ = sender.send(UiEvent::Quit);
-                                    break;
-                                },
-                                KeyCode::Char('r') | KeyCode::F(5) => {
-                                    let _ = sender.send(UiEvent::Refresh);
-                                },
-                                KeyCode::Char('c') => {
-                                    let _ = sender.send(UiEvent::CreateSession);
-                                },
-                                KeyCode::Char('m') => {
-                                    let _ = sender.send(UiEvent::ShowMetrics);
-                                },
-                                KeyCode::Tab => {
-                                    let _ = sender.send(UiEvent::NextTab);
-                                },
-                                KeyCode::BackTab => {
-                                    let _ = sender.send(UiEvent::PrevTab);
-                                },
-                                KeyCode::Up => {
-                                    let _ = sender.send(UiEvent::ScrollUp);
-                                },
-                                KeyCode::Down => {
-                                    let _ = sender.send(UiEvent::ScrollDown);
-                                },
-                                _ => {}
+                        Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+                            KeyCode::Char('q') | KeyCode::Esc => {
+                                let _ = sender.send(UiEvent::Quit);
+                                break;
                             }
+                            KeyCode::Char('r') | KeyCode::F(5) => {
+                                let _ = sender.send(UiEvent::Refresh);
+                            }
+                            KeyCode::Char('c') => {
+                                let _ = sender.send(UiEvent::CreateSession);
+                            }
+                            KeyCode::Char('m') => {
+                                let _ = sender.send(UiEvent::ShowMetrics);
+                            }
+                            KeyCode::Tab => {
+                                let _ = sender.send(UiEvent::NextTab);
+                            }
+                            KeyCode::BackTab => {
+                                let _ = sender.send(UiEvent::PrevTab);
+                            }
+                            KeyCode::Up => {
+                                let _ = sender.send(UiEvent::ScrollUp);
+                            }
+                            KeyCode::Down => {
+                                let _ = sender.send(UiEvent::ScrollDown);
+                            }
+                            _ => {}
                         },
                         _ => {}
                     }
                 }
             }
         });
-        
+
         // Main UI loop with 1-second update interval for real-time display
         let mut last_draw = Instant::now();
         loop {
@@ -205,7 +204,7 @@ impl TerminalUi {
                 self.draw()?;
                 last_draw = Instant::now();
             }
-            
+
             if let Ok(event) = self.event_receiver.try_recv() {
                 match event {
                     UiEvent::Quit => break,
@@ -213,41 +212,47 @@ impl TerminalUi {
                         // Force immediate redraw
                         self.draw()?;
                         #[allow(unused_assignments)]
-                        { last_draw = Instant::now(); }
-                    },
+                        {
+                            last_draw = Instant::now();
+                        }
+                    }
                     UiEvent::CreateSession => {
                         // TODO: Show create session dialog
                         self.add_warning("Create session dialog not implemented yet".to_string());
-                    },
+                    }
                     UiEvent::ShowMetrics => {
                         self.state.current_tab = 1;
-                    },
+                    }
                     UiEvent::NextTab => {
                         self.state.current_tab = (self.state.current_tab + 1) % 3;
-                    },
+                    }
                     UiEvent::PrevTab => {
-                        self.state.current_tab = if self.state.current_tab == 0 { 2 } else { self.state.current_tab - 1 };
-                    },
+                        self.state.current_tab = if self.state.current_tab == 0 {
+                            2
+                        } else {
+                            self.state.current_tab - 1
+                        };
+                    }
                     UiEvent::ScrollUp => {
                         if self.state.scroll_offset > 0 {
                             self.state.scroll_offset -= 1;
                         }
-                    },
+                    }
                     UiEvent::ScrollDown => {
                         self.state.scroll_offset += 1;
-                    },
+                    }
                 }
                 // Redraw immediately after handling events
                 self.draw()?;
                 last_draw = Instant::now();
             }
-            
+
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }
-        
+
         Ok(())
     }
-    
+
     /// Draw the UI
     fn draw(&mut self) -> Result<()> {
         let current_tab = self.state.current_tab;
@@ -255,7 +260,7 @@ impl TerminalUi {
         let active_sessions = self.state.sessions.len();
         let memory_usage = self.state.metrics.memory_usage_mb;
         let cpu_usage = self.state.metrics.cpu_usage_percent;
-        
+
         self.terminal.draw(|f| {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
@@ -266,7 +271,7 @@ impl TerminalUi {
                     Constraint::Length(4), // Footer with status
                 ].as_ref())
                 .split(f.size());
-            
+
             // Header with tabs
             let tabs = Tabs::new(vec!["Sessions", "Metrics", "Logs"])
                 .block(Block::default()
@@ -276,9 +281,9 @@ impl TerminalUi {
                 .style(Style::default().fg(Color::White))
                 .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
                 .select(current_tab);
-            
+
             f.render_widget(tabs, chunks[0]);
-            
+
             // Main content based on current tab
             match current_tab {
                 0 => {
@@ -309,7 +314,7 @@ impl TerminalUi {
                     f.render_widget(block, chunks[1]);
                 }
             }
-            
+
             // Footer with status
             let status_text = format!(
                 "Status: {} sessions active | Memory: {:.1}MB | CPU: {:.2}% | Press 'q' to quit, 'r' to refresh",
@@ -317,21 +322,21 @@ impl TerminalUi {
                 memory_usage,
                 cpu_usage
             );
-            
+
             let status = Paragraph::new(status_text)
                 .block(Block::default()
                     .title("System Status")
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(Color::Green)));
-            
+
             f.render_widget(status, chunks[2]);
-            
+
             // Progress overlay if active
             if progress.is_some() {
                 // Progress overlay rendering will be added here
             }
         })?;
-        
+
         Ok(())
     }
 }

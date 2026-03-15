@@ -4,19 +4,10 @@ use anyhow::Result;
 use tracing::{error, info, warn};
 
 #[allow(unused_imports)]
-use crate::{
-    auto_fix, aws::AwsManager, aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator},
-    config::Config, diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager},
-    error::NimbusError, error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager},
-    health::{DefaultHealthChecker, HealthChecker}, logging::StructuredLogger,
-    manager::{DefaultSessionManager, SessionManager},
-    preventive_check::{DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig},
-    resource::ResourceMonitor, session::{SessionConfig, SessionPriority}, user_messages::UserMessageSystem, vscode::VsCodeIntegration,
+use super::{
+    ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands,
+    VsCodeCommands,
 };
-#[allow(unused_imports)]
-use super::{ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands, VsCodeCommands};
-#[allow(unused_imports)]
-use crate::{aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui};
 #[allow(unused_imports)]
 use crate::aws_config_validator::{SuggestionCategory, SuggestionPriority};
 #[allow(unused_imports)]
@@ -31,15 +22,28 @@ use crate::resource::ResourceViolation;
 use crate::session::{Session, SessionStatus};
 #[allow(unused_imports)]
 use crate::ui::{ResourceMetrics, TerminalUi};
-
-#[cfg(feature = "performance-monitoring")]
-use crate::monitor::DefaultSessionMonitor;
-#[cfg(feature = "multi-session")]
-use crate::multi_session::{MultiSessionManager, ResourceThresholds};
-#[cfg(feature = "multi-session")]
-use crate::multi_session_ui::MultiSessionUi;
-#[cfg(feature = "persistence")]
-use crate::persistence::{PersistenceManager, SqlitePersistenceManager};
+#[allow(unused_imports)]
+use crate::{
+    auto_fix,
+    aws::AwsManager,
+    aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator},
+    config::Config,
+    diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager},
+    error::NimbusError,
+    error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager},
+    health::{DefaultHealthChecker, HealthChecker},
+    logging::StructuredLogger,
+    manager::{DefaultSessionManager, SessionManager},
+    preventive_check::{DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig},
+    resource::ResourceMonitor,
+    session::{SessionConfig, SessionPriority},
+    user_messages::UserMessageSystem,
+    vscode::VsCodeIntegration,
+};
+#[allow(unused_imports)]
+use crate::{
+    aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui,
+};
 
 pub async fn handle_tui(_config: &Config) -> Result<()> {
     info!("Launching Terminal UI");
