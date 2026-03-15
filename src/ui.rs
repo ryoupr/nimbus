@@ -1,4 +1,3 @@
-
 use crate::error::Result;
 use crate::session::Session;
 use crossterm::{

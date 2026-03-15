@@ -1,4 +1,3 @@
-
 use anyhow::{Context, Result};
 use aws_config::{BehaviorVersion, Region};
 use aws_credential_types::Credentials;
