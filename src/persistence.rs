@@ -701,30 +701,31 @@ impl PersistenceManager for SqlitePersistenceManager {
         );
 
         let conn = self.conn();
-        let query = if let Some(limit) = limit {
-            format!(
+        let metrics: Result<Vec<_>> = if let Some(limit) = limit {
+            let mut stmt = conn.prepare(
                 "SELECT session_id, timestamp, connection_time_ms, latency_ms, throughput_mbps,
                         cpu_usage_percent, memory_usage_mb, network_bytes_sent, network_bytes_received
-                 FROM performance_metrics 
-                 WHERE session_id = ? 
-                 ORDER BY timestamp DESC 
-                 LIMIT {}",
-                limit
-            )
+                 FROM performance_metrics
+                 WHERE session_id = ?
+                 ORDER BY timestamp DESC
+                 LIMIT ?",
+            )?;
+            let rows =
+                stmt.query_map(params![session_id, limit], Self::row_to_performance_metrics)?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(Into::into)
         } else {
-            "SELECT session_id, timestamp, connection_time_ms, latency_ms, throughput_mbps,
-                    cpu_usage_percent, memory_usage_mb, network_bytes_sent, network_bytes_received
-             FROM performance_metrics 
-             WHERE session_id = ? 
-             ORDER BY timestamp DESC"
-                .to_string()
+            let mut stmt = conn.prepare(
+                "SELECT session_id, timestamp, connection_time_ms, latency_ms, throughput_mbps,
+                        cpu_usage_percent, memory_usage_mb, network_bytes_sent, network_bytes_received
+                 FROM performance_metrics
+                 WHERE session_id = ?
+                 ORDER BY timestamp DESC",
+            )?;
+            let rows = stmt.query_map(params![session_id], Self::row_to_performance_metrics)?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(Into::into)
         };
-
-        let mut stmt = conn.prepare(&query)?;
-        let metrics: Result<Vec<_>> = stmt
-            .query_map(params![session_id], Self::row_to_performance_metrics)?
-            .collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(Into::into);
 
         let metrics = metrics?;
         debug!(
