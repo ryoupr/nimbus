@@ -157,7 +157,6 @@ impl ErrorLogEntry {
         Self {
             timestamp: error.context.timestamp,
             level: match error.severity() {
-                ErrorSeverity::Low => "WARN".to_string(),
                 ErrorSeverity::Medium => "ERROR".to_string(),
                 ErrorSeverity::High => "ERROR".to_string(),
             },
@@ -185,18 +184,6 @@ impl StructuredLogger {
         let entry = ErrorLogEntry::from_contextual_error(error);
 
         match error.severity() {
-            ErrorSeverity::Low => {
-                tracing::warn!(
-                    error_type = %entry.error_type,
-                    component = %entry.component,
-                    operation = %entry.operation,
-                    session_id = ?entry.session_id,
-                    instance_id = ?entry.instance_id,
-                    recoverable = %entry.recoverable,
-                    "{}",
-                    entry.error_message
-                );
-            }
             ErrorSeverity::Medium => {
                 tracing::error!(
                     error_type = %entry.error_type,
