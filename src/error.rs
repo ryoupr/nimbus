@@ -76,6 +76,7 @@ pub enum SessionError {
     #[error("Session limit exceeded: max {max_sessions}")]
     LimitExceeded { max_sessions: u32 },
 
+    #[cfg(feature = "multi-session")]
     #[error("Resource limit exceeded: {resource} ({current} >= {limit})")]
     ResourceLimitExceeded {
         resource: String,
@@ -83,6 +84,7 @@ pub enum SessionError {
         limit: f64,
     },
 
+    #[cfg(feature = "auto-reconnect")]
     #[error("Reconnection failed for session {session_id} after {attempts} attempts")]
     ReconnectionFailed { session_id: String, attempts: u32 },
 }

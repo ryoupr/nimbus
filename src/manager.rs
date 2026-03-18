@@ -2,6 +2,7 @@ use crate::aws::AwsManager;
 use crate::error::{Result, SessionError};
 use crate::session::{Session, SessionConfig, SessionStatus};
 use anyhow::Context;
+#[cfg(feature = "multi-session")]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -9,9 +10,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tokio::net::TcpStream;
 use tokio::time::{sleep, Duration};
+#[cfg(feature = "multi-session")]
 use tracing::{debug, error, info, warn};
+#[cfg(not(feature = "multi-session"))]
+use tracing::{error, info, warn};
 
 /// Resource usage information
+#[cfg(feature = "multi-session")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceUsage {
     pub memory_mb: f64,
@@ -33,9 +38,11 @@ pub trait SessionManager {
         &self,
         sessions: &[Session],
     ) -> impl std::future::Future<Output = Option<Session>> + Send;
+    #[cfg(feature = "multi-session")]
     fn monitor_resource_usage(
         &self,
     ) -> impl std::future::Future<Output = Result<ResourceUsage>> + Send;
+    #[cfg(feature = "multi-session")]
     fn get_session(
         &self,
         session_id: &str,
@@ -44,13 +51,16 @@ pub trait SessionManager {
         &mut self,
         session_id: &str,
     ) -> impl std::future::Future<Output = Result<()>> + Send;
+    #[cfg(feature = "multi-session")]
     fn list_sessions(&self) -> impl std::future::Future<Output = Result<Vec<Session>>> + Send;
 
     // 新しいメソッド - セッション管理最適化のため
+    #[cfg(feature = "multi-session")]
     fn list_sessions_by_instance(
         &self,
         instance_id: &str,
     ) -> impl std::future::Future<Output = Result<Vec<Session>>> + Send;
+    #[cfg(feature = "multi-session")]
     fn cleanup_inactive_sessions(
         &mut self,
     ) -> impl std::future::Future<Output = Result<u32>> + Send;
@@ -512,6 +522,7 @@ impl SessionManager for DefaultSessionManager {
         }
     }
 
+    #[cfg(feature = "multi-session")]
     async fn monitor_resource_usage(&self) -> Result<ResourceUsage> {
         // 実際のリソース監視の実装
         let active_sessions = self.sessions.values().filter(|s| s.is_active()).count() as u32;
@@ -535,6 +546,7 @@ impl SessionManager for DefaultSessionManager {
         Ok(usage)
     }
 
+    #[cfg(feature = "multi-session")]
     async fn get_session(&self, session_id: &str) -> Result<Session> {
         self.sessions.get(session_id).cloned().ok_or_else(|| {
             SessionError::NotFound {
@@ -574,10 +586,12 @@ impl SessionManager for DefaultSessionManager {
         }
     }
 
+    #[cfg(feature = "multi-session")]
     async fn list_sessions(&self) -> Result<Vec<Session>> {
         Ok(self.sessions.values().cloned().collect())
     }
 
+    #[cfg(feature = "multi-session")]
     async fn list_sessions_by_instance(&self, instance_id: &str) -> Result<Vec<Session>> {
         Ok(self
             .sessions
@@ -587,6 +601,7 @@ impl SessionManager for DefaultSessionManager {
             .collect())
     }
 
+    #[cfg(feature = "multi-session")]
     async fn cleanup_inactive_sessions(&mut self) -> Result<u32> {
         let inactive_session_ids = self.find_inactive_sessions();
         let count = inactive_session_ids.len() as u32;

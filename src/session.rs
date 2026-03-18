@@ -139,6 +139,7 @@ impl Session {
             .unwrap_or(0)
     }
 
+    #[cfg(feature = "multi-session")]
     pub fn resource_weight(&self) -> f64 {
         let base_weight = match self.priority {
             SessionPriority::Critical => 4.0,
@@ -199,6 +200,7 @@ impl SessionConfig {
 }
 
 /// Session event enumeration for monitoring
+#[cfg(feature = "performance-monitoring")]
 #[derive(Debug, Clone)]
 pub enum SessionEvent {
     HealthDegraded(String),

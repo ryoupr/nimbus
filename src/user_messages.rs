@@ -137,6 +137,7 @@ impl UserMessageSystem {
                 ],
                 help_command: Some("nimbus list-sessions".to_string()),
             },
+            #[cfg(feature = "multi-session")]
             SessionError::ResourceLimitExceeded { resource, .. } => UserErrorMessage {
                 title: "リソース制限に達しました".to_string(),
                 message: format!("リソース '{}' が制限に達しました。", resource),
@@ -144,6 +145,7 @@ impl UserMessageSystem {
                 solutions: vec!["不要なセッションを終了してリソースを解放してください".to_string()],
                 help_command: Some("nimbus list-sessions".to_string()),
             },
+            #[cfg(feature = "auto-reconnect")]
             SessionError::ReconnectionFailed {
                 session_id,
                 attempts,
