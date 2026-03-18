@@ -4,10 +4,7 @@ use anyhow::Result;
 use tracing::{error, info, warn};
 
 #[allow(unused_imports)]
-use super::{
-    ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands,
-    VsCodeCommands,
-};
+use super::{ConfigCommands, DiagnosticCommands, DiagnosticSettingsCommands, VsCodeCommands};
 #[allow(unused_imports)]
 use crate::aws_config_validator::{SuggestionCategory, SuggestionPriority};
 #[allow(unused_imports)]

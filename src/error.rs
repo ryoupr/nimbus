@@ -33,9 +33,6 @@ pub enum NimbusError {
     #[error("TOML error: {0}")]
     Toml(String),
 
-    #[error("Database error: {0}")]
-    Database(String),
-
     #[error("Anyhow error: {0}")]
     Anyhow(String),
 
@@ -45,6 +42,7 @@ pub enum NimbusError {
 
 /// Configuration-related errors
 #[derive(Error, Debug, Clone)]
+#[allow(dead_code)]
 pub enum ConfigError {
     #[error("Invalid configuration: {message}")]
     Invalid { message: String },
@@ -78,6 +76,7 @@ pub enum SessionError {
     #[error("Session limit exceeded: max {max_sessions}")]
     LimitExceeded { max_sessions: u32 },
 
+    #[cfg(feature = "multi-session")]
     #[error("Resource limit exceeded: {resource} ({current} >= {limit})")]
     ResourceLimitExceeded {
         resource: String,
@@ -85,6 +84,7 @@ pub enum SessionError {
         limit: f64,
     },
 
+    #[cfg(feature = "auto-reconnect")]
     #[error("Reconnection failed for session {session_id} after {attempts} attempts")]
     ReconnectionFailed { session_id: String, attempts: u32 },
 }
@@ -178,12 +178,6 @@ impl From<serde_json::Error> for NimbusError {
 impl From<toml::de::Error> for NimbusError {
     fn from(err: toml::de::Error) -> Self {
         NimbusError::Toml(err.to_string())
-    }
-}
-
-impl From<rusqlite::Error> for NimbusError {
-    fn from(err: rusqlite::Error) -> Self {
-        NimbusError::Database(err.to_string())
     }
 }
 

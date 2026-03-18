@@ -55,9 +55,6 @@ humantime = "2.1"
 reqwest = { version = "0.12", features = ["json"] }
 urlencoding = "2.1"
 
-# Database
-rusqlite = { version = "0.30", features = ["bundled", "chrono", "backup"] }
-
 # Async traits
 async-trait = "0.1"
 
@@ -110,8 +107,7 @@ opt-level = 3
 
 [features]
 default = []
-advanced = ["performance-monitoring", "persistence", "multi-session", "auto-reconnect"]
+advanced = ["performance-monitoring", "multi-session", "auto-reconnect"]
 performance-monitoring = []
-persistence = []
 multi-session = []
 auto-reconnect = []

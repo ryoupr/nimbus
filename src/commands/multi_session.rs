@@ -4,10 +4,7 @@ use anyhow::Result;
 use tracing::{error, info, warn};
 
 #[allow(unused_imports)]
-use super::{
-    ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands,
-    VsCodeCommands,
-};
+use super::{ConfigCommands, DiagnosticCommands, DiagnosticSettingsCommands, VsCodeCommands};
 #[allow(unused_imports)]
 use crate::aws_config_validator::{SuggestionCategory, SuggestionPriority};
 #[allow(unused_imports)]
@@ -51,10 +48,6 @@ use crate::monitor::DefaultSessionMonitor;
 use crate::multi_session::{MultiSessionManager, ResourceThresholds};
 #[cfg(feature = "multi-session")]
 use crate::multi_session_ui::MultiSessionUi;
-#[cfg(feature = "persistence")]
-#[allow(unused_imports)]
-use crate::persistence::{PersistenceManager, SqlitePersistenceManager};
-
 #[cfg(feature = "multi-session")]
 pub async fn handle_multi_session(_config: &Config) -> Result<()> {
     info!("Launching Multi-Session Management UI");

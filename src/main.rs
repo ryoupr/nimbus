@@ -24,8 +24,6 @@ mod multi_session_ui;
 mod network_diagnostics;
 #[cfg(feature = "performance-monitoring")]
 mod performance;
-#[cfg(feature = "persistence")]
-mod persistence;
 mod port_diagnostics;
 mod preventive_check;
 mod realtime_feedback;
@@ -225,18 +223,6 @@ async fn main() -> Result<()> {
             session_id,
             comprehensive,
         } => handle_health(session_id, comprehensive, &config).await,
-        Commands::Database { action } => {
-            #[cfg(feature = "persistence")]
-            {
-                handle_database(action, &config).await
-            }
-            #[cfg(not(feature = "persistence"))]
-            {
-                let _ = action; // Suppress unused warning
-                eprintln!("❌ Database functionality is not available. Enable the 'persistence' feature to use this command.");
-                Err(anyhow::anyhow!("Database functionality not available"))
-            }
-        }
         Commands::Config { action } => handle_config(action, &config).await,
         Commands::VsCode { action } => handle_vscode(action, &config).await,
         Commands::Diagnose { action } => handle_diagnose(action, &config).await,
