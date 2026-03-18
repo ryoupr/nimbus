@@ -2,8 +2,6 @@ use clap::Subcommand;
 
 mod config;
 mod connect;
-#[cfg(feature = "persistence")]
-mod database;
 mod diagnose;
 mod diagnostic_settings;
 mod fix;
@@ -15,8 +13,6 @@ mod vscode;
 
 pub use config::*;
 pub use connect::*;
-#[cfg(feature = "persistence")]
-pub use database::*;
 pub use diagnose::*;
 pub use diagnostic_settings::*;
 pub use fix::*;
@@ -357,42 +353,6 @@ pub enum DiagnosticSettingsCommands {
 }
 
 #[derive(Subcommand)]
-pub enum DatabaseCommands {
-    /// Initialize database
-    Init,
-
-    /// Show database information
-    Info,
-
-    /// List stored sessions
-    Sessions,
-
-    /// Show performance statistics
-    Stats {
-        /// Session ID (optional, shows all if not specified)
-        session_id: Option<String>,
-    },
-
-    /// Clean up old data
-    Cleanup {
-        /// Retention period in days
-        #[arg(short, long, default_value = "30")]
-        days: u32,
-    },
-
-    /// Export data
-    Export {
-        /// Output file path
-        #[arg(short, long)]
-        output: String,
-
-        /// Export format (json, csv)
-        #[arg(short, long, default_value = "json")]
-        format: String,
-    },
-}
-
-#[derive(Subcommand)]
 pub enum Commands {
     /// Connect to an EC2 instance
     Connect {
@@ -472,12 +432,6 @@ pub enum Commands {
         /// Perform comprehensive health check
         #[arg(short, long)]
         comprehensive: bool,
-    },
-
-    /// Database management commands
-    Database {
-        #[command(subcommand)]
-        action: DatabaseCommands,
     },
 
     /// Configuration management commands

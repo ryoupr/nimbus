@@ -33,9 +33,6 @@ pub enum NimbusError {
     #[error("TOML error: {0}")]
     Toml(String),
 
-    #[error("Database error: {0}")]
-    Database(String),
-
     #[error("Anyhow error: {0}")]
     Anyhow(String),
 
@@ -45,6 +42,7 @@ pub enum NimbusError {
 
 /// Configuration-related errors
 #[derive(Error, Debug, Clone)]
+#[allow(dead_code)]
 pub enum ConfigError {
     #[error("Invalid configuration: {message}")]
     Invalid { message: String },
@@ -178,12 +176,6 @@ impl From<serde_json::Error> for NimbusError {
 impl From<toml::de::Error> for NimbusError {
     fn from(err: toml::de::Error) -> Self {
         NimbusError::Toml(err.to_string())
-    }
-}
-
-impl From<rusqlite::Error> for NimbusError {
-    fn from(err: rusqlite::Error) -> Self {
-        NimbusError::Database(err.to_string())
     }
 }
 

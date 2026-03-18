@@ -5,7 +5,7 @@ use tracing::{error, info, warn};
 
 #[allow(unused_imports)]
 use super::{
-    ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands,
+    ConfigCommands, DiagnosticCommands, DiagnosticSettingsCommands,
     VsCodeCommands,
 };
 #[allow(unused_imports)]
