@@ -32,8 +32,6 @@ pub enum RecoveryStrategy {
     Retry(RecoveryConfig),
     /// Fallback to alternative method
     Fallback,
-    /// Graceful degradation
-    Degrade,
     /// Fail immediately
     Fail,
 }
@@ -65,12 +63,6 @@ impl ErrorRecoveryManager {
             // Configuration errors - try fallback
             NimbusError::Config(_) => RecoveryStrategy::Fallback,
 
-            // Resource errors - graceful degradation
-            NimbusError::Resource(_) => RecoveryStrategy::Degrade,
-
-            // UI errors - graceful degradation
-            NimbusError::Ui(_) => RecoveryStrategy::Degrade,
-
             // Critical errors - fail immediately
             _ => RecoveryStrategy::Fail,
         }
@@ -89,10 +81,6 @@ impl ErrorRecoveryManager {
             RecoveryStrategy::Fallback => {
                 warn!("Attempting fallback recovery for error: {}", error);
                 self.attempt_fallback_recovery(operation, error).await
-            }
-            RecoveryStrategy::Degrade => {
-                warn!("Graceful degradation for error: {}", error);
-                self.attempt_graceful_degradation(operation, error).await
             }
             RecoveryStrategy::Fail => {
                 error!("Non-recoverable error: {}", error);
@@ -157,124 +145,6 @@ impl ErrorRecoveryManager {
                             warn!(
                                 "Simple fallback retry attempt {} failed: {}",
                                 attempt, fallback_error
-                            );
-                            if attempt < 2 {
-                                sleep(Duration::from_millis(200)).await;
-                            }
-                        }
-                    }
-                }
-
-                Err(error.clone())
-            }
-        }
-    }
-
-    /// Attempt graceful degradation
-    async fn attempt_graceful_degradation<F, T>(
-        &self,
-        operation: F,
-        error: &NimbusError,
-    ) -> Result<T>
-    where
-        F: Fn() -> Result<T> + Send + Sync,
-        T: Send,
-    {
-        match error {
-            // Resource errors - try with reduced functionality
-            NimbusError::Resource(resource_error) => {
-                info!(
-                    "Attempting graceful degradation for resource error: {}",
-                    resource_error
-                );
-
-                // Wait for resources to potentially free up
-                sleep(Duration::from_secs(1)).await;
-
-                // Try operation again (assuming it will use reduced resources).
-                // If it still fails, do one more attempt after a brief delay.
-                for attempt in 1..=2u32 {
-                    match operation() {
-                        Ok(result) => {
-                            info!(
-                                "Graceful degradation successful - operating with reduced functionality (attempt {})",
-                                attempt
-                            );
-                            return Ok(result);
-                        }
-                        Err(degraded_error) => {
-                            warn!(
-                                "Graceful degradation attempt {} failed: {}",
-                                attempt, degraded_error
-                            );
-                            if attempt < 2 {
-                                sleep(Duration::from_millis(200)).await;
-                            }
-                        }
-                    }
-                }
-
-                Err(error.clone())
-            }
-
-            // UI errors - continue without UI enhancements
-            NimbusError::Ui(ui_error) => {
-                info!(
-                    "Graceful degradation for UI error: {} - continuing without enhanced UI",
-                    ui_error
-                );
-
-                // For UI errors, we might want to continue with basic functionality
-                // This is a placeholder - in a real implementation, we'd set a flag
-                // to disable UI enhancements and retry
-                sleep(Duration::from_millis(100)).await;
-
-                match operation() {
-                    Ok(result) => {
-                        info!("Continuing with basic UI functionality");
-                        Ok(result)
-                    }
-                    Err(_) => {
-                        warn!("Even basic functionality failed");
-                        Err(error.clone())
-                    }
-                }
-            }
-
-            // VS Code errors - continue without VS Code integration
-            NimbusError::VsCode(vscode_error) => {
-                info!("Graceful degradation for VS Code error: {} - continuing without VS Code integration", vscode_error);
-
-                // VS Code integration is optional, so we can continue without it
-                sleep(Duration::from_millis(100)).await;
-
-                match operation() {
-                    Ok(result) => {
-                        info!("Continuing without VS Code integration");
-                        Ok(result)
-                    }
-                    Err(_) => {
-                        warn!("Core functionality failed even without VS Code integration");
-                        Err(error.clone())
-                    }
-                }
-            }
-
-            // For other errors, try a conservative retry
-            _ => {
-                info!("Attempting conservative retry for: {}", error);
-                sleep(Duration::from_millis(1000)).await;
-
-                for attempt in 1..=2u32 {
-                    match operation() {
-                        Ok(result) => {
-                            info!("Conservative retry successful (attempt {})", attempt);
-                            return Ok(result);
-                        }
-                        Err(retry_error) => {
-                            warn!(
-                                "Conservative retry attempt {} failed: {}",
-                                attempt, retry_error
                             );
                             if attempt < 2 {
                                 sleep(Duration::from_millis(200)).await;

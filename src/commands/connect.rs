@@ -1,48 +1,19 @@
-#[allow(unused_imports)]
 use anyhow::Result;
-#[allow(unused_imports)]
 use tracing::{error, info, warn};
 
-#[allow(unused_imports)]
-use super::{
-    ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands,
-    VsCodeCommands,
-};
-#[allow(unused_imports)]
-use crate::aws_config_validator::{SuggestionCategory, SuggestionPriority};
-#[allow(unused_imports)]
-use crate::diagnostic::{DiagnosticStatus, Severity};
-#[allow(unused_imports)]
-use crate::preventive_check::PreventiveCheckStatus;
-#[allow(unused_imports)]
-use crate::realtime_feedback::{FeedbackConfig, FeedbackStatus};
-#[allow(unused_imports)]
-use crate::resource::ResourceViolation;
-#[allow(unused_imports)]
-use crate::session::{Session, SessionStatus};
-#[allow(unused_imports)]
-use crate::ui::{ResourceMetrics, TerminalUi};
-#[allow(unused_imports)]
+use crate::preventive_check;
 use crate::{
     auto_fix,
     aws::AwsManager,
-    aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator},
     config::Config,
-    diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager},
     error::NimbusError,
     error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager},
-    health::{DefaultHealthChecker, HealthChecker},
     logging::StructuredLogger,
     manager::{DefaultSessionManager, SessionManager},
     preventive_check::{DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig},
-    resource::ResourceMonitor,
     session::{SessionConfig, SessionPriority},
     user_messages::UserMessageSystem,
     vscode::VsCodeIntegration,
-};
-#[allow(unused_imports)]
-use crate::{
-    aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui,
 };
 
 /// Generic recovery wrapper that eliminates duplicated error-handling logic.
@@ -623,13 +594,17 @@ pub async fn handle_connect(
     Ok(())
 }
 
-pub async fn handle_list(_config: &Config) -> Result<()> {
+pub async fn handle_list(config: &Config) -> Result<()> {
     info!("Listing active sessions");
 
     println!("📋 Active Sessions:");
 
     // Create AWS manager to list sessions
-    let aws_manager = AwsManager::default().await?;
+    let aws_manager = AwsManager::new(
+        Some(config.aws.default_region.clone()),
+        config.aws.default_profile.clone(),
+    )
+    .await?;
 
     match aws_manager.list_active_sessions().await {
         Ok(sessions) => {
@@ -658,13 +633,17 @@ pub async fn handle_list(_config: &Config) -> Result<()> {
     Ok(())
 }
 
-pub async fn handle_terminate(session_id: String, _config: &Config) -> Result<()> {
+pub async fn handle_terminate(session_id: String, config: &Config) -> Result<()> {
     info!("Terminating session: {}", session_id);
 
     println!("🛑 Terminating session: {}", session_id);
 
     // Create AWS manager to terminate session
-    let aws_manager = AwsManager::default().await?;
+    let aws_manager = AwsManager::new(
+        Some(config.aws.default_region.clone()),
+        config.aws.default_profile.clone(),
+    )
+    .await?;
 
     match aws_manager.terminate_ssm_session(&session_id).await {
         Ok(_) => {
@@ -680,8 +659,12 @@ pub async fn handle_terminate(session_id: String, _config: &Config) -> Result<()
     Ok(())
 }
 
-pub async fn handle_status(session_id: Option<String>, _config: &Config) -> Result<()> {
-    let aws_manager = AwsManager::default().await?;
+pub async fn handle_status(session_id: Option<String>, config: &Config) -> Result<()> {
+    let aws_manager = AwsManager::new(
+        Some(config.aws.default_region.clone()),
+        config.aws.default_profile.clone(),
+    )
+    .await?;
 
     match session_id {
         Some(id) => {

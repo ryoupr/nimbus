@@ -139,6 +139,7 @@ impl Session {
             .unwrap_or(0)
     }
 
+    #[allow(dead_code)]
     pub fn resource_weight(&self) -> f64 {
         let base_weight = match self.priority {
             SessionPriority::Critical => 4.0,
@@ -200,6 +201,7 @@ impl SessionConfig {
 
 /// Session event enumeration for monitoring
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum SessionEvent {
     HealthDegraded(String),
     TimeoutPredicted(std::time::Duration),

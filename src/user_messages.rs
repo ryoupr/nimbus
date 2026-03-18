@@ -1,6 +1,4 @@
-use crate::error::{
-    AwsError, ConfigError, ConnectionError, NimbusError, ResourceError, SessionError, UiError,
-};
+use crate::error::{AwsError, ConfigError, ConnectionError, NimbusError, SessionError};
 use std::collections::HashMap;
 
 /// User-friendly error messages and help system
@@ -28,8 +26,6 @@ impl UserMessageSystem {
             NimbusError::Connection(connection_error) => {
                 self.handle_connection_error(connection_error)
             }
-            NimbusError::Resource(resource_error) => self.handle_resource_error(resource_error),
-            NimbusError::Ui(ui_error) => self.handle_ui_error(ui_error),
             _ => UserErrorMessage {
                 title: "予期しないエラー".to_string(),
                 message: error.to_string(),
