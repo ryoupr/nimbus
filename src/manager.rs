@@ -12,6 +12,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, warn};
 
 /// Resource usage information
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceUsage {
     pub memory_mb: f64,
@@ -19,6 +20,7 @@ pub struct ResourceUsage {
     pub active_sessions: u32,
 }
 /// Session manager trait for managing multiple sessions
+#[allow(dead_code)]
 pub trait SessionManager {
     fn create_session(
         &mut self,

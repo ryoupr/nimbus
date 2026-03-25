@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use anyhow::Result;
+use anyhow::{Context, Result};
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 
@@ -153,146 +153,125 @@ pub async fn handle_vscode(action: VsCodeCommands, config: &Config) -> Result<()
         }
 
         VsCodeCommands::Test { session_id } => {
-            info!("Testing VS Code integration");
-            println!("🧪 Testing VS Code Integration:");
+            info!("Testing VS Code integration (dry-run)");
+            println!("🧪 Testing VS Code Integration (dry-run):");
+            println!("  ℹ️  This test uses a temporary SSH config and will not modify your real SSH config.");
+            println!();
 
+            // Check integration status with the real config first
             match VsCodeIntegration::new(config.vscode.clone()) {
-                Ok(integration) => {
-                    // Check status first
-                    match integration.check_integration_status().await {
-                        Ok(status) => {
-                            if !status.is_fully_available() {
-                                println!("  ⚠️  Integration not fully available. Run 'vscode status' for details.");
-                                return Ok(());
-                            }
-
-                            // Create or use existing session for testing
-                            let test_session = match session_id {
-                                Some(id) => {
-                                    println!("  🔍 Using existing session: {}", id);
-                                    // In a real implementation, you would load the session from the session manager
-                                    // For now, create a mock session
-                                    session::Session {
-                                        id: id.clone(),
-                                        instance_id: "i-test123456789abcdef".to_string(),
-                                        local_port: 8080,
-                                        remote_port: 22,
-                                        remote_host: None,
-                                        status: session::SessionStatus::Active,
-                                        created_at: std::time::SystemTime::now(),
-                                        last_activity: std::time::SystemTime::now(),
-                                        process_id: Some(12345),
-                                        connection_count: 1,
-                                        data_transferred: 0,
-                                        aws_profile: None,
-                                        region: "us-east-1".to_string(),
-                                        priority: session::SessionPriority::Normal,
-                                        tags: std::collections::HashMap::new(),
-                                    }
-                                }
-                                None => {
-                                    println!("  🆕 Creating test session...");
-                                    session::Session {
-                                        id: "test-session-vscode".to_string(),
-                                        instance_id: "i-test123456789abcdef".to_string(),
-                                        local_port: 8080,
-                                        remote_port: 22,
-                                        remote_host: None,
-                                        status: session::SessionStatus::Active,
-                                        created_at: std::time::SystemTime::now(),
-                                        last_activity: std::time::SystemTime::now(),
-                                        process_id: Some(12345),
-                                        connection_count: 1,
-                                        data_transferred: 0,
-                                        aws_profile: None,
-                                        region: "us-east-1".to_string(),
-                                        priority: session::SessionPriority::Normal,
-                                        tags: std::collections::HashMap::new(),
-                                    }
-                                }
-                            };
-
-                            println!("  📋 Test Session Details:");
-                            println!("    Session ID: {}", test_session.id);
-                            println!("    Instance ID: {}", test_session.instance_id);
-                            println!("    Local Port: {}", test_session.local_port);
-                            println!("    Remote Port: {}", test_session.remote_port);
-                            println!();
-
-                            // Perform integration test
-                            match integration.integrate_session(&test_session).await {
-                                Ok(result) => {
-                                    println!("  📊 Integration Test Results:");
-                                    println!(
-                                        "    Overall Success: {}",
-                                        if result.success { "✅ Yes" } else { "❌ No" }
-                                    );
-                                    println!(
-                                        "    SSH Config Updated: {}",
-                                        if result.ssh_config_updated {
-                                            "✅ Yes"
-                                        } else {
-                                            "❌ No"
-                                        }
-                                    );
-                                    println!(
-                                        "    VS Code Launched: {}",
-                                        if result.vscode_launched {
-                                            "✅ Yes"
-                                        } else {
-                                            "❌ No"
-                                        }
-                                    );
-                                    println!(
-                                        "    Notification Sent: {}",
-                                        if result.notification_sent {
-                                            "✅ Yes"
-                                        } else {
-                                            "❌ No"
-                                        }
-                                    );
-
-                                    if let Some(connection_info) = &result.connection_info {
-                                        println!();
-                                        println!("  🔗 Connection Information:");
-                                        println!("    SSH Host: {}", connection_info.ssh_host);
-                                        println!(
-                                            "    Connection URL: {}",
-                                            connection_info.connection_url
-                                        );
-                                    }
-
-                                    if let Some(error) = &result.error_message {
-                                        println!();
-                                        println!("  ❌ Error Details: {}", error);
-                                    }
-
-                                    if result.success {
-                                        println!();
-                                        println!("  ✅ Integration test completed successfully!");
-                                        println!("  💡 You can now connect to the instance using:");
-                                        if let Some(connection_info) = &result.connection_info {
-                                            println!("     ssh {}", connection_info.ssh_host);
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("Integration test failed: {}", e);
-                                    println!("  ❌ Integration test failed: {}", e);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to check integration status: {}", e);
-                            println!("  ❌ Status check failed: {}", e);
+                Ok(integration) => match integration.check_integration_status().await {
+                    Ok(status) => {
+                        if !status.is_fully_available() {
+                            println!("  ⚠️  Integration not fully available. Run 'vscode status' for details.");
+                            return Ok(());
                         }
                     }
-                }
+                    Err(e) => {
+                        error!("Failed to check integration status: {}", e);
+                        println!("  ❌ Status check failed: {}", e);
+                        return Ok(());
+                    }
+                },
                 Err(e) => {
                     error!("Failed to initialize VS Code integration: {}", e);
                     println!("  ❌ Integration initialization failed: {}", e);
+                    return Ok(());
                 }
             }
+
+            // Create a temp SSH config for dry-run testing
+            let temp_ssh_config =
+                std::env::temp_dir().join(format!("nimbus-vscode-test-{}", std::process::id()));
+
+            let mut test_config = config.vscode.clone();
+            test_config.ssh_config_path = Some(temp_ssh_config.to_string_lossy().into_owned());
+            test_config.auto_launch_enabled = false;
+            test_config.notifications_enabled = false;
+
+            let test_integration =
+                VsCodeIntegration::new(test_config).context("Failed to create test integration")?;
+
+            let test_session_id = session_id.unwrap_or_else(|| "test-session-vscode".to_string());
+
+            println!("  🆕 Using test session: {}", test_session_id);
+
+            let test_session = session::Session {
+                id: test_session_id,
+                instance_id: "i-test123456789abcdef".to_string(),
+                local_port: 8080,
+                remote_port: 22,
+                remote_host: None,
+                status: session::SessionStatus::Active,
+                created_at: std::time::SystemTime::now(),
+                last_activity: std::time::SystemTime::now(),
+                process_id: Some(12345),
+                connection_count: 1,
+                data_transferred: 0,
+                aws_profile: None,
+                region: "us-east-1".to_string(),
+                priority: session::SessionPriority::Normal,
+                tags: std::collections::HashMap::new(),
+            };
+
+            println!("  📋 Test Session Details:");
+            println!("    Session ID: {}", test_session.id);
+            println!("    Instance ID: {}", test_session.instance_id);
+            println!("    Local Port: {}", test_session.local_port);
+            println!("    Remote Port: {}", test_session.remote_port);
+            println!();
+
+            // Perform integration test against temp SSH config
+            match test_integration.integrate_session(&test_session).await {
+                Ok(result) => {
+                    println!("  📊 Integration Test Results:");
+                    println!(
+                        "    SSH Config Write: {}",
+                        if result.ssh_config_updated {
+                            "✅ Success"
+                        } else {
+                            "❌ Failed"
+                        }
+                    );
+
+                    if let Some(connection_info) = &result.connection_info {
+                        println!();
+                        println!("  🔗 Connection Information:");
+                        println!("    SSH Host: {}", connection_info.ssh_host);
+                        println!("    Connection URL: {}", connection_info.connection_url);
+                    }
+
+                    // Show the SSH config entry that would be written
+                    if result.ssh_config_updated {
+                        if let Ok(content) = tokio::fs::read_to_string(&temp_ssh_config).await {
+                            println!();
+                            println!("  📝 SSH config entry that would be written:");
+                            for line in content.lines() {
+                                println!("    {}", line);
+                            }
+                        }
+                    }
+
+                    if let Some(error) = &result.error_message {
+                        println!();
+                        println!("  ❌ Error Details: {}", error);
+                    }
+
+                    if result.ssh_config_updated {
+                        println!();
+                        println!("  ✅ Integration test completed successfully!");
+                        println!(
+                            "  💡 Use 'nimbus connect --vscode' to integrate with a real session."
+                        );
+                    }
+                }
+                Err(e) => {
+                    error!("Integration test failed: {}", e);
+                    println!("  ❌ Integration test failed: {}", e);
+                }
+            }
+            // Clean up temp SSH config
+            let _ = tokio::fs::remove_file(&temp_ssh_config).await;
         }
 
         VsCodeCommands::Setup => {

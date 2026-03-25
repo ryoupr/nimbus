@@ -16,6 +16,7 @@ pub struct AwsManager {
 }
 
 /// AWS クライアントのエイリアス（Auto Reconnector で使用）
+#[allow(dead_code)]
 pub type AwsClient = AwsManager;
 
 /// SSM セッション情報
@@ -155,6 +156,7 @@ impl AwsManager {
     }
 
     /// セッションを作成（reconnect モジュール用スタブ）
+    #[allow(dead_code)]
     pub async fn create_session(
         &self,
         _config: crate::session::SessionConfig,
