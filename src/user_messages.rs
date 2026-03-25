@@ -109,7 +109,7 @@ impl UserMessageSystem {
                     "新しいセッションを作成してください".to_string(),
                     "アクティブなセッションのリストを確認".to_string(),
                 ],
-                help_command: Some("nimbus list-sessions".to_string()),
+                help_command: Some("nimbus list".to_string()),
             },
             SessionError::CreationFailed { reason } => UserErrorMessage {
                 title: "セッションの作成に失敗しました".to_string(),
@@ -132,10 +132,10 @@ impl UserMessageSystem {
                 severity: "medium".to_string(),
                 solutions: vec![
                     "不要なセッションを終了してください".to_string(),
-                    "nimbus list-sessions で確認".to_string(),
+                    "nimbus list で確認".to_string(),
                     "nimbus terminate <session-id> で終了".to_string(),
                 ],
-                help_command: Some("nimbus list-sessions".to_string()),
+                help_command: Some("nimbus list".to_string()),
             },
             SessionError::ResourceLimitExceeded { resource, .. } => UserErrorMessage {
                 title: "リソース制限に達しました".to_string(),
