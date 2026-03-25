@@ -1,14 +1,11 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::net::TcpListener;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime};
 use sysinfo::{Pid, System};
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
-use uuid::Uuid;
 
 use crate::diagnostic::{DiagnosticResult, Severity};
 
@@ -133,42 +130,6 @@ impl PortSuggestion {
     }
 }
 
-/// Port reservation to prevent conflicts
-#[derive(Debug)]
-pub struct PortReservation {
-    pub port: u16,
-    pub reserved_at: SystemTime,
-    pub reservation_id: String,
-    _listener: Option<TcpListener>,
-}
-
-impl PortReservation {
-    pub fn new(port: u16, listener: TcpListener) -> Self {
-        Self {
-            port,
-            reserved_at: SystemTime::now(),
-            reservation_id: Uuid::new_v4().to_string(),
-            _listener: Some(listener),
-        }
-    }
-
-    pub fn age(&self) -> Duration {
-        self.reserved_at.elapsed().unwrap_or(Duration::ZERO)
-    }
-}
-
-// Implement Clone for PortReservation (needed for the reservation system)
-impl Clone for PortReservation {
-    fn clone(&self) -> Self {
-        Self {
-            port: self.port,
-            reserved_at: self.reserved_at,
-            reservation_id: self.reservation_id.clone(),
-            _listener: None, // Don't clone the listener
-        }
-    }
-}
-
 /// Trait for port diagnostics implementations
 #[async_trait]
 pub trait PortDiagnostics {
@@ -177,32 +138,12 @@ pub trait PortDiagnostics {
         &self,
         port: u16,
     ) -> Result<PortInfo, Box<dyn std::error::Error>>;
-
-    /// Find the process using a specific port
-    async fn find_process_using_port(
-        &self,
-        port: u16,
-    ) -> Result<Option<ProcessInfo>, Box<dyn std::error::Error>>;
-
     /// Suggest alternative ports within a range
     async fn suggest_alternative_ports(
         &self,
         port: u16,
         range: u16,
     ) -> Result<PortSuggestion, Box<dyn std::error::Error>>;
-
-    /// Reserve a port to prevent conflicts
-    async fn reserve_port(
-        &mut self,
-        port: u16,
-    ) -> Result<PortReservation, Box<dyn std::error::Error>>;
-
-    /// Release a port reservation
-    async fn release_port(
-        &mut self,
-        reservation: PortReservation,
-    ) -> Result<(), Box<dyn std::error::Error>>;
-
     /// Run comprehensive port diagnostics
     async fn diagnose_port(&self, port: u16) -> DiagnosticResult;
 }
@@ -210,7 +151,6 @@ pub trait PortDiagnostics {
 /// Default implementation of port diagnostics
 pub struct DefaultPortDiagnostics {
     system: Arc<Mutex<System>>,
-    reservations: Arc<Mutex<HashMap<u16, PortReservation>>>,
 }
 
 impl DefaultPortDiagnostics {
@@ -220,7 +160,6 @@ impl DefaultPortDiagnostics {
 
         Self {
             system: Arc::new(Mutex::new(system)),
-            reservations: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -383,17 +322,6 @@ impl DefaultPortDiagnostics {
         available_ports.truncate(5);
         available_ports
     }
-
-    /// Clean up expired reservations
-    fn cleanup_expired_reservations(&self) {
-        let expiry_duration = Duration::from_secs(300); // 5 minutes
-
-        if let Ok(mut reservations) = self.reservations.lock() {
-            reservations.retain(|_port, reservation| {
-                reservation.reserved_at.elapsed().unwrap_or(Duration::ZERO) < expiry_duration
-            });
-        }
-    }
 }
 
 #[async_trait]
@@ -414,27 +342,6 @@ impl PortDiagnostics for DefaultPortDiagnostics {
             Ok(PortInfo::occupied(port, process_info))
         }
     }
-
-    async fn find_process_using_port(
-        &self,
-        port: u16,
-    ) -> Result<Option<ProcessInfo>, Box<dyn std::error::Error>> {
-        debug!("Finding process using port {}", port);
-
-        let process_info = self.get_process_info_by_port(port);
-
-        if let Some(ref info) = process_info {
-            info!(
-                "Found process using port {}: {} (PID: {})",
-                port, info.name, info.pid
-            );
-        } else {
-            debug!("No process found using port {}", port);
-        }
-
-        Ok(process_info)
-    }
-
     async fn suggest_alternative_ports(
         &self,
         port: u16,
@@ -468,72 +375,6 @@ impl PortDiagnostics for DefaultPortDiagnostics {
 
         Ok(PortSuggestion::new(port, available_ports, reason))
     }
-
-    async fn reserve_port(
-        &mut self,
-        port: u16,
-    ) -> Result<PortReservation, Box<dyn std::error::Error>> {
-        debug!("Attempting to reserve port {}", port);
-
-        // Clean up expired reservations first
-        self.cleanup_expired_reservations();
-
-        // Check if port is already reserved
-        if let Ok(reservations) = self.reservations.lock() {
-            if reservations.contains_key(&port) {
-                return Err(format!("Port {} is already reserved", port).into());
-            }
-        }
-
-        // Try to bind to the port
-        match TcpListener::bind(format!("127.0.0.1:{}", port)) {
-            Ok(listener) => {
-                let reservation = PortReservation::new(port, listener);
-                info!(
-                    "Successfully reserved port {} with ID {}",
-                    port, reservation.reservation_id
-                );
-
-                if let Ok(mut reservations) = self.reservations.lock() {
-                    reservations.insert(port, reservation.clone());
-                }
-                Ok(reservation)
-            }
-            Err(e) => {
-                error!("Failed to reserve port {}: {}", port, e);
-                Err(format!("Failed to reserve port {}: {}", port, e).into())
-            }
-        }
-    }
-
-    async fn release_port(
-        &mut self,
-        reservation: PortReservation,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        debug!("Releasing port reservation for port {}", reservation.port);
-
-        if let Ok(mut reservations) = self.reservations.lock() {
-            if let Some(removed_reservation) = reservations.remove(&reservation.port) {
-                if removed_reservation.reservation_id == reservation.reservation_id {
-                    info!(
-                        "Successfully released port reservation for port {}",
-                        reservation.port
-                    );
-                    // The TcpListener will be dropped automatically, releasing the port
-                    Ok(())
-                } else {
-                    warn!("Reservation ID mismatch for port {}", reservation.port);
-                    Err(format!("Reservation ID mismatch for port {}", reservation.port).into())
-                }
-            } else {
-                warn!("No reservation found for port {}", reservation.port);
-                Err(format!("No reservation found for port {}", reservation.port).into())
-            }
-        } else {
-            Err("Failed to acquire lock on reservations".into())
-        }
-    }
-
     async fn diagnose_port(&self, port: u16) -> DiagnosticResult {
         let start_time = Instant::now();
         info!("Running comprehensive port diagnostics for port {}", port);
@@ -676,7 +517,7 @@ mod tests {
         let diagnostics = DefaultPortDiagnostics::new();
 
         // Test that we can create the diagnostics instance
-        assert!(diagnostics.reservations.lock().unwrap().is_empty());
+        assert!(diagnostics.system.lock().is_ok());
     }
 
     #[tokio::test]
@@ -705,25 +546,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_port_reservation() {
-        let mut diagnostics = DefaultPortDiagnostics::new();
-
-        // Try to reserve a high port number that's likely available
-        let result = diagnostics.reserve_port(65431).await;
-
-        if result.is_ok() {
-            let reservation = result.unwrap();
-            assert_eq!(reservation.port, 65431);
-            assert!(!reservation.reservation_id.is_empty());
-
-            // Test releasing the reservation
-            let release_result = diagnostics.release_port(reservation).await;
-            assert!(release_result.is_ok());
-        }
-        // If the port is not available, that's also a valid test outcome
-    }
-
-    #[tokio::test]
     async fn test_port_diagnostics() {
         let diagnostics = DefaultPortDiagnostics::new();
 
@@ -731,7 +553,7 @@ mod tests {
         let result = diagnostics.diagnose_port(65430).await;
 
         assert_eq!(result.item_name, "local_port_availability");
-        assert!(result.duration > Duration::ZERO);
+        assert!(result.duration > std::time::Duration::ZERO);
         // The status depends on whether the port is actually available
     }
 }

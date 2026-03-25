@@ -1,49 +1,8 @@
-#[allow(unused_imports)]
 use anyhow::Result;
-#[allow(unused_imports)]
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
-#[allow(unused_imports)]
-use super::{
-    ConfigCommands, DatabaseCommands, DiagnosticCommands, DiagnosticSettingsCommands,
-    VsCodeCommands,
-};
-#[allow(unused_imports)]
-use crate::aws_config_validator::{SuggestionCategory, SuggestionPriority};
-#[allow(unused_imports)]
-use crate::diagnostic::{DiagnosticStatus, Severity};
-#[allow(unused_imports)]
-use crate::preventive_check::PreventiveCheckStatus;
-#[allow(unused_imports)]
-use crate::realtime_feedback::{FeedbackConfig, FeedbackStatus};
-#[allow(unused_imports)]
-use crate::resource::ResourceViolation;
-#[allow(unused_imports)]
-use crate::session::{Session, SessionStatus};
-#[allow(unused_imports)]
-use crate::ui::{ResourceMetrics, TerminalUi};
-#[allow(unused_imports)]
-use crate::{
-    auto_fix,
-    aws::AwsManager,
-    aws_config_validator::{AwsConfigValidationConfig, DefaultAwsConfigValidator},
-    config::Config,
-    diagnostic::{DefaultDiagnosticManager, DiagnosticConfig, DiagnosticManager},
-    error::NimbusError,
-    error_recovery::{ContextualError, ErrorContext, ErrorRecoveryManager},
-    health::{DefaultHealthChecker, HealthChecker},
-    logging::StructuredLogger,
-    manager::{DefaultSessionManager, SessionManager},
-    preventive_check::{DefaultPreventiveCheck, PreventiveCheck, PreventiveCheckConfig},
-    resource::ResourceMonitor,
-    session::{SessionConfig, SessionPriority},
-    user_messages::UserMessageSystem,
-    vscode::VsCodeIntegration,
-};
-#[allow(unused_imports)]
-use crate::{
-    aws_config_validator, diagnostic, preventive_check, realtime_feedback, resource, session, ui,
-};
+use crate::config::Config;
+use crate::{session, ui};
 
 pub async fn handle_tui(_config: &Config) -> Result<()> {
     info!("Launching Terminal UI");
@@ -98,8 +57,6 @@ pub async fn handle_tui(_config: &Config) -> Result<()> {
     let sample_metrics = ui::ResourceMetrics {
         memory_usage_mb: 8.5,
         cpu_usage_percent: 0.3,
-        active_sessions: 2,
-        total_connections: 5,
         uptime_seconds: 3600,
     };
     terminal_ui.update_metrics(sample_metrics);

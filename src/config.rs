@@ -553,6 +553,10 @@ impl Config {
             &mut self.vscode.ssh_identities_only,
             "NIMBUS_SSH_IDENTITIES_ONLY",
         )?;
+        env_override(
+            &mut self.vscode.strict_host_key_checking,
+            "NIMBUS_SSH_STRICT_HOST_KEY_CHECKING",
+        )?;
         Ok(())
     }
 
@@ -725,6 +729,35 @@ impl Config {
             );
         }
 
+        // Validate diagnostic configuration
+        if self.diagnostic.timeout_seconds == 0 {
+            anyhow::bail!("diagnostic.timeout_seconds must be greater than 0");
+        }
+
+        if self.diagnostic.port_scan_range == 0 {
+            anyhow::bail!("diagnostic.port_scan_range must be greater than 0");
+        }
+
+        if self.diagnostic.feedback_refresh_interval_ms == 0 {
+            anyhow::bail!("diagnostic.feedback_refresh_interval_ms must be greater than 0");
+        }
+
+        if self.diagnostic.feedback_refresh_interval_ms < 10 {
+            tracing::warn!(
+                "diagnostic.feedback_refresh_interval_ms is set to {}ms, which may cause high CPU usage",
+                self.diagnostic.feedback_refresh_interval_ms
+            );
+        }
+
+        let valid_report_formats = ["text", "json", "yaml"];
+        if !valid_report_formats.contains(&self.diagnostic.report_format.as_str()) {
+            anyhow::bail!(
+                "Invalid diagnostic.report_format '{}'. Must be one of: {}",
+                self.diagnostic.report_format,
+                valid_report_formats.join(", ")
+            );
+        }
+
         // Validate AWS configuration
         if self.aws.connection_timeout == 0 {
             anyhow::bail!("connection_timeout must be greater than 0");
@@ -871,6 +904,10 @@ impl Config {
             (
                 "NIMBUS_SSH_IDENTITIES_ONLY",
                 "Enable IdentitiesOnly for generated SSH config entry (true/false)",
+            ),
+            (
+                "NIMBUS_SSH_STRICT_HOST_KEY_CHECKING",
+                "StrictHostKeyChecking value for generated SSH config entry (default: accept-new)",
             ),
         ]
     }

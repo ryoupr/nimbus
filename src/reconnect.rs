@@ -1,5 +1,4 @@
 #![allow(async_fn_in_trait)]
-#![allow(dead_code)]
 
 use crate::aws::AwsClient;
 use crate::config::ReconnectionConfig;
@@ -538,7 +537,6 @@ impl AutoReconnector for DefaultAutoReconnector {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::config::ReconnectionConfig;
     use std::time::Duration;
 

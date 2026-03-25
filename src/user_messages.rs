@@ -1,6 +1,4 @@
-use crate::error::{
-    AwsError, ConfigError, ConnectionError, NimbusError, ResourceError, SessionError, UiError,
-};
+use crate::error::{AwsError, ConfigError, ConnectionError, NimbusError, SessionError};
 use std::collections::HashMap;
 
 /// User-friendly error messages and help system
@@ -9,21 +7,7 @@ pub struct UserMessageSystem {
 }
 
 #[derive(Debug, Clone)]
-pub struct HelpMessage {
-    pub title: String,
-    pub description: String,
-    pub solutions: Vec<Solution>,
-    pub related_docs: Vec<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Solution {
-    pub step: u32,
-    pub description: String,
-    pub command: Option<String>,
-    pub example: Option<String>,
-}
-
+pub struct HelpMessage {}
 impl UserMessageSystem {
     pub fn new() -> Self {
         let mut system = Self {
@@ -42,8 +26,6 @@ impl UserMessageSystem {
             NimbusError::Connection(connection_error) => {
                 self.handle_connection_error(connection_error)
             }
-            NimbusError::Resource(resource_error) => self.handle_resource_error(resource_error),
-            NimbusError::Ui(ui_error) => self.handle_ui_error(ui_error),
             _ => UserErrorMessage {
                 title: "予期しないエラー".to_string(),
                 message: error.to_string(),
@@ -189,90 +171,14 @@ impl UserMessageSystem {
         }
     }
 
-    fn handle_resource_error(&self, _error: &ResourceError) -> UserErrorMessage {
-        UserErrorMessage {
-            title: "リソースエラー".to_string(),
-            message: "リソースに問題があります".to_string(),
-            severity: "medium".to_string(),
-            solutions: vec!["システムリソースを確認してください".to_string()],
-            help_command: None,
-        }
-    }
-
-    fn handle_ui_error(&self, _error: &UiError) -> UserErrorMessage {
-        UserErrorMessage {
-            title: "UIエラー".to_string(),
-            message: "UI処理中にエラーが発生しました".to_string(),
-            severity: "low".to_string(),
-            solutions: vec!["アプリケーションを再起動してください".to_string()],
-            help_command: None,
-        }
-    }
-
     fn initialize_help_messages(&mut self) {
         // AWS認証のヘルプ
-        self.help_messages.insert(
-            "aws_auth".to_string(),
-            HelpMessage {
-                title: "AWS認証の設定".to_string(),
-                description: "Nimbusを使用するには、適切なAWS認証情報が必要です。".to_string(),
-                solutions: vec![
-                    Solution {
-                        step: 1,
-                        description: "AWS CLIをインストール".to_string(),
-                        command: Some("curl \"https://awscli.amazonaws.com/AWSCLIV2.pkg\" -o \"AWSCLIV2.pkg\"".to_string()),
-                        example: None,
-                    },
-                    Solution {
-                        step: 2,
-                        description: "AWS認証情報を設定".to_string(),
-                        command: Some("aws configure".to_string()),
-                        example: Some("Access Key ID, Secret Access Key, Region, Output formatを入力".to_string()),
-                    },
-                    Solution {
-                        step: 3,
-                        description: "認証情報を確認".to_string(),
-                        command: Some("aws sts get-caller-identity".to_string()),
-                        example: None,
-                    },
-                ],
-                related_docs: vec![
-                    "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html".to_string(),
-                ],
-            },
-        );
+        self.help_messages
+            .insert("aws_auth".to_string(), HelpMessage {});
 
         // セッション管理のヘルプ
-        self.help_messages.insert(
-            "session_management".to_string(),
-            HelpMessage {
-                title: "セッション管理".to_string(),
-                description: "EC2インスタンスへのSSMセッションを効率的に管理する方法。".to_string(),
-                solutions: vec![
-                    Solution {
-                        step: 1,
-                        description: "アクティブなセッションを確認".to_string(),
-                        command: Some("nimbus list-sessions".to_string()),
-                        example: None,
-                    },
-                    Solution {
-                        step: 2,
-                        description: "新しいセッションを作成".to_string(),
-                        command: Some("nimbus connect <instance-id>".to_string()),
-                        example: Some("nimbus connect i-1234567890abcdef0".to_string()),
-                    },
-                    Solution {
-                        step: 3,
-                        description: "セッションを終了".to_string(),
-                        command: Some("nimbus terminate <session-id>".to_string()),
-                        example: None,
-                    },
-                ],
-                related_docs: vec![
-                    "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html".to_string(),
-                ],
-            },
-        );
+        self.help_messages
+            .insert("session_management".to_string(), HelpMessage {});
     }
 }
 
@@ -314,17 +220,6 @@ impl UserErrorMessage {
         }
 
         output
-    }
-
-    /// Format error message for JSON output
-    pub fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "title": self.title,
-            "message": self.message,
-            "severity": self.severity,
-            "solutions": self.solutions,
-            "help_command": self.help_command
-        })
     }
 }
 
