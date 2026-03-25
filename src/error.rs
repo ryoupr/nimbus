@@ -106,6 +106,16 @@ pub enum VsCodeError {
     ConfigurationError { message: String },
 }
 
+/// Resource-related errors
+#[derive(Error, Debug, Clone)]
+#[allow(dead_code)]
+pub enum ResourceError {}
+
+/// UI-related errors
+#[derive(Error, Debug, Clone)]
+#[allow(dead_code)]
+pub enum UiError {}
+
 /// Result type alias for Nimbus operations
 pub type Result<T> = std::result::Result<T, NimbusError>;
 

@@ -1,4 +1,6 @@
-use crate::error::{AwsError, ConfigError, ConnectionError, NimbusError, SessionError};
+use crate::error::{
+    AwsError, ConfigError, ConnectionError, NimbusError, ResourceError, SessionError, UiError,
+};
 use std::collections::HashMap;
 
 /// User-friendly error messages and help system
@@ -168,6 +170,28 @@ impl UserMessageSystem {
                 solutions: issues.clone(),
                 help_command: Some("nimbus diagnose".to_string()),
             },
+        }
+    }
+
+    #[allow(dead_code)]
+    fn handle_resource_error(&self, error: &ResourceError) -> UserErrorMessage {
+        UserErrorMessage {
+            title: "リソースエラー".to_string(),
+            message: format!("リソースに問題があります: {}", error),
+            severity: "medium".to_string(),
+            solutions: vec!["システムリソースを確認してください".to_string()],
+            help_command: None,
+        }
+    }
+
+    #[allow(dead_code)]
+    fn handle_ui_error(&self, error: &UiError) -> UserErrorMessage {
+        UserErrorMessage {
+            title: "UIエラー".to_string(),
+            message: format!("UI処理中にエラーが発生しました: {}", error),
+            severity: "low".to_string(),
+            solutions: vec!["アプリケーションを再起動してください".to_string()],
+            help_command: None,
         }
     }
 
