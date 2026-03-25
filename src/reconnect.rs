@@ -157,6 +157,9 @@ impl DefaultAutoReconnector {
             use winapi::um::processthreadsapi::{GetExitCodeProcess, OpenProcess};
             use winapi::um::winnt::PROCESS_QUERY_INFORMATION;
 
+            // SAFETY: `pid` is a valid process ID obtained from `child.id()`.
+            // `OpenProcess` returns null on failure (checked immediately after).
+            // `CloseHandle` is called on every path to prevent handle leaks.
             unsafe {
                 let handle = OpenProcess(PROCESS_QUERY_INFORMATION, 0, pid);
                 if handle.is_null() {
@@ -430,6 +433,9 @@ impl AutoReconnector for DefaultAutoReconnector {
                     use winapi::um::processthreadsapi::{OpenProcess, TerminateProcess};
                     use winapi::um::winnt::PROCESS_TERMINATE;
 
+                    // SAFETY: `pid` is a valid process ID obtained from `child.id()`.
+                    // `OpenProcess` returns null on failure (checked before use).
+                    // `CloseHandle` is called after `TerminateProcess` to prevent handle leaks.
                     unsafe {
                         let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
                         if !handle.is_null() {
